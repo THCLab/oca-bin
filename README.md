@@ -1,6 +1,6 @@
-# OCAtool
+# OCA bin
 
-Tool to work with OCA ekosystem
+Command line tool to work with OCA objects
 - convert ocafile into oca bundle
 
 
