@@ -15,6 +15,12 @@ extern crate dirs;
 #[macro_use]
 extern crate log;
 
+
+const OCA_CACHE_DB_DIR: &str = "oca_cache";
+const OCA_REPOSITORY_DIR: &str = "oca_repository";
+const OCA_INDEX_DIR: &str = "read_db";
+
+
 #[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -24,6 +30,11 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Show configuration where data are stored
+    Config {
+        #[arg(short, long)]
+        local_repository_path: Option<String>,
+    },
     /// Build oca objects out of ocafile
     Build {
         #[arg(short, long)]
@@ -61,18 +72,16 @@ enum Commands {
 }
 
 fn create_or_open_local_storage(path: PathBuf) -> SledDataStorage {
-    // TODO use PathBuf in SqlConfig to be more platform independent
    let config = SledDataStorageConfig::build().path(path).unwrap();
-
    SledDataStorage::new()
                 .config(config)
 }
 
 
 fn get_oca_facade(local_repository_path: PathBuf) -> Facade {
-    let db = create_or_open_local_storage(local_repository_path.join("oca_repository"));
-    let cache = create_or_open_local_storage(local_repository_path.join("oca_cache"));
-    let cache_storage_config = SQLiteConfig::build().path(local_repository_path.join("read_db")).unwrap();
+    let db = create_or_open_local_storage(local_repository_path.join(OCA_REPOSITORY_DIR));
+    let cache = create_or_open_local_storage(local_repository_path.join(OCA_CACHE_DB_DIR));
+    let cache_storage_config = SQLiteConfig::build().path(local_repository_path.join(OCA_INDEX_DIR)).unwrap();
     Facade::new(Box::new(db), Box::new(cache), cache_storage_config)
 }
 
@@ -96,6 +105,13 @@ fn main() {
 
 
     match &args.command {
+        Some(Commands::Config { local_repository_path } ) => {
+            info!("Configuration of oca");
+            let path = get_repository_path(local_repository_path);
+            println!("Local repository: {:?} ", path.join(OCA_REPOSITORY_DIR));
+            println!("OCA Cache: {:?} ", path.join(OCA_CACHE_DB_DIR));
+            println!("Index DB: {:?}", path.join(OCA_INDEX_DIR));
+        }
         Some(Commands::Build { file, local_repository_path }) => {
             info!("Building OCA bundle from oca file");
 
