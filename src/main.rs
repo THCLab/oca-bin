@@ -9,6 +9,7 @@ use oca_rs::repositories::SQLiteConfig;
 
 use oca_rs::data_storage::SledDataStorage;
 use oca_rs::data_storage::DataStorage;
+use reqwest;
 
 extern crate dirs;
 
@@ -26,26 +27,26 @@ const OCA_INDEX_DIR: &str = "read_db";
 struct Args {
     #[command(subcommand)]
     command: Option<Commands>,
+    #[arg(short, long)]
+    local_repository_path: Option<String>,
 }
 
 #[derive(Subcommand)]
 enum Commands {
     /// Show configuration where data are stored
     Config {
-        #[arg(short, long)]
-        local_repository_path: Option<String>,
     },
     /// Build oca objects out of ocafile
     Build {
         #[arg(short, long)]
         file: Option<String>,
-        #[arg(short, long)]
-        local_repository_path: Option<String>,
     },
     /// Publish oca objects into online repository
     Publish {
         #[arg(short, long)]
-        repository: String,
+        repository_url: String,
+        #[arg(short, long)]
+        said: String,
     },
     /// Sign specific object to claim ownership
     Sign {
@@ -55,18 +56,12 @@ enum Commands {
     Show {
         #[arg(short, long)]
         said: String,
-        #[arg(short, long)]
-        local_repository_path: Option<String>,
     },
     Get {
         #[arg(short, long)]
         said: String,
-        #[arg(short, long)]
-        local_repository_path: Option<String>,
     },
     List {
-        #[arg(short, long)]
-        local_repository_path: Option<String>,
     }
 
 }
@@ -85,34 +80,29 @@ fn get_oca_facade(local_repository_path: PathBuf) -> Facade {
     Facade::new(Box::new(db), Box::new(cache), cache_storage_config)
 }
 
-fn get_repository_path(local_repository_path: &Option<String>) -> PathBuf {
-
-    let path = match local_repository_path {
-        None => {
-            let mut p = dirs::home_dir().unwrap();
-            p.push(".ocatool");
-            Some(p)
-        },
-        Some(p) => Some(PathBuf::from(p)),
-    };
-    path.unwrap()
-}
-
 fn main() {
     env_logger::init();
 
     let args = Args::parse();
 
+    let local_repository_path = match &args.local_repository_path {
+        Some(v) => PathBuf::from(v),
+        None => {
+            let mut p = dirs::home_dir().unwrap();
+            p.push(".ocatool");
+            p
+        }
+    };
+
 
     match &args.command {
-        Some(Commands::Config { local_repository_path } ) => {
+        Some(Commands::Config { } ) => {
             info!("Configuration of oca");
-            let path = get_repository_path(local_repository_path);
-            println!("Local repository: {:?} ", path.join(OCA_REPOSITORY_DIR));
-            println!("OCA Cache: {:?} ", path.join(OCA_CACHE_DB_DIR));
-            println!("Index DB: {:?}", path.join(OCA_INDEX_DIR));
+            println!("Local repository: {:?} ", local_repository_path.join(OCA_REPOSITORY_DIR));
+            println!("OCA Cache: {:?} ", local_repository_path.join(OCA_CACHE_DB_DIR));
+            println!("Index DB: {:?}", local_repository_path.join(OCA_INDEX_DIR));
         }
-        Some(Commands::Build { file, local_repository_path }) => {
+        Some(Commands::Build { file }) => {
             info!("Building OCA bundle from oca file");
 
             let unparsed_file = match file {
@@ -120,8 +110,7 @@ fn main() {
                 None => fs::read_to_string("OCAfile").expect("Can't read file"),
             };
 
-            let path = get_repository_path(local_repository_path);
-            let mut facade = get_oca_facade(path);
+            let mut facade = get_oca_facade(local_repository_path);
             // build from ocafile does everything including storing that in db
             // maybe we could get better naming for it
             let result = facade.build_from_ocafile(unparsed_file);
@@ -134,28 +123,40 @@ fn main() {
                 println!("{:?}", result);
             }
         }
-        Some(Commands::Publish { repository: _ }) => {
+        Some(Commands::Publish { repository_url, said }) => {
             info!("Publish OCA bundle to repository");
-            unimplemented!("Coming soon!")
+            let facade = get_oca_facade(local_repository_path);
+            match facade.get_oca_bundle_ocafile(said.to_string()) {
+             Ok(ocafile) => {
+                 let client = reqwest::blocking::Client::new();
+                 let api_url = format!("{}{}", repository_url, "/api/oca-bundles");
+                 info!("Repository: {}", api_url);
+                 match client.post(api_url).body(ocafile).send() {
+                     Ok(v) => println!("{:?}", v.text() ),
+                     Err(e) => println!("Error while uploading OCAFILE: {}",e)
+                 };
+             }
+             Err(errors) => {
+                println!("{:?}", errors);
+             }
+            }
         }
         Some(Commands::Sign { scid: _ }) => {
             info!("Sign OCA bundle byc SCID");
             unimplemented!("Coming soon!")
         }
-        Some(Commands::List { local_repository_path }) => {
+        Some(Commands::List { }) => {
             info!("List OCA object from local repository");
-            let path = get_repository_path(local_repository_path);
-            let facade = get_oca_facade(path);
+            let facade = get_oca_facade(local_repository_path);
             let result = facade.fetch_all_oca_bundle(10, 1).unwrap().records;
             info!("Found {}, results", result.len());
             for bundle in result {
                 println!("SAID: {}", bundle.said.unwrap());
             }
         }
-        Some(Commands::Show { said, local_repository_path } )=> {
+        Some(Commands::Show { said } )=> {
             info!("Search for OCA object in local repository");
-            let path = get_repository_path(local_repository_path);
-            let facade = get_oca_facade(path);
+            let facade = get_oca_facade(local_repository_path);
             match facade.get_oca_bundle_ocafile(said.to_string()) {
              Ok(ocafile) => {
                 println!("{}", ocafile);
@@ -165,9 +166,8 @@ fn main() {
              }
             }
         }
-        Some(Commands::Get { said, local_repository_path }) => {
-            let path = get_repository_path(local_repository_path);
-            let facade = get_oca_facade(path);
+        Some(Commands::Get { said }) => {
+            let facade = get_oca_facade(local_repository_path);
             match facade.get_oca_bundle(said.to_string()) {
              Ok(oca_bundle) => {
                  let content = serde_json::to_value(oca_bundle).expect("Field to read oca bundle");
