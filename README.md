@@ -3,11 +3,11 @@
 Command line tool to work with OCA objects
 
 
-## How to use 
+## How to use
 
 Run:
 
-./oca --help 
+./oca --help
 
 WIP:
 - pull and push oca object from/to oca repository
