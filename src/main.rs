@@ -169,9 +169,7 @@ fn init_or_read_config() -> Config {
 }
 
 fn main() {
-    env_logger::Builder::new()
-        .filter(None, log::LevelFilter::Info)
-        .init();
+    env_logger::init();
 
     let args = Args::parse();
 
