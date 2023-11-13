@@ -78,14 +78,17 @@ enum Commands {
         #[arg(short, long)]
         scid: String,
     },
+    /// Show ocafile for specify said
     Show {
         #[arg(short, long)]
         said: String,
     },
+    /// Get oca bundle for specify said
     Get {
         #[arg(short, long)]
         said: String,
     },
+    /// List of all oca objects stored in local repository
     List {
     }
 
