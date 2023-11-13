@@ -259,9 +259,20 @@ fn main() {
             info!("List OCA object from local repository: {:?}", local_repository_path);
             let facade = get_oca_facade(local_repository_path);
             let result = facade.fetch_all_oca_bundle(10, 1).unwrap().records;
-            info!("Found {}, results", result.len());
+            let refs = facade.fetch_all_refs().unwrap();
+            info!("Found {}, references", result.len());
+            info!("Found {}, objects", result.len());
             for bundle in result {
-                println!("SAID: {}", bundle.said.unwrap());
+                let said = bundle.said.unwrap();
+                let matching_ref = refs.iter().find(|&(_, v)| *v == said.to_string());
+                match matching_ref {
+                    Some((refs, _)) => {
+                        println!("SAID: {}, name: {}", said, refs);
+                    },
+                    None => {
+                        println!("SAID: {}", said);
+                    }
+                }
             }
         }
         Some(Commands::Show { said } )=> {
