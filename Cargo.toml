@@ -17,7 +17,7 @@ path = "src/main.rs"
 dirs = "5.0.1"
 clap = { version = "4.0.29", features = ["derive"] }
 log = "0.4.20"
-oca-rs = { version = "0.3.6", path = "../oca-rs/oca", features = ["local-references"] }
+oca-rs = { version = "0.3.6", features = ["local-references"] }
 env_logger = "0.10.0"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
