@@ -69,7 +69,7 @@ enum Commands {
     /// Publish oca objects into online repository
     Publish {
         #[arg(short, long)]
-        repository_url: String,
+        repository_url: Option<String>,
         #[arg(short, long)]
         said: String,
     },
@@ -186,7 +186,9 @@ fn main() {
     //
 
     let config = init_or_read_config();
+    info!("Config: {:?}", config);
     let local_repository_path = config.local_repository_path;
+    let remote_repo_url = config.remote_repo_url;
 
 
 
@@ -239,8 +241,16 @@ fn main() {
             match facade.get_oca_bundle_ocafile(said.to_string()) {
              Ok(ocafile) => {
                  let client = reqwest::blocking::Client::new();
-                 let api_url = format!("{}{}", repository_url, "/api/oca-bundles");
-                 info!("Repository: {}", api_url);
+                 let api_url = if let Some(repository_url) = repository_url {
+                     info!("Override default repository with: {}", repository_url);
+                     format!("{}{}", repository_url, "/api/oca-bundles")
+                 } else if let Some(remote_repo_url) = remote_repo_url {
+                     info!("Use default repository: {}", remote_repo_url);
+                     format!("{}{}", remote_repo_url, "/api/oca-bundles")
+                 } else {
+                     panic!("No repository url provided")
+
+                 };
                  match client.post(api_url).body(ocafile).send() {
                      Ok(v) => println!("{:?}", v.text() ),
                      Err(e) => println!("Error while uploading OCAFILE: {}",e)
