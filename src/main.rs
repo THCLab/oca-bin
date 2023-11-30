@@ -245,16 +245,17 @@ fn main() {
                  let client = reqwest::blocking::Client::new();
                  let api_url = if let Some(repository_url) = repository_url {
                      info!("Override default repository with: {}", repository_url);
-                     format!("{}{}", repository_url, "/api/oca-bundles")
+                     format!("{}{}", repository_url, "/oca-bundles")
                  } else if let Some(remote_repo_url) = remote_repo_url {
                      info!("Use default repository: {}", remote_repo_url);
-                     format!("{}{}", remote_repo_url, "/api/oca-bundles")
+                     format!("{}{}", remote_repo_url, "/oca-bundles")
                  } else {
                      panic!("No repository url provided")
 
                  };
+                 debug!("Publish OCA bundle to: {} with payload: {}", api_url, ocafile);
                  match client.post(api_url).body(ocafile).send() {
-                     Ok(v) => println!("{:?}", v.text() ),
+                     Ok(v) => println!("{},{}", v.status(), v.text().unwrap() ),
                      Err(e) => println!("Error while uploading OCAFILE: {}",e)
                  };
              }
