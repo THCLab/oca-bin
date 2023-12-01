@@ -84,6 +84,8 @@ enum Commands {
         said: String,
         #[arg(short, long)]
         ast: bool,
+        #[arg(short, long)]
+        dereference: bool,
     },
     /// Get oca bundle for specify said
     Get {
@@ -240,7 +242,8 @@ fn main() {
         Some(Commands::Publish { repository_url, said }) => {
             info!("Publish OCA bundle to repository");
             let facade = get_oca_facade(local_repository_path);
-            match facade.get_oca_bundle_ocafile(said.to_string()) {
+            let dereference = true;
+            match facade.get_oca_bundle_ocafile(said.to_string(), dereference) {
              Ok(ocafile) => {
                  let client = reqwest::blocking::Client::new();
                  let api_url = if let Some(repository_url) = repository_url {
@@ -288,21 +291,20 @@ fn main() {
                 }
             }
         }
-        Some(Commands::Show { said, ast } )=> {
+        Some(Commands::Show { said, ast, dereference } )=> {
             info!("Search for OCA object in local repository");
             let facade = get_oca_facade(local_repository_path);
             if *ast  {
-                match facade.get_oca_bundle(said.to_string()) {
-                    Ok(oca_bundle) => {
-                        let ast = oca_bundle.to_ast();
-                        serde_json::to_writer_pretty(std::io::stdout(), &ast).expect("Faild to format oca ast");
+                match facade.get_oca_bundle_ast(said.to_string()) {
+                    Ok(oca_ast) => {
+                        serde_json::to_writer_pretty(std::io::stdout(), &oca_ast).expect("Faild to format oca ast");
                     },
                     Err(errors) => {
                         println!("{:?}", errors);
                     }
                 }
             } else {
-                match facade.get_oca_bundle_ocafile(said.to_string()) {
+                match facade.get_oca_bundle_ocafile(said.to_string(), *dereference) {
                     Ok(ocafile) => {
                         println!("{}", ocafile);
                     },
