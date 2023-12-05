@@ -234,7 +234,7 @@ fn main() {
             if let Ok(oca_bundle) = result {
                 let serialized_bundle = serde_json::to_string_pretty(&oca_bundle).unwrap();
                 fs::write("output".to_string() + ".ocabundle", serialized_bundle).expect("Unable to write file");
-                println!("OCA bundle created in local repository with SCID: {:?}", oca_bundle.said.unwrap());
+                println!("OCA bundle created in local repository with SAID: {:?}", oca_bundle.said.unwrap());
             } else {
                 println!("{:?}", result);
             }
@@ -274,21 +274,30 @@ fn main() {
         Some(Commands::List { }) => {
             info!("List OCA object from local repository: {:?}", local_repository_path);
             let facade = get_oca_facade(local_repository_path);
-            let result = facade.fetch_all_oca_bundle(10, 1).unwrap().records;
+            let mut result = facade.fetch_all_oca_bundle(10, 1).unwrap();
+            let meta = result.metadata;
+            let mut count = 0;
+            info!("Found {} objects", meta.total);
             let refs = facade.fetch_all_refs().unwrap();
-            info!("Found {}, references", result.len());
-            info!("Found {}, objects", result.len());
-            for bundle in result {
-                let said = bundle.said.unwrap();
-                let matching_ref = refs.iter().find(|&(_, v)| *v == said.to_string());
-                match matching_ref {
-                    Some((refs, _)) => {
-                        println!("SAID: {}, name: {}", said, refs);
-                    },
-                    None => {
-                        println!("SAID: {}", said);
+            loop {
+                if count == meta.total {
+                    break;
+                }
+                let records = result.records;
+                count = count + records.len();
+                for bundle in records {
+                    let said = bundle.said.unwrap();
+                    let matching_ref = refs.iter().find(|&(_, v)| *v == said.to_string());
+                    match matching_ref {
+                        Some((refs, _)) => {
+                            println!("SAID: {}, name: {}", said, refs);
+                        },
+                        None => {
+                            println!("SAID: {}", said);
+                        }
                     }
                 }
+                result = facade.fetch_all_oca_bundle(10, meta.page + 1).unwrap();
             }
         }
         Some(Commands::Show { said, ast, dereference } )=> {
