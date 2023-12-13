@@ -325,7 +325,7 @@ fn main() {
         }
         Some(Commands::Get { said }) => {
             let facade = get_oca_facade(local_repository_path);
-            match facade.get_oca_bundle(said.to_string()) {
+            match facade.get_oca_bundle(said.to_string(), true) {
              Ok(oca_bundle) => {
                  let content = serde_json::to_value(oca_bundle).expect("Field to read oca bundle");
                  println!("{}", serde_json::to_string_pretty(&content).expect("Faild to format oca bundle"));
