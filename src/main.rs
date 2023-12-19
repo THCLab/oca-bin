@@ -262,14 +262,20 @@ fn main() {
             };
 
             let mut facade = get_oca_facade(local_repository_path);
-            // build from ocafile does everything including storing that in db
+            // TODO build from ocafile does everything including storing that in db
             // maybe we could get better naming for it
             let result = facade.build_from_ocafile(unparsed_file);
 
             if let Ok(oca_bundle) = result {
                 let serialized_bundle = serde_json::to_string_pretty(&oca_bundle).unwrap();
                 fs::write("output".to_string() + ".ocabundle", serialized_bundle).expect("Unable to write file");
-                println!("OCA bundle created in local repository with SAID: {:?}", oca_bundle.said.unwrap());
+                let refs = facade.fetch_all_refs().unwrap();
+                let schema_name = refs.iter().find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
+                if let Some((refs, _)) = schema_name {
+                    println!("OCA bundle created in local repository with SAID: {} and name: {}", oca_bundle.said.unwrap(), refs);
+                } else {
+                    println!("OCA bundle created in local repository with SAID: {:?}", oca_bundle.said.unwrap());
+                }
             } else {
                 println!("{:?}", result);
             }
