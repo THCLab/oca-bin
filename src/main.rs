@@ -4,6 +4,7 @@ use std::io;
 use std::io::Write;
 use std::path::PathBuf;
 use std::process;
+use std::str::FromStr;
 
 use clap::Parser as ClapParser;
 use clap::Subcommand;
@@ -13,7 +14,7 @@ use oca_rs::repositories::SQLiteConfig;
 
 use oca_rs::data_storage::SledDataStorage;
 use oca_rs::data_storage::DataStorage;
-use reqwest;
+use said::SelfAddressingIdentifier;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -156,8 +157,8 @@ fn ask_for_confirmation(prompt: &str) -> bool {
 /// * `said` - SAID of oca bundle to publish
 ///
 ///
-fn publish_oca_file_for(facade: &Facade, said: String, repository_url: &Option<String>, remote_repo_url: &Option<String>) {
-    match facade.get_oca_bundle_ocafile(said, true) {
+fn publish_oca_file_for(facade: &Facade, said: SelfAddressingIdentifier, repository_url: &Option<String>, remote_repo_url: &Option<String>) {
+    match facade.get_oca_bundle_ocafile(said, false) {
         Ok(ocafile) => {
             let client = reqwest::blocking::Client::new();
             let api_url = if let Some(repository_url) = repository_url {
@@ -283,13 +284,19 @@ fn main() {
         Some(Commands::Publish { repository_url, said }) => {
             info!("Publish OCA bundle to repository");
             let facade = get_oca_facade(local_repository_path);
-            // TODO since we can fetch all dependencies we should publish them all
-            let bundle = facade.get_oca_bundle(said.to_string(), false).unwrap().last().unwrap().clone();
-            publish_oca_file_for(&facade, bundle.said.clone().unwrap().to_string(), repository_url, &remote_repo_url);
-            let references = facade.get_all_references(bundle.said.clone().unwrap().to_string());
-            debug!("Found references: {:?}", references);
-            for said in references {
-                publish_oca_file_for(&facade, said, repository_url, &remote_repo_url);
+            let said = SelfAddressingIdentifier::from_str(said);
+            match said {
+                Ok(said) => {
+                    let with_dependencies = true;
+                    let bundles = facade.get_oca_bundle(said, with_dependencies).unwrap();
+                    for bundle in bundles {
+                        publish_oca_file_for(&facade, bundle.said.clone().unwrap(), repository_url, &remote_repo_url);
+                    }
+                },
+                Err(err) => {
+                    println!("Invalid SAID: {}", err);
+                    process::exit(1);
+                }
             }
         }
         Some(Commands::Sign { scid: _ }) => {
@@ -328,36 +335,54 @@ fn main() {
         Some(Commands::Show { said, ast, dereference } )=> {
             info!("Search for OCA object in local repository");
             let facade = get_oca_facade(local_repository_path);
-            if *ast  {
-                match facade.get_oca_bundle_ast(said.to_string()) {
-                    Ok(oca_ast) => {
-                        serde_json::to_writer_pretty(std::io::stdout(), &oca_ast).expect("Faild to format oca ast");
-                    },
-                    Err(errors) => {
-                        println!("{:?}", errors);
+            let said = SelfAddressingIdentifier::from_str(said);
+            match said {
+                Ok(said) => {
+                    if *ast  {
+                        match facade.get_oca_bundle_ast(said) {
+                            Ok(oca_ast) => {
+                                serde_json::to_writer_pretty(std::io::stdout(), &oca_ast).expect("Faild to format oca ast");
+                            },
+                            Err(errors) => {
+                                println!("{:?}", errors);
+                            }
+                        }
+                    } else {
+                        match facade.get_oca_bundle_ocafile(said, *dereference) {
+                            Ok(ocafile) => {
+                                println!("{}", ocafile);
+                            },
+                            Err(errors) => {
+                                println!("{:?}", errors);
+                            }
+                        }
                     }
-                }
-            } else {
-                match facade.get_oca_bundle_ocafile(said.to_string(), *dereference) {
-                    Ok(ocafile) => {
-                        println!("{}", ocafile);
-                    },
-                    Err(errors) => {
-                        println!("{:?}", errors);
-                    }
+                },
+                Err(err) => {
+                    println!("Invalid SAID: {}", err);
+                    process::exit(1);
                 }
             }
         }
         Some(Commands::Get { said, with_dependencies }) => {
             let facade = get_oca_facade(local_repository_path);
-            match facade.get_oca_bundle(said.to_string(), *with_dependencies) {
-             Ok(oca_bundles) => {
-                 let content = serde_json::to_value(oca_bundles).expect("Field to read oca bundle");
-                 println!("{}", serde_json::to_string_pretty(&content).expect("Faild to format oca bundle"));
-             },
-             Err(errors) => {
-                println!("{:?}", errors);
-             }
+            let said = SelfAddressingIdentifier::from_str(said);
+            match said {
+                Ok(said) => {
+                    match facade.get_oca_bundle(said, *with_dependencies) {
+                        Ok(oca_bundles) => {
+                            let content = serde_json::to_value(oca_bundles).expect("Field to read oca bundle");
+                            println!("{}", serde_json::to_string_pretty(&content).expect("Faild to format oca bundle"));
+                        },
+                        Err(errors) => {
+                            println!("{:?}", errors);
+                        }
+                    }
+                },
+                Err(err) => {
+                    println!("Invalid SAID: {}", err);
+                    process::exit(1);
+                }
             }
         }
         None => {}
