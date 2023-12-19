@@ -150,6 +150,39 @@ fn ask_for_confirmation(prompt: &str) -> bool {
     input == "y" || input == "yes"
 }
 
+/// Publish oca bundle pointed by SAID to configured repository
+///
+/// # Arguments
+/// * `said` - SAID of oca bundle to publish
+///
+///
+fn publish_oca_file_for(facade: &Facade, said: String, repository_url: &Option<String>, remote_repo_url: &Option<String>) {
+    match facade.get_oca_bundle_ocafile(said, true) {
+        Ok(ocafile) => {
+            let client = reqwest::blocking::Client::new();
+            let api_url = if let Some(repository_url) = repository_url {
+                info!("Override default repository with: {}", repository_url);
+                format!("{}{}", repository_url, "/oca-bundles")
+            } else if let Some(remote_repo_url) = remote_repo_url {
+                info!("Use default repository: {}", remote_repo_url);
+                format!("{}{}", remote_repo_url, "/oca-bundles")
+            } else {
+                panic!("No repository url provided")
+
+            };
+            debug!("Publish OCA bundle to: {} with payload: {}", api_url, ocafile);
+            match client.post(api_url).body(ocafile).send() {
+                Ok(v) => println!("{},{}", v.status(), v.text().unwrap() ),
+                Err(e) => println!("Error while uploading OCAFILE: {}",e)
+            };
+        }
+        Err(errors) => {
+            println!("{:?}", errors);
+        }
+    }
+
+}
+
 fn init_or_read_config() -> Config {
 
     let local_config_path = env::current_dir().unwrap().join(OCA_DIR_NAME).join("config.toml");
@@ -244,29 +277,13 @@ fn main() {
         Some(Commands::Publish { repository_url, said }) => {
             info!("Publish OCA bundle to repository");
             let facade = get_oca_facade(local_repository_path);
-            let dereference = true;
-            match facade.get_oca_bundle_ocafile(said.to_string(), dereference) {
-             Ok(ocafile) => {
-                 let client = reqwest::blocking::Client::new();
-                 let api_url = if let Some(repository_url) = repository_url {
-                     info!("Override default repository with: {}", repository_url);
-                     format!("{}{}", repository_url, "/oca-bundles")
-                 } else if let Some(remote_repo_url) = remote_repo_url {
-                     info!("Use default repository: {}", remote_repo_url);
-                     format!("{}{}", remote_repo_url, "/oca-bundles")
-                 } else {
-                     panic!("No repository url provided")
-
-                 };
-                 debug!("Publish OCA bundle to: {} with payload: {}", api_url, ocafile);
-                 match client.post(api_url).body(ocafile).send() {
-                     Ok(v) => println!("{},{}", v.status(), v.text().unwrap() ),
-                     Err(e) => println!("Error while uploading OCAFILE: {}",e)
-                 };
-             }
-             Err(errors) => {
-                println!("{:?}", errors);
-             }
+            // TODO since we can fetch all dependencies we should publish them all
+            let bundle = facade.get_oca_bundle(said.to_string(), false).unwrap().last().unwrap().clone();
+            publish_oca_file_for(&facade, bundle.said.clone().unwrap().to_string(), repository_url, &remote_repo_url);
+            let references = facade.get_all_references(bundle.said.clone().unwrap().to_string());
+            debug!("Found references: {:?}", references);
+            for said in references {
+                publish_oca_file_for(&facade, said, repository_url, &remote_repo_url);
             }
         }
         Some(Commands::Sign { scid: _ }) => {
