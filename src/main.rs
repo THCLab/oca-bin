@@ -91,6 +91,8 @@ enum Commands {
     Get {
         #[arg(short, long)]
         said: String,
+        #[arg(short, long)]
+        with_dependencies: bool,
     },
     /// List of all oca objects stored in local repository
     List {
@@ -323,11 +325,11 @@ fn main() {
                 }
             }
         }
-        Some(Commands::Get { said }) => {
+        Some(Commands::Get { said, with_dependencies }) => {
             let facade = get_oca_facade(local_repository_path);
-            match facade.get_oca_bundle(said.to_string(), true) {
-             Ok(oca_bundle) => {
-                 let content = serde_json::to_value(oca_bundle).expect("Field to read oca bundle");
+            match facade.get_oca_bundle(said.to_string(), *with_dependencies) {
+             Ok(oca_bundles) => {
+                 let content = serde_json::to_value(oca_bundles).expect("Field to read oca bundle");
                  println!("{}", serde_json::to_string_pretty(&content).expect("Faild to format oca bundle"));
              },
              Err(errors) => {
