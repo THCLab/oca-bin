@@ -306,7 +306,6 @@ fn main() {
                 let unparsed_file = fs::read_to_string(path).expect("Can't read file");
                 let result = facade.build_from_ocafile(unparsed_file);
                 if let Ok(oca_bundle) = result {
-                    let serialized_bundle = serde_json::to_string_pretty(&oca_bundle).unwrap();
                     let refs = facade.fetch_all_refs().unwrap();
                     let schema_name = refs.iter().find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
                     if let Some((refs, _)) = schema_name {
