@@ -1,3 +1,7 @@
+# 0.4.0-rc.3
+
+Allow to build ocafile from directory
+
 # 0.4.0-rc.2
 
 Add support for oca presentation
