@@ -68,9 +68,14 @@ enum Commands {
     Config {
     },
     /// Build oca objects out of ocafile
+    #[clap(group = clap::ArgGroup::new("build").required(true).args(&["ocafile", "directory"]))]
     Build {
-        #[arg(short, long)]
-        file: Option<String>,
+        /// Specify ocafile to build from
+        #[arg(short = 'f', long, group = "build")]
+        ocafile: Option<String>,
+        /// Build oca objects from directory (recursive)
+        #[arg(short, long, group = "build")]
+        directory: Option<String>,
     },
     /// Publish oca objects into online repository
     Publish {
@@ -272,31 +277,47 @@ fn main() {
             println!("OCA Cache: {:?} ", local_repository_path.join(OCA_CACHE_DB_DIR));
             println!("Index DB: {:?}", local_repository_path.join(OCA_INDEX_DIR));
         }
-        Some(Commands::Build { file }) => {
-            info!("Building OCA bundle from oca file");
-
-            let unparsed_file = match file {
-                Some(file) => fs::read_to_string(file).expect("Can't read file"),
-                None => fs::read_to_string("OCAfile").expect("Can't read file"),
-            };
+        Some(Commands::Build { ocafile, directory }) => {
+            let mut paths = Vec::new();
+            if let Some(directory) = directory {
+                info!("Building OCA bundle from directory");
+                for entry in fs::read_dir(directory).unwrap() {
+                    let entry = entry.unwrap();
+                    let path = entry.path();
+                    if path.is_dir() {
+                        continue;
+                    }
+                    if let Some(ext) = path.extension() {
+                        if ext == "ocafile" {
+                            paths.push(path);
+                        }
+                    }
+                }
+            } else if let Some(file) = ocafile {
+                info!("Building OCA bundle from oca file");
+                paths.push(PathBuf::from(file));
+            } else {
+                println!("No file or directory provided");
+                process::exit(1);
+            }
 
             let mut facade = get_oca_facade(local_repository_path);
-            // TODO build from ocafile does everything including storing that in db
-            // maybe we could get better naming for it
-            let result = facade.build_from_ocafile(unparsed_file);
-
-            if let Ok(oca_bundle) = result {
-                let serialized_bundle = serde_json::to_string_pretty(&oca_bundle).unwrap();
-                fs::write("output".to_string() + ".ocabundle", serialized_bundle).expect("Unable to write file");
-                let refs = facade.fetch_all_refs().unwrap();
-                let schema_name = refs.iter().find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
-                if let Some((refs, _)) = schema_name {
-                    println!("OCA bundle created in local repository with SAID: {} and name: {}", oca_bundle.said.unwrap(), refs);
+            for path in paths {
+                let unparsed_file = fs::read_to_string(path).expect("Can't read file");
+                let result = facade.build_from_ocafile(unparsed_file);
+                if let Ok(oca_bundle) = result {
+                    let serialized_bundle = serde_json::to_string_pretty(&oca_bundle).unwrap();
+                    fs::write("output".to_string() + ".ocabundle", serialized_bundle).expect("Unable to write file");
+                    let refs = facade.fetch_all_refs().unwrap();
+                    let schema_name = refs.iter().find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
+                    if let Some((refs, _)) = schema_name {
+                        println!("OCA bundle created in local repository with SAID: {} and name: {}", oca_bundle.said.unwrap(), refs);
+                    } else {
+                        println!("OCA bundle created in local repository with SAID: {:?}", oca_bundle.said.unwrap());
+                    }
                 } else {
-                    println!("OCA bundle created in local repository with SAID: {:?}", oca_bundle.said.unwrap());
+                    println!("{:?}", result);
                 }
-            } else {
-                println!("{:?}", result);
             }
         }
         Some(Commands::Publish { repository_url, said }) => {
