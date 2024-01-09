@@ -6,6 +6,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process;
 use std::str::FromStr;
+use walkdir::WalkDir;
 
 use clap::Parser as ClapParser;
 use clap::Subcommand;
@@ -281,15 +282,14 @@ fn main() {
             let mut paths = Vec::new();
             if let Some(directory) = directory {
                 info!("Building OCA bundle from directory");
-                for entry in fs::read_dir(directory).unwrap() {
-                    let entry = entry.unwrap();
+                for entry in WalkDir::new(directory).into_iter().filter_map(|e| e.ok()) {
                     let path = entry.path();
                     if path.is_dir() {
                         continue;
                     }
                     if let Some(ext) = path.extension() {
                         if ext == "ocafile" {
-                            paths.push(path);
+                            paths.push(path.to_path_buf());
                         }
                     }
                 }
@@ -307,7 +307,6 @@ fn main() {
                 let result = facade.build_from_ocafile(unparsed_file);
                 if let Ok(oca_bundle) = result {
                     let serialized_bundle = serde_json::to_string_pretty(&oca_bundle).unwrap();
-                    fs::write("output".to_string() + ".ocabundle", serialized_bundle).expect("Unable to write file");
                     let refs = facade.fetch_all_refs().unwrap();
                     let schema_name = refs.iter().find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
                     if let Some((refs, _)) = schema_name {
