@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::io;
@@ -8,6 +9,8 @@ use std::str::FromStr;
 
 use clap::Parser as ClapParser;
 use clap::Subcommand;
+use isolang::Language;
+use oca_presentation::presentation;
 use oca_rs::Facade;
 use oca_rs::data_storage::SledDataStorageConfig;
 use oca_rs::repositories::SQLiteConfig;
@@ -17,6 +20,8 @@ use oca_rs::data_storage::DataStorage;
 use said::SelfAddressingIdentifier;
 use serde::Deserialize;
 use serde::Serialize;
+use said::sad::SAD;
+
 
 extern crate dirs;
 
@@ -97,6 +102,19 @@ enum Commands {
     },
     /// List of all oca objects stored in local repository
     List {
+    },
+    /// Generate or parse presentaiton for oca object
+    Presentation {
+        #[arg(short, long)]
+        said: String,
+        /// Generate default presentation layout for give oca bundle
+        #[arg(short, long)]
+        auto_generate: bool,
+        #[arg(short, long)]
+        from_file: Option<String>,
+        /// If not specify default is stdout
+        #[arg(short, long)]
+        output: Option<String>,
     }
 
 }
@@ -289,7 +307,10 @@ fn main() {
                 Ok(said) => {
                     let with_dependencies = true;
                     let bundles = facade.get_oca_bundle(said, with_dependencies).unwrap();
-                    for bundle in bundles {
+                    // Publish main object
+                    publish_oca_file_for(&facade, bundles.bundle.said.clone().unwrap(), repository_url, &remote_repo_url);
+                    // Publish dependencies if available
+                    for bundle in bundles.dependencies {
                         publish_oca_file_for(&facade, bundle.said.clone().unwrap(), repository_url, &remote_repo_url);
                     }
                 },
@@ -312,11 +333,12 @@ fn main() {
             info!("Found {} objects", meta.total);
             let refs = facade.fetch_all_refs().unwrap();
             loop {
-                if count == meta.total {
+                if count >= meta.total {
                     break;
                 }
                 let records = result.records;
-                count = count + records.len();
+                count += records.len();
+                info!("Found {} objects", count);
                 for bundle in records {
                     let said = bundle.said.unwrap();
                     let matching_ref = refs.iter().find(|&(_, v)| *v == said.to_string());
@@ -373,6 +395,69 @@ fn main() {
                         Ok(oca_bundles) => {
                             let content = serde_json::to_value(oca_bundles).expect("Field to read oca bundle");
                             println!("{}", serde_json::to_string_pretty(&content).expect("Faild to format oca bundle"));
+                        },
+                        Err(errors) => {
+                            println!("{:?}", errors);
+                        }
+                    }
+                },
+                Err(err) => {
+                    println!("Invalid SAID: {}", err);
+                    process::exit(1);
+                }
+            }
+        }
+        Some(Commands::Presentation { said, auto_generate, from_file, output } ) => {
+            let said = SelfAddressingIdentifier::from_str(said);
+            match said {
+                Ok(said) => {
+                    let facade = get_oca_facade(local_repository_path);
+                    match facade.get_oca_bundle(said, true) {
+                        Ok(oca_bundles) => {
+                            let bundle = oca_bundles.bundle;
+                            let attributes = bundle.capture_base.attributes.clone();
+
+                            for (name, attr) in attributes {
+                                println!("{}: {:?}", name, attr);
+                            }
+
+                            let mut pages = BTreeMap::new();
+                            pages.insert("main".to_string(), vec!["attr_1".to_string()]);
+
+                            let mut pages_label = BTreeMap::new();
+                            let mut pages_label_en = BTreeMap::new();
+                            pages_label_en.insert("pageY".to_string(), "Page Y".to_string());
+                            pages_label_en.insert("pageZ".to_string(), "Page Z".to_string());
+                            // Generate for all available languages
+                            pages_label.insert(Language::Eng, pages_label_en);
+
+
+                            let mut presentation_base = presentation::Presentation {
+                                bundle_digest: bundle.said.clone().unwrap(),
+                                    said: None,
+                                    pages,
+                                    pages_order: vec!["pageY".to_string(), "pageZ".to_string()],
+                                    pages_label,
+                                    interaction: vec![presentation::Interaction {
+                                        interaction_method: presentation::InteractionMethod::Web,
+                                        context: presentation::Context::Capture,
+                                        attr_properties: vec![(
+                                            "attr_1".to_string(),
+                                            presentation::Properties {
+                                                type_: presentation::AttrType::TextArea,
+                                            },
+                                        )]
+                                            .into_iter()
+                                            .collect(),
+                                    }]
+                            };
+                            presentation_base.compute_digest();
+
+                            println!(
+                                "{}",
+                                serde_json::to_string_pretty(&presentation_base).unwrap()
+                            );
+
                         },
                         Err(errors) => {
                             println!("{:?}", errors);

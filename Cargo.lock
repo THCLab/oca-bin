@@ -1182,7 +1182,9 @@ dependencies = [
  "clap 4.4.11",
  "dirs",
  "env_logger",
+ "isolang",
  "log",
+ "oca-presentation",
  "oca-rs",
  "reqwest",
  "rusqlite",
@@ -1194,14 +1196,17 @@ dependencies = [
 
 [[package]]
 name = "oca-ast"
-version = "0.3.7"
+version = "0.4.1-rc.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0138356a116eb1f69ac2b986f56749fbc78e01ec7931324b6ceaa86db2e55254"
+checksum = "15bae864eef893df8cd7428ae413d30e433356b8938a1f916c8eb38d8bd67431"
 dependencies = [
  "env_logger",
  "indexmap 1.9.3",
  "log",
+ "recursion",
+ "said",
  "serde",
+ "serde-wasm-bindgen",
  "serde_json",
  "strum",
  "strum_macros",
@@ -1211,9 +1216,9 @@ dependencies = [
 
 [[package]]
 name = "oca-bundle"
-version = "0.3.7"
+version = "0.4.1-rc.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10002e026f46cab2bc480104131cc27c37f1f21aed7d918fdda884809bfa2e31"
+checksum = "f8bfde45621e900c8d9b2c3fb45917e0ce3274f68d6266bc0bf39312bcb3f5e4"
 dependencies = [
  "cascade",
  "convert_case",
@@ -1240,9 +1245,9 @@ dependencies = [
 
 [[package]]
 name = "oca-dag"
-version = "0.3.7"
+version = "0.4.1-rc.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6d8b3eba197741998ced27d321de0caf17944116b5e3316106759ee6c1ff1fe"
+checksum = "ca2d9b9fa5d818c740e8ae61464d61e1494cd40069b5e3aba5e5b5954b5fa4a8"
 dependencies = [
  "dyn-clonable",
  "indexmap 1.9.3",
@@ -1257,9 +1262,9 @@ dependencies = [
 
 [[package]]
 name = "oca-file"
-version = "0.3.7"
+version = "0.4.1-rc.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c576e51e24be8692bc2ea6f79a0370d6e67e0d7049af16c7efd5ee093e023641"
+checksum = "9dff19ce287e7d3f889da2777cf6389e569be64b9747583ef651a505ee1eda6e"
 dependencies = [
  "clap 4.4.11",
  "convert_case",
@@ -1270,6 +1275,7 @@ dependencies = [
  "pest",
  "pest_derive",
  "pretty_assertions",
+ "recursion",
  "said",
  "serde",
  "serde_json",
@@ -1278,19 +1284,33 @@ dependencies = [
 ]
 
 [[package]]
-name = "oca-rs"
-version = "0.3.7"
+name = "oca-presentation"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5495fcee6ecb45dea12198c5cf69fa5ba97929d3f1851a1c306c7bf53651d3a"
+checksum = "653beff42a20269f532bd98acd530f24a0fdf7909f6d6aabd16e6d93ea3d300c"
+dependencies = [
+ "isolang",
+ "said",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "oca-rs"
+version = "0.4.1-rc.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1abd29fa708d328ee4ecd7f785f156b48917b2a0f414108a72e9d10caf9469f9"
 dependencies = [
  "dyn-clonable",
  "isolang",
+ "log",
  "oca-ast",
  "oca-bundle",
  "oca-dag",
  "oca-file",
  "regex",
  "rusqlite",
+ "said",
  "serde",
  "serde_json",
  "sled",
@@ -1571,6 +1591,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "recursion"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f53e857b2b1b92a9265c645b3d5aa76d8435f81d06af5ca08f9027b1225351c2"
+
+[[package]]
 name = "redox_syscall"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1838,6 +1864,17 @@ checksum = "f3a1a3341211875ef120e117ea7fd5228530ae7e7036a779fdc9117be6b3282c"
 dependencies = [
  "ordered-float",
  "serde",
+]
+
+[[package]]
+name = "serde-wasm-bindgen"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9b713f70513ae1f8d92665bbbbda5c295c2cf1da5542881ae5eefe20c9af132"
+dependencies = [
+ "js-sys",
+ "serde",
+ "wasm-bindgen",
 ]
 
 [[package]]
