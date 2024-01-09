@@ -1,3 +1,17 @@
+# 0.4.0-rc.2
+
+Add support for oca presentation
+Add support f
+listing
+feat: publish all dependencies at once
+feat: add with dependency flag for fetching all bundles at once
+feat: always dereference local references for oca bundle
+feat: support for pages in list
+feat: support dereference of refn for
+fix: publish endpoint
+feat: Add possibility to display ast for given said
+fix: handle properly remote repo configuration
+
 # 0.3.0
 
 15-11-2023
