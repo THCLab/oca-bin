@@ -1177,7 +1177,7 @@ dependencies = [
 
 [[package]]
 name = "oca"
-version = "0.4.0-rc.3"
+version = "0.4.0-rc.4"
 dependencies = [
  "clap 4.4.11",
  "dirs",

@@ -1,3 +1,7 @@
+# 0.4.0-rc.4
+
+Support recursive scaning of the directory while building from dir
+
 # 0.4.0-rc.3
 
 Allow to build ocafile from directory
