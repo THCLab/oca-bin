@@ -1,11 +1,15 @@
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
+use std::fs::File;
 use std::io;
 use std::io::Write;
 use std::path::PathBuf;
 use std::process;
 use std::str::FromStr;
+use oca_presentation::page::Page;
+use oca_presentation::page::PageElement;
+use oca_presentation::presentation::Presentation;
 use walkdir::WalkDir;
 
 use clap::Parser as ClapParser;
@@ -22,7 +26,6 @@ use said::SelfAddressingIdentifier;
 use serde::Deserialize;
 use serde::Serialize;
 use said::sad::SAD;
-
 
 extern crate dirs;
 
@@ -112,15 +115,15 @@ enum Commands {
     /// Generate or parse presentaiton for oca object
     Presentation {
         #[arg(short, long)]
-        said: String,
+        said: Option<String>,
         /// Generate default presentation layout for give oca bundle
         #[arg(short, long)]
         auto_generate: bool,
         #[arg(short, long)]
-        from_file: Option<String>,
+        from_file: Option<PathBuf>,
         /// If not specify default is stdout
         #[arg(short, long)]
-        output: Option<String>,
+        output: Option<PathBuf>,
     }
 
 }
@@ -427,7 +430,22 @@ fn main() {
             }
         }
         Some(Commands::Presentation { said, auto_generate, from_file, output } ) => {
-            let said = SelfAddressingIdentifier::from_str(said);
+            match from_file {
+                Some(path) => {
+                    // load file
+                    let file = fs::read_to_string(path).expect("Should have been able to read the file");
+                    // deserialize presentation
+                    let mut pres: Presentation = serde_json::from_str(&file).unwrap();
+                    // compute digest and insert in `d`
+                    pres.compute_digest();
+                    // save to file
+                    let out_path = if let Some(out) = output {out} else {path};
+                    let mut file = File::create(out_path).unwrap();
+                    file.write_all(serde_json::to_string_pretty(&pres).unwrap().as_bytes()).unwrap();
+                },
+                None => todo!(),
+            };
+            let said = SelfAddressingIdentifier::from_str(said.as_ref().unwrap());
             match said {
                 Ok(said) => {
                     let facade = get_oca_facade(local_repository_path);
@@ -440,8 +458,7 @@ fn main() {
                                 println!("{}: {:?}", name, attr);
                             }
 
-                            let mut pages = BTreeMap::new();
-                            pages.insert("main".to_string(), vec!["attr_1".to_string()]);
+                            let page = Page { name: "main".to_string(), attribute_order: vec![PageElement::Value("attr_1".to_string())] };
 
                             let mut pages_label = BTreeMap::new();
                             let mut pages_label_en = BTreeMap::new();
@@ -454,7 +471,7 @@ fn main() {
                             let mut presentation_base = presentation::Presentation {
                                 bundle_digest: bundle.said.clone().unwrap(),
                                     said: None,
-                                    pages,
+                                    pages: vec![page],
                                     pages_order: vec!["pageY".to_string(), "pageZ".to_string()],
                                     pages_label,
                                     interaction: vec![presentation::Interaction {
