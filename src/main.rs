@@ -1,3 +1,4 @@
+use error::CliError;
 use std::env;
 use std::fs;
 use std::fs::File;
@@ -6,17 +7,16 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process;
 use std::str::FromStr;
-use error::CliError;
 use walkdir::WalkDir;
 
 use clap::Parser as ClapParser;
 use clap::Subcommand;
-use oca_rs::Facade;
 use oca_rs::data_storage::SledDataStorageConfig;
 use oca_rs::repositories::SQLiteConfig;
+use oca_rs::Facade;
 
-use oca_rs::data_storage::SledDataStorage;
 use oca_rs::data_storage::DataStorage;
+use oca_rs::data_storage::SledDataStorage;
 use said::SelfAddressingIdentifier;
 use serde::Deserialize;
 use serde::Serialize;
@@ -26,17 +26,13 @@ extern crate dirs;
 #[macro_use]
 extern crate log;
 
-pub mod presentation_command;
 pub mod error;
-
+pub mod presentation_command;
 
 const OCA_CACHE_DB_DIR: &str = "oca_cache";
 const OCA_REPOSITORY_DIR: &str = "oca_repository";
 const OCA_INDEX_DIR: &str = "read_db";
 const OCA_DIR_NAME: &str = ".oca";
-
-
-
 
 #[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
@@ -65,11 +61,9 @@ impl Config {
 #[derive(Subcommand)]
 enum Commands {
     /// Initialize new local repository
-    Init {
-    },
+    Init {},
     /// Show configuration where data are stored
-    Config {
-    },
+    Config {},
     /// Build oca objects out of ocafile
     #[clap(group = clap::ArgGroup::new("build").required(true).args(&["ocafile", "directory"]))]
     Build {
@@ -109,14 +103,12 @@ enum Commands {
         with_dependencies: bool,
     },
     /// List of all oca objects stored in local repository
-    List {
-    },
+    List {},
     /// Generate or parse presentation for oca object
     Presentation {
         #[command(subcommand)]
         command: PresentationCommand,
     },
-
 }
 
 #[derive(Subcommand)]
@@ -131,7 +123,7 @@ enum PresentationCommand {
         from_file: PathBuf,
         #[arg(short, long)]
         output: Option<PathBuf>,
-    }
+    },
 }
 
 use std::io::Error;
@@ -163,16 +155,16 @@ fn write_default_config(path: &PathBuf) -> Result<Config, Error> {
 }
 
 fn create_or_open_local_storage(path: PathBuf) -> SledDataStorage {
-   let config = SledDataStorageConfig::build().path(path).unwrap();
-   SledDataStorage::new()
-                .config(config)
+    let config = SledDataStorageConfig::build().path(path).unwrap();
+    SledDataStorage::new().config(config)
 }
-
 
 fn get_oca_facade(local_repository_path: PathBuf) -> Facade {
     let db = create_or_open_local_storage(local_repository_path.join(OCA_REPOSITORY_DIR));
     let cache = create_or_open_local_storage(local_repository_path.join(OCA_CACHE_DB_DIR));
-    let cache_storage_config = SQLiteConfig::build().path(local_repository_path.join(OCA_INDEX_DIR)).unwrap();
+    let cache_storage_config = SQLiteConfig::build()
+        .path(local_repository_path.join(OCA_INDEX_DIR))
+        .unwrap();
     Facade::new(Box::new(db), Box::new(cache), cache_storage_config)
 }
 
@@ -181,7 +173,9 @@ fn ask_for_confirmation(prompt: &str) -> bool {
     io::stdout().flush().unwrap();
 
     let mut input = String::new();
-    io::stdin().read_line(&mut input).expect("Failed to read line");
+    io::stdin()
+        .read_line(&mut input)
+        .expect("Failed to read line");
 
     let input = input.trim().to_lowercase();
     input == "y" || input == "yes"
@@ -193,7 +187,12 @@ fn ask_for_confirmation(prompt: &str) -> bool {
 /// * `said` - SAID of oca bundle to publish
 ///
 ///
-fn publish_oca_file_for(facade: &Facade, said: SelfAddressingIdentifier, repository_url: &Option<String>, remote_repo_url: &Option<String>) {
+fn publish_oca_file_for(
+    facade: &Facade,
+    said: SelfAddressingIdentifier,
+    repository_url: &Option<String>,
+    remote_repo_url: &Option<String>,
+) {
     match facade.get_oca_bundle_ocafile(said, false) {
         Ok(ocafile) => {
             let client = reqwest::blocking::Client::new();
@@ -205,33 +204,39 @@ fn publish_oca_file_for(facade: &Facade, said: SelfAddressingIdentifier, reposit
                 format!("{}{}", remote_repo_url, "/oca-bundles")
             } else {
                 panic!("No repository url provided")
-
             };
-            debug!("Publish OCA bundle to: {} with payload: {}", api_url, ocafile);
+            debug!(
+                "Publish OCA bundle to: {} with payload: {}",
+                api_url, ocafile
+            );
             match client.post(api_url).body(ocafile).send() {
-                Ok(v) => println!("{},{}", v.status(), v.text().unwrap() ),
-                Err(e) => println!("Error while uploading OCAFILE: {}",e)
+                Ok(v) => println!("{},{}", v.status(), v.text().unwrap()),
+                Err(e) => println!("Error while uploading OCAFILE: {}", e),
             };
         }
         Err(errors) => {
             println!("{:?}", errors);
         }
     }
-
 }
 
 fn init_or_read_config() -> Config {
-
-    let local_config_path = env::current_dir().unwrap().join(OCA_DIR_NAME).join("config.toml");
+    let local_config_path = env::current_dir()
+        .unwrap()
+        .join(OCA_DIR_NAME)
+        .join("config.toml");
     if local_config_path.is_file() {
         read_config(&local_config_path).unwrap()
     } else {
         // Try to read home directory configuration
-        let p = dirs::home_dir().unwrap().join(OCA_DIR_NAME).join("config.toml");
+        let p = dirs::home_dir()
+            .unwrap()
+            .join(OCA_DIR_NAME)
+            .join("config.toml");
         match read_config(&p) {
             Ok(config) => return config,
             Err(_) => {
-             if ask_for_confirmation("OCA config not found do you want to initialize it in your home directory? (y/N)") {
+                if ask_for_confirmation("OCA config not found do you want to initialize it in your home directory? (y/N)") {
                 write_default_config(&p).unwrap()
              } else {
                 println!("Consider runing oca init in this directory to initialize local repository");
@@ -239,8 +244,6 @@ fn init_or_read_config() -> Config {
              }
             }
         }
-
-
     }
     // Check currnet path
     // Check home
@@ -251,7 +254,6 @@ fn main() -> Result<(), CliError> {
     env_logger::init();
 
     let args = Args::parse();
-
 
     // Any command triggered
     // Check if config exist if not ask user to initialize the repo
@@ -266,10 +268,8 @@ fn main() -> Result<(), CliError> {
     let local_repository_path = config.local_repository_path;
     let remote_repo_url = config.remote_repo_url;
 
-
-
     match &args.command {
-        Some(Commands::Init { } ) => {
+        Some(Commands::Init {}) => {
             info!("Initialize local repository");
             match env::current_dir() {
                 Ok(path) => {
@@ -282,15 +282,22 @@ fn main() -> Result<(), CliError> {
                         Err(err) => {
                             println!("{}", err);
                             Err(CliError::WriteFileFailed(err))
-                        },
-                    }                },
+                        }
+                    }
+                }
                 Err(err) => Err(CliError::CurrentDirFailed(err)),
             }
         }
-        Some(Commands::Config { } ) => {
+        Some(Commands::Config {}) => {
             info!("Configuration of oca");
-            println!("Local repository: {:?} ", local_repository_path.join(OCA_REPOSITORY_DIR));
-            println!("OCA Cache: {:?} ", local_repository_path.join(OCA_CACHE_DB_DIR));
+            println!(
+                "Local repository: {:?} ",
+                local_repository_path.join(OCA_REPOSITORY_DIR)
+            );
+            println!(
+                "OCA Cache: {:?} ",
+                local_repository_path.join(OCA_CACHE_DB_DIR)
+            );
             println!("Index DB: {:?}", local_repository_path.join(OCA_INDEX_DIR));
             Ok(())
         }
@@ -320,18 +327,32 @@ fn main() -> Result<(), CliError> {
             let mut facade = get_oca_facade(local_repository_path);
             for path in paths {
                 let unparsed_file = fs::read_to_string(path).map_err(CliError::ReadFileFailed)?;
-                let oca_bundle = facade.build_from_ocafile(unparsed_file).map_err(CliError::OcaBundleError)?;
+                let oca_bundle = facade
+                    .build_from_ocafile(unparsed_file)
+                    .map_err(CliError::OcaBundleError)?;
                 let refs = facade.fetch_all_refs().unwrap();
-                let schema_name = refs.iter().find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
+                let schema_name = refs
+                    .iter()
+                    .find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
                 if let Some((refs, _)) = schema_name {
-                    println!("OCA bundle created in local repository with SAID: {} and name: {}", oca_bundle.said.unwrap(), refs);
+                    println!(
+                        "OCA bundle created in local repository with SAID: {} and name: {}",
+                        oca_bundle.said.unwrap(),
+                        refs
+                    );
                 } else {
-                    println!("OCA bundle created in local repository with SAID: {:?}", oca_bundle.said.unwrap());
+                    println!(
+                        "OCA bundle created in local repository with SAID: {:?}",
+                        oca_bundle.said.unwrap()
+                    );
                 };
             }
             Ok(())
         }
-        Some(Commands::Publish { repository_url, said }) => {
+        Some(Commands::Publish {
+            repository_url,
+            said,
+        }) => {
             info!("Publish OCA bundle to repository");
             let facade = get_oca_facade(local_repository_path);
             match SelfAddressingIdentifier::from_str(said) {
@@ -339,13 +360,23 @@ fn main() -> Result<(), CliError> {
                     let with_dependencies = true;
                     let bundles = facade.get_oca_bundle(said, with_dependencies).unwrap();
                     // Publish main object
-                    publish_oca_file_for(&facade, bundles.bundle.said.clone().unwrap(), repository_url, &remote_repo_url);
+                    publish_oca_file_for(
+                        &facade,
+                        bundles.bundle.said.clone().unwrap(),
+                        repository_url,
+                        &remote_repo_url,
+                    );
                     // Publish dependencies if available
                     for bundle in bundles.dependencies {
-                        publish_oca_file_for(&facade, bundle.said.clone().unwrap(), repository_url, &remote_repo_url);
-                    };
+                        publish_oca_file_for(
+                            &facade,
+                            bundle.said.clone().unwrap(),
+                            repository_url,
+                            &remote_repo_url,
+                        );
+                    }
                     Ok(())
-                },
+                }
                 Err(err) => {
                     println!("Invalid SAID: {}", err);
                     Err(err.into())
@@ -356,8 +387,11 @@ fn main() -> Result<(), CliError> {
             info!("Sign OCA bundle byc SCID");
             unimplemented!("Coming soon!")
         }
-        Some(Commands::List { }) => {
-            info!("List OCA object from local repository: {:?}", local_repository_path);
+        Some(Commands::List {}) => {
+            info!(
+                "List OCA object from local repository: {:?}",
+                local_repository_path
+            );
             let facade = get_oca_facade(local_repository_path);
             let mut result = facade.fetch_all_oca_bundle(10, 1).unwrap();
             let meta = result.metadata;
@@ -377,69 +411,92 @@ fn main() -> Result<(), CliError> {
                     match matching_ref {
                         Some((refs, _)) => {
                             println!("SAID: {}, name: {}", said, refs);
-                        },
+                        }
                         None => {
                             println!("SAID: {}", said);
                         }
                     }
                 }
                 result = facade.fetch_all_oca_bundle(10, meta.page + 1).unwrap();
-            };
+            }
             Ok(())
         }
-        Some(Commands::Show { said, ast, dereference } )=> {
+        Some(Commands::Show {
+            said,
+            ast,
+            dereference,
+        }) => {
             info!("Search for OCA object in local repository");
             let facade = get_oca_facade(local_repository_path);
             match SelfAddressingIdentifier::from_str(said) {
                 Ok(said) => {
-                    if *ast  {
-                        let oca_ast = facade.get_oca_bundle_ast(said).map_err(CliError::OcaBundleAstError)?;
-                        serde_json::to_writer_pretty(std::io::stdout(), &oca_ast).expect("Faild to format oca ast");
+                    if *ast {
+                        let oca_ast = facade
+                            .get_oca_bundle_ast(said)
+                            .map_err(CliError::OcaBundleAstError)?;
+                        serde_json::to_writer_pretty(std::io::stdout(), &oca_ast)
+                            .expect("Faild to format oca ast");
                         Ok(())
                     } else {
-                        let ocafile = facade.get_oca_bundle_ocafile(said, *dereference).map_err(CliError::OcaBundleAstError)?;
+                        let ocafile = facade
+                            .get_oca_bundle_ocafile(said, *dereference)
+                            .map_err(CliError::OcaBundleAstError)?;
                         println!("{}", ocafile);
                         Ok(())
                     }
-                },
+                }
                 Err(err) => {
                     println!("Invalid SAID: {}", err);
                     Err(CliError::InvalidSaid(err.into()))
                 }
             }
         }
-        Some(Commands::Get { said, with_dependencies }) => {
+        Some(Commands::Get {
+            said,
+            with_dependencies,
+        }) => {
             let facade = get_oca_facade(local_repository_path);
             let said = SelfAddressingIdentifier::from_str(said)?;
-            let oca_bundles = facade.get_oca_bundle(said, *with_dependencies).map_err(CliError::OcaBundleAstError)?;
+            let oca_bundles = facade
+                .get_oca_bundle(said, *with_dependencies)
+                .map_err(CliError::OcaBundleAstError)?;
             let content = serde_json::to_value(oca_bundles).map_err(CliError::ReadOcaError)?;
-            println!("{}", serde_json::to_string_pretty(&content).map_err(CliError::WriteOcaError)?);
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&content).map_err(CliError::WriteOcaError)?
+            );
             Ok(())
-        },
-        Some(Commands::Presentation { command} ) => {
+        }
+        Some(Commands::Presentation { command }) => {
             match command {
                 PresentationCommand::Get { said } => {
                     let said = SelfAddressingIdentifier::from_str(said)?;
                     handle_get(said, local_repository_path)?;
                     Ok(())
-
-                },
+                }
                 PresentationCommand::Generate => todo!(),
                 PresentationCommand::Parse { from_file, output } => {
-                    let file_contents = fs::read_to_string(from_file).map_err(|e| CliError::ReadFileFailed(e))?;
+                    let file_contents =
+                        fs::read_to_string(from_file).map_err(|e| CliError::ReadFileFailed(e))?;
                     let pres = handle_parse(&file_contents)?;
                     // save to file
-                    let out_path = if let Some(out) = output {out} else {from_file};
-                    let mut file = File::create(out_path).map_err(|e| CliError::WriteFileFailed(e))?;
-                    file.write_all(serde_json::to_string_pretty(&pres).unwrap().as_bytes()).map_err(|e| CliError::WriteFileFailed(e))?;
+                    let out_path = if let Some(out) = output {
+                        out
+                    } else {
+                        from_file
+                    };
+                    let mut file =
+                        File::create(out_path).map_err(|e| CliError::WriteFileFailed(e))?;
+                    file.write_all(serde_json::to_string_pretty(&pres).unwrap().as_bytes())
+                        .map_err(|e| CliError::WriteFileFailed(e))?;
                     Ok(())
-                },
+                }
             }
         }
-        None => {todo!()}
+        None => {
+            todo!()
+        }
     }
-
-
 }
 
 // ocafile build -i OCAfile

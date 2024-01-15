@@ -10,16 +10,16 @@ pub enum CliError {
     CurrentDirFailed(std::io::Error),
     #[error("Error writing file: {0}")]
     WriteFileFailed(std::io::Error),
-	#[error("Error reading file: {0}")]
+    #[error("Error reading file: {0}")]
     ReadFileFailed(std::io::Error),
-	#[error("Oca errors: {0:?}")]
-	OcaBundleError(Vec<oca_rs::facade::build::Error>),
-	#[error("Oca bundle ast errors: {0:?}")]
-	OcaBundleAstError(Vec<String>),
-	#[error("Invalid said: {0}")]
-	InvalidSaid(#[from] said::error::Error),
-	#[error("Field to read oca bundle: {0}")]
-	ReadOcaError(serde_json::error::Error),
-	#[error("Field to read oca bundle: {0}")]
-	WriteOcaError(serde_json::error::Error),
+    #[error("Oca errors: {0:?}")]
+    OcaBundleError(Vec<oca_rs::facade::build::Error>),
+    #[error("Oca bundle ast errors: {0:?}")]
+    OcaBundleAstError(Vec<String>),
+    #[error("Invalid said: {0}")]
+    InvalidSaid(#[from] said::error::Error),
+    #[error("Field to read oca bundle: {0}")]
+    ReadOcaError(serde_json::error::Error),
+    #[error("Field to read oca bundle: {0}")]
+    WriteOcaError(serde_json::error::Error),
 }
