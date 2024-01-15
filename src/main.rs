@@ -32,6 +32,8 @@ extern crate dirs;
 #[macro_use]
 extern crate log;
 
+pub mod presentation_command;
+
 
 const OCA_CACHE_DB_DIR: &str = "oca_cache";
 const OCA_REPOSITORY_DIR: &str = "oca_repository";
@@ -112,23 +114,33 @@ enum Commands {
     /// List of all oca objects stored in local repository
     List {
     },
-    /// Generate or parse presentaiton for oca object
+    /// Generate or parse presentation for oca object
     Presentation {
-        #[arg(short, long)]
-        said: Option<String>,
-        /// Generate default presentation layout for give oca bundle
-        #[arg(short, long)]
-        auto_generate: bool,
-        #[arg(short, long)]
-        from_file: Option<PathBuf>,
-        /// If not specify default is stdout
-        #[arg(short, long)]
-        output: Option<PathBuf>,
-    }
+        #[command(subcommand)]
+        command: PresentationCommand,
+    },
 
 }
 
+#[derive(Subcommand)]
+enum PresentationCommand {
+    Get {
+        #[arg(short, long)]
+        said: Option<String>,
+    },
+    Generate,
+    Parse {
+        #[arg(short, long)]
+        from_file: PathBuf,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    }
+}
+
 use std::io::Error;
+
+use crate::presentation_command::handle_get;
+use crate::presentation_command::handle_parse;
 
 fn read_config(path: &PathBuf) -> Result<Config, Error> {
     let content = fs::read_to_string(path)?;
@@ -429,81 +441,23 @@ fn main() {
                 }
             }
         }
-        Some(Commands::Presentation { said, auto_generate, from_file, output } ) => {
-            match from_file {
-                Some(path) => {
-                    // load file
-                    let file = fs::read_to_string(path).expect("Should have been able to read the file");
-                    // deserialize presentation
-                    let mut pres: Presentation = serde_json::from_str(&file).unwrap();
-                    // compute digest and insert in `d`
-                    pres.compute_digest();
-                    // save to file
-                    let out_path = if let Some(out) = output {out} else {path};
-                    let mut file = File::create(out_path).unwrap();
-                    file.write_all(serde_json::to_string_pretty(&pres).unwrap().as_bytes()).unwrap();
-                },
-                None => todo!(),
-            };
-            let said = SelfAddressingIdentifier::from_str(said.as_ref().unwrap());
-            match said {
-                Ok(said) => {
-                    let facade = get_oca_facade(local_repository_path);
-                    match facade.get_oca_bundle(said, true) {
-                        Ok(oca_bundles) => {
-                            let bundle = oca_bundles.bundle;
-                            let attributes = bundle.capture_base.attributes.clone();
-
-                            for (name, attr) in attributes {
-                                println!("{}: {:?}", name, attr);
-                            }
-
-                            let page = Page { name: "main".to_string(), attribute_order: vec![PageElement::Value("attr_1".to_string())] };
-
-                            let mut pages_label = BTreeMap::new();
-                            let mut pages_label_en = BTreeMap::new();
-                            pages_label_en.insert("pageY".to_string(), "Page Y".to_string());
-                            pages_label_en.insert("pageZ".to_string(), "Page Z".to_string());
-                            // Generate for all available languages
-                            pages_label.insert(Language::Eng, pages_label_en);
-
-
-                            let mut presentation_base = presentation::Presentation {
-                                bundle_digest: bundle.said.clone().unwrap(),
-                                    said: None,
-                                    pages: vec![page],
-                                    pages_order: vec!["pageY".to_string(), "pageZ".to_string()],
-                                    pages_label,
-                                    interaction: vec![presentation::Interaction {
-                                        interaction_method: presentation::InteractionMethod::Web,
-                                        context: presentation::Context::Capture,
-                                        attr_properties: vec![(
-                                            "attr_1".to_string(),
-                                            presentation::Properties {
-                                                type_: presentation::AttrType::TextArea,
-                                            },
-                                        )]
-                                            .into_iter()
-                                            .collect(),
-                                    }]
-                            };
-                            presentation_base.compute_digest();
-
-                            println!(
-                                "{}",
-                                serde_json::to_string_pretty(&presentation_base).unwrap()
-                            );
-
+        Some(Commands::Presentation { command} ) => {
+            match command {
+                PresentationCommand::Get { said } => {
+                    let said = SelfAddressingIdentifier::from_str(said.as_ref().unwrap());
+                    match said {
+                        Ok(said) => {
+                            handle_get(said, local_repository_path);
                         },
-                        Err(errors) => {
-                            println!("{:?}", errors);
-                        }
-                    }
+                        Err(err) => {
+                            println!("Invalid SAID: {}", err);
+                            process::exit(1);
+                        },
+                    };
+
                 },
-                Err(err) => {
-                    println!("Invalid SAID: {}", err);
-                    process::exit(1);
-                }
+                PresentationCommand::Generate => todo!(),
+                PresentationCommand::Parse { from_file, output } => handle_parse(from_file, output),
             }
         }
         None => {}
