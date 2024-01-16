@@ -11,11 +11,15 @@ use thiserror::Error;
 use crate::get_oca_facade;
 
 pub fn handle_parse(input_str: &str) -> Result<Presentation, PresentationError> {
-    // deserialize presentation
     let mut pres: Presentation = serde_json::from_str(&input_str)?;
-    // compute digest and insert in `d`
-    pres.compute_digest();
-    Ok(pres)
+    match pres.validate_digest() {
+        Err(presentation::PresentationError::MissingSaid) => {
+            pres.compute_digest();
+            Ok(pres)
+        },
+        Err(presentation::PresentationError::SaidDoesNotMatch) => Err(presentation::PresentationError::SaidDoesNotMatch.into()),
+        Ok(_) => Ok(pres),
+    }
 }
 
 pub fn handle_get(
@@ -46,6 +50,7 @@ pub fn handle_get(
     pages_label.insert(Language::Eng, pages_label_en);
 
     let mut presentation_base = presentation::Presentation {
+        version: "1.0.0".to_string(),
         bundle_digest: bundle.said.clone().unwrap(),
         said: None,
         pages: vec![page],
@@ -79,4 +84,6 @@ pub enum PresentationError {
     InvalidJson(#[from] serde_json::Error),
     #[error("Oca bundle errors: {0:?}")]
     OcaBundleErrors(Vec<String>),
+    #[error(transparent)]
+    Presentation(#[from] presentation::PresentationError)
 }
