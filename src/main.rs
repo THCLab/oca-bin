@@ -473,7 +473,7 @@ fn main() -> Result<(), CliError> {
                     let said = SelfAddressingIdentifier::from_str(said)?;
                     handle_get(said, local_repository_path)?;
                     Ok(())
-                },
+                }
                 PresentationCommand::Parse { from_file, output } => {
                     let file_contents =
                         fs::read_to_string(from_file).map_err(|e| CliError::ReadFileFailed(e))?;
@@ -489,7 +489,7 @@ fn main() -> Result<(), CliError> {
                     file.write_all(serde_json::to_string_pretty(&pres).unwrap().as_bytes())
                         .map_err(|e| CliError::WriteFileFailed(e))?;
                     Ok(())
-                },
+                }
                 PresentationCommand::Generate => todo!(),
             }
         }

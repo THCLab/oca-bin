@@ -16,8 +16,10 @@ pub fn handle_parse(input_str: &str) -> Result<Presentation, PresentationError> 
         Err(presentation::PresentationError::MissingSaid) => {
             pres.compute_digest();
             Ok(pres)
-        },
-        Err(presentation::PresentationError::SaidDoesNotMatch) => Err(presentation::PresentationError::SaidDoesNotMatch.into()),
+        }
+        Err(presentation::PresentationError::SaidDoesNotMatch) => {
+            Err(presentation::PresentationError::SaidDoesNotMatch.into())
+        }
         Ok(_) => Ok(pres),
     }
 }
@@ -42,7 +44,7 @@ pub fn handle_get(
         attribute_order: vec![PageElement::Value("attr_1".to_string())],
     };
 
-    let mut pages_label = BTreeMap::new();
+    let mut pages_label = indexmap::IndexMap::new();
     let mut pages_label_en = BTreeMap::new();
     pages_label_en.insert("pageY".to_string(), "Page Y".to_string());
     pages_label_en.insert("pageZ".to_string(), "Page Z".to_string());
@@ -59,15 +61,11 @@ pub fn handle_get(
         interaction: vec![presentation::Interaction {
             interaction_method: presentation::InteractionMethod::Web,
             context: presentation::Context::Capture,
-            attr_properties: vec![(
-                "attr_1".to_string(),
-                presentation::Properties {
-                    type_: presentation::AttrType::TextArea,
-                },
-            )]
-            .into_iter()
-            .collect(),
+            attr_properties: vec![("attr_1".to_string(), presentation::AttrType::TextArea)]
+                .into_iter()
+                .collect(),
         }],
+        languages: vec![],
     };
     presentation_base.compute_digest();
 
@@ -85,5 +83,5 @@ pub enum PresentationError {
     #[error("Oca bundle errors: {0:?}")]
     OcaBundleErrors(Vec<String>),
     #[error(transparent)]
-    Presentation(#[from] presentation::PresentationError)
+    Presentation(#[from] presentation::PresentationError),
 }
