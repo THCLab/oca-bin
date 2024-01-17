@@ -29,6 +29,11 @@ isolang = { version = "2.3.0", features = ["serde"] }
 walkdir = "2.3"
 indexmap = "2.1.0"
 thiserror = "1.0.56"
+oca-ast = "0.4.1-rc.4"
+recursion = "0.5.2"
+
+[dev-dependencies]
+tempdir = "0.3.7"
 
 [dependencies.rusqlite]
 version = "0.29.0"

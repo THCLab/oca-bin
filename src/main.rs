@@ -471,7 +471,9 @@ fn main() -> Result<(), CliError> {
             match command {
                 PresentationCommand::Get { said } => {
                     let said = SelfAddressingIdentifier::from_str(said)?;
-                    handle_get(said, local_repository_path)?;
+                    let facade = get_oca_facade(local_repository_path);
+                    let presentation = handle_get(said, facade)?;
+                    println!("{}", serde_json::to_string_pretty(&presentation).unwrap());
                     Ok(())
                 }
                 PresentationCommand::Parse { from_file, output } => {
