@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 use thiserror::Error;
 
 pub fn handle_parse(input_str: &str) -> Result<Presentation, PresentationError> {
-    let mut pres: Presentation = serde_json::from_str(&input_str)?;
+    let mut pres: Presentation = serde_json::from_str(input_str)?;
     match pres.validate_digest() {
         Err(presentation::PresentationError::MissingSaid) => {
             pres.compute_digest();
@@ -27,7 +27,7 @@ pub fn handle_parse(input_str: &str) -> Result<Presentation, PresentationError> 
 
 pub fn handle_get(
     said: SelfAddressingIdentifier,
-    facade: Facade,
+    facade: &Facade,
 ) -> Result<Presentation, PresentationError> {
     let oca_bundles = facade
         .get_oca_bundle(said, true)
@@ -46,13 +46,11 @@ pub fn handle_get(
                 let dependency_attrs = dependencies
                     .iter()
                     .find(|dep| dep.said.as_ref() == Some(&said.clone()))
-                    .expect(&format!("There's no dependency: {}", said.to_string()))
-                    .capture_base.attributes
+                    .unwrap_or_else(|| panic!("There's no dependency: {}", said))
+                    .capture_base
+                    .attributes
                     .clone();
-                let more_nested_attributes = dependency_attrs
-                    .into_iter()
-                    .map(|(key, value)| (key, value))
-                    .collect();
+                let more_nested_attributes = dependency_attrs.into_iter().collect();
                 PageElementFrame::Page {
                     name,
                     attribute_order: more_nested_attributes,
@@ -133,7 +131,7 @@ mod tests {
         let oca_bundle2 = facade.build_from_ocafile(oca_file1).unwrap();
         let digest2 = oca_bundle2.said.unwrap();
 
-        let presentation = handle_get(digest2, facade).unwrap();
+        let presentation = handle_get(digest2.clone(), &facade).unwrap();
 
         let page_element_1 = PageElement::Value("like_cats".to_string());
         let page_element_2 = PageElement::Page {
@@ -158,5 +156,36 @@ mod tests {
             .contains(&page_element_2));
 
         dbg!(presentation);
+
+        let oca_file3 = format!(
+            "ADD ATTRIBUTE cat_lover=refs:{}\nADD ATTRIBUTE favorite_cat=Text",
+            digest2.to_string()
+        );
+
+        let oca_bundle3 = facade.build_from_ocafile(oca_file3).unwrap();
+        let digest3 = oca_bundle3.said.unwrap();
+
+        let presentation = handle_get(digest3, &facade).unwrap();
+
+        let page_element_3 = PageElement::Page {
+            name: "cat_lover".to_string(),
+            attribute_order: vec![
+                PageElement::Value("like_cats".to_string()),
+                PageElement::Page {
+                    name: "person".to_string(),
+                    attribute_order: vec![
+                        PageElement::Value("name".to_string()),
+                        PageElement::Value("number".to_string()),
+                    ],
+                },
+            ],
+        };
+        dbg!(&presentation);
+        assert!(presentation
+            .pages
+            .get(0)
+            .unwrap()
+            .attribute_order
+            .contains(&page_element_3));
     }
 }

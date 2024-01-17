@@ -150,7 +150,7 @@ fn write_config(config: &Config, path: &PathBuf) -> Result<(), Error> {
 fn write_default_config(path: &PathBuf) -> Result<Config, Error> {
     let local_repository_path = path.parent().unwrap().to_path_buf();
     let config = Config::new(local_repository_path);
-    write_config(&config, &path)?;
+    write_config(&config, path)?;
     Ok(config)
 }
 
@@ -234,7 +234,7 @@ fn init_or_read_config() -> Config {
             .join(OCA_DIR_NAME)
             .join("config.toml");
         match read_config(&p) {
-            Ok(config) => return config,
+            Ok(config) => config,
             Err(_) => {
                 if ask_for_confirmation("OCA config not found do you want to initialize it in your home directory? (y/N)") {
                 write_default_config(&p).unwrap()
@@ -447,7 +447,7 @@ fn main() -> Result<(), CliError> {
                 }
                 Err(err) => {
                     println!("Invalid SAID: {}", err);
-                    Err(CliError::InvalidSaid(err.into()))
+                    Err(CliError::InvalidSaid(err))
                 }
             }
         }
@@ -472,13 +472,13 @@ fn main() -> Result<(), CliError> {
                 PresentationCommand::Get { said } => {
                     let said = SelfAddressingIdentifier::from_str(said)?;
                     let facade = get_oca_facade(local_repository_path);
-                    let presentation = handle_get(said, facade)?;
+                    let presentation = handle_get(said, &facade)?;
                     println!("{}", serde_json::to_string_pretty(&presentation).unwrap());
                     Ok(())
                 }
                 PresentationCommand::Parse { from_file, output } => {
                     let file_contents =
-                        fs::read_to_string(from_file).map_err(|e| CliError::ReadFileFailed(e))?;
+                        fs::read_to_string(from_file).map_err(CliError::ReadFileFailed)?;
                     let pres = handle_parse(&file_contents)?;
                     // save to file
                     let out_path = if let Some(out) = output {
@@ -486,10 +486,9 @@ fn main() -> Result<(), CliError> {
                     } else {
                         from_file
                     };
-                    let mut file =
-                        File::create(out_path).map_err(|e| CliError::WriteFileFailed(e))?;
+                    let mut file = File::create(out_path).map_err(CliError::WriteFileFailed)?;
                     file.write_all(serde_json::to_string_pretty(&pres).unwrap().as_bytes())
-                        .map_err(|e| CliError::WriteFileFailed(e))?;
+                        .map_err(CliError::WriteFileFailed)?;
                     Ok(())
                 }
                 PresentationCommand::Generate => todo!(),
