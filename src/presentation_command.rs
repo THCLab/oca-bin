@@ -38,6 +38,7 @@ pub fn handle_get(
 
     let mut attr_order = vec![];
     for (name, attr) in attributes {
+        // Convert NestedAttrType to PageElement
         let page_element = PageElement::expand_frames((name, attr), |(name, attr)| match attr {
             NestedAttrType::Value(_) | NestedAttrType::Array(_) | NestedAttrType::Null => {
                 PageElementFrame::Value(name)
@@ -46,7 +47,12 @@ pub fn handle_get(
                 let dependency_attrs = dependencies
                     .iter()
                     .find(|dep| dep.said.as_ref() == Some(&said.clone()))
-                    .unwrap_or_else(|| panic!("There's no dependency: {}", said))
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "Unknown oca bundle of said {}. Can't find in dependencies",
+                            said
+                        )
+                    })
                     .capture_base
                     .attributes
                     .clone();
@@ -142,18 +148,10 @@ mod tests {
             ],
         };
 
-        assert!(presentation
-            .pages
-            .get(0)
-            .unwrap()
-            .attribute_order
-            .contains(&page_element_1));
-        assert!(presentation
-            .pages
-            .get(0)
-            .unwrap()
-            .attribute_order
-            .contains(&page_element_2));
+        assert_eq!(
+            presentation.pages.get(0).unwrap().attribute_order,
+            vec![page_element_1, page_element_2]
+        );
 
         dbg!(presentation);
 
@@ -180,12 +178,12 @@ mod tests {
                 },
             ],
         };
+        let page_element_4 = PageElement::Value("favorite_cat".to_string());
         dbg!(&presentation);
-        assert!(presentation
-            .pages
-            .get(0)
-            .unwrap()
-            .attribute_order
-            .contains(&page_element_3));
+
+        assert_eq!(
+            presentation.pages.get(0).unwrap().attribute_order,
+            vec![page_element_3, page_element_4]
+        );
     }
 }
