@@ -17,19 +17,19 @@ path = "src/main.rs"
 dirs = "5.0.1"
 clap = { version = "4.0.29", features = ["derive"] }
 log = "0.4.20"
-oca-rs = { path = "../oca-rs/oca", version = "0.4.1-rc.4", features = ["local-references"] }
+oca-rs = { version = "0.4.1-rc.4", features = ["local-references"] }
 env_logger = "0.10.0"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
 reqwest = { version = "0.11", features = ["json", "blocking"] }
 toml = "0.5"
 said = { version = "0.3.0", features = ["macros"] }
-oca-presentation = { path = "../oca-presentation/presentation-base", version = "0.3.0" }
+oca-presentation = { version = "0.3.0" }
 isolang = { version = "2.3.0", features = ["serde"] }
 walkdir = "2.3"
 indexmap = "2.1.0"
 thiserror = "1.0.56"
-oca-ast = { path = "../oca-rs/oca-ast", version = "0.4.1-rc.4"}
+oca-ast = { version = "0.4.1-rc.4"}
 recursion = "0.5.2"
 
 [dev-dependencies]
