@@ -113,11 +113,10 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum PresentationCommand {
-    Get {
+    Generate {
         #[arg(short, long)]
         said: String,
     },
-    Generate,
     Parse {
         #[arg(short, long)]
         from_file: PathBuf,
@@ -469,7 +468,7 @@ fn main() -> Result<(), CliError> {
         }
         Some(Commands::Presentation { command }) => {
             match command {
-                PresentationCommand::Get { said } => {
+                PresentationCommand::Generate { said } => {
                     let said = SelfAddressingIdentifier::from_str(said)?;
                     let facade = get_oca_facade(local_repository_path);
                     let presentation = handle_get(said, &facade)?;
@@ -491,7 +490,6 @@ fn main() -> Result<(), CliError> {
                         .map_err(CliError::WriteFileFailed)?;
                     Ok(())
                 }
-                PresentationCommand::Generate => todo!(),
             }
         }
         None => {
