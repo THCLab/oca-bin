@@ -1,4 +1,6 @@
 use isolang::Language;
+use itertools::Itertools;
+use oca_ast::ast::recursive_attributes::NestedAttrTypeFrame;
 use oca_ast::ast::{NestedAttrType, RefValue};
 use oca_bundle::state::oca::OCABundle;
 use oca_presentation::page::recursion_setup::PageElementFrame;
@@ -11,7 +13,6 @@ use recursion::{CollapsibleExt, ExpandableExt};
 use said::{sad::SAD, SelfAddressingIdentifier};
 use std::collections::BTreeMap;
 use thiserror::Error;
-use oca_ast::ast::recursive_attributes::NestedAttrTypeFrame;
 
 pub fn handle_parse(input_str: &str) -> Result<Presentation, PresentationError> {
     let mut pres: Presentation = serde_json::from_str(input_str)?;
@@ -27,7 +28,7 @@ pub fn handle_parse(input_str: &str) -> Result<Presentation, PresentationError> 
     }
 }
 
-pub fn handle_get(
+pub fn handle_generate(
     said: SelfAddressingIdentifier,
     facade: &Facade,
 ) -> Result<Presentation, PresentationError> {
@@ -45,9 +46,7 @@ pub fn handle_get(
             NestedAttrType::Array(arr) => {
                 // Array elements can have nested references inside
                 arr.collapse_frames(|frame| match frame {
-                    NestedAttrTypeFrame::Reference(
-                        RefValue::Said(said),
-                    ) => {
+                    NestedAttrTypeFrame::Reference(RefValue::Said(said)) => {
                         let more_nested_attributes = handle_reference(said.clone(), &dependencies);
                         PageElementFrame::Page {
                             name: name.clone(),
@@ -61,9 +60,7 @@ pub fn handle_get(
                     NestedAttrTypeFrame::Reference(RefValue::Name(_name)) => todo!(),
                 })
             }
-            NestedAttrType::Value(_) | NestedAttrType::Null => {
-                PageElementFrame::Value(name)
-            }
+            NestedAttrType::Value(_) | NestedAttrType::Null => PageElementFrame::Value(name),
             NestedAttrType::Reference(RefValue::Said(said)) => {
                 let more_nested_attributes = handle_reference(said, &dependencies);
                 PageElementFrame::Page {
@@ -77,19 +74,12 @@ pub fn handle_get(
         attr_order.push(page_element);
     }
 
-    fn handle_reference(
-        said: SelfAddressingIdentifier,
-        bundles: &[OCABundle],
-    ) -> Result<Vec<(String, NestedAttrType)>, PresentationError> {
-        let dependency_attrs = bundles
-            .iter()
-            .find(|dep| dep.said.as_ref() == Some(&said))
-            .ok_or(PresentationError::MissingDependency(said))?
-            .capture_base
-            .attributes
-            .clone();
-        Ok(dependency_attrs.into_iter().collect())
-    }
+    let languages = bundle
+        .overlays
+        .into_iter()
+        .filter_map(|overlay| overlay.language().copied())
+        .unique()
+        .collect();
 
     let page = Page {
         name: "Page 1".to_string(),
@@ -116,11 +106,25 @@ pub fn handle_get(
                 .into_iter()
                 .collect(),
         }],
-        languages: vec![],
+        languages,
     };
     presentation_base.compute_digest();
 
     Ok(presentation_base)
+}
+
+fn handle_reference(
+    said: SelfAddressingIdentifier,
+    bundles: &[OCABundle],
+) -> Result<Vec<(String, NestedAttrType)>, PresentationError> {
+    let dependency_attrs = bundles
+        .iter()
+        .find(|dep| dep.said.as_ref() == Some(&said))
+        .ok_or(PresentationError::MissingDependency(said))?
+        .capture_base
+        .attributes
+        .clone();
+    Ok(dependency_attrs.into_iter().collect())
 }
 
 #[derive(Debug, Error)]
@@ -137,9 +141,10 @@ pub enum PresentationError {
 
 #[cfg(test)]
 mod tests {
+    use isolang::Language;
     use oca_presentation::page::PageElement;
 
-    use crate::{get_oca_facade, presentation_command::handle_get};
+    use crate::{get_oca_facade, presentation_command::handle_generate};
 
     #[test]
     fn test_handle_references() {
@@ -162,7 +167,7 @@ mod tests {
         let oca_bundle1 = facade.build_from_ocafile(oca_file1).unwrap();
         let digest1 = oca_bundle1.said.unwrap();
 
-        let presentation = handle_get(digest1.clone(), &facade).unwrap();
+        let presentation = handle_generate(digest1.clone(), &facade).unwrap();
 
         let page_element_1 = PageElement::Value("like_cats".to_string());
         let page_element_2 = PageElement::Page {
@@ -189,7 +194,7 @@ mod tests {
         let oca_bundle2 = facade.build_from_ocafile(oca_file2).unwrap();
         let digest2 = oca_bundle2.said.unwrap();
 
-        let presentation = handle_get(digest2.clone(), &facade).unwrap();
+        let presentation = handle_generate(digest2.clone(), &facade).unwrap();
 
         let page_element_3 = PageElement::Page {
             name: "cat_lover".to_string(),
@@ -218,14 +223,14 @@ mod tests {
 
         let mut facade = get_oca_facade(tmp_dir.path().to_path_buf());
 
-         // Array of values
+        // Array of values
         let oca_file0 = "ADD ATTRIBUTE list=Array[Numeric] name=Text".to_string();
 
         // Reference oca bundle
         let array_bundle = facade.build_from_ocafile(oca_file0.clone()).unwrap();
         let array_bundle_said = array_bundle.said.unwrap();
 
-        let presentation = handle_get(array_bundle_said.clone(), &facade).unwrap();
+        let presentation = handle_generate(array_bundle_said.clone(), &facade).unwrap();
 
         let expected_presentation_json = r#"{"v":"1.0.0","bd":"EJi486RStLv0EzSOaOfY1RtCPfY7-tGBdS6CnFLacKqW","l":[],"d":"EIuRKiaSq6yXfKcz_YUxrrRz_g-c81Amtg9tu3jUttDr","p":[{"n":"Page 1","ao":["list","name"]}],"po":["page1"],"pl":{"eng":{"page1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{"attr_1":{"t":"textarea"}}}]}"#;
         assert_eq!(
@@ -234,15 +239,14 @@ mod tests {
         );
 
         let person_page_element = vec![
-                PageElement::Value("list".to_string()),
-                PageElement::Value("name".to_string()),
-            ];
+            PageElement::Value("list".to_string()),
+            PageElement::Value("name".to_string()),
+        ];
 
         assert_eq!(
             presentation.pages.get(0).unwrap().attribute_order,
             person_page_element.clone()
         );
-
 
         let oca_file1 = r#"ADD ATTRIBUTE name=Text number=Numeric"#.to_string();
 
@@ -250,7 +254,7 @@ mod tests {
         let oca_bundle0 = facade.build_from_ocafile(oca_file1.clone()).unwrap();
         let digest0 = oca_bundle0.said.unwrap();
 
-        let presentation = handle_get(digest0.clone(), &facade).unwrap();
+        let presentation = handle_generate(digest0.clone(), &facade).unwrap();
 
         let expected_presentation_json = r#"{"v":"1.0.0","bd":"EEx1y3CnK5LcByLUb_MF7hR3Iv-Fs8enGdbYCiiil21T","l":[],"d":"EMYXQEd9C0WSVqAt9-_GtHGziIbNDjz3utGF0nI-sqVz","p":[{"n":"Page 1","ao":["name","number"]}],"po":["page1"],"pl":{"eng":{"page1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{"attr_1":{"t":"textarea"}}}]}"#;
         assert_eq!(
@@ -266,7 +270,7 @@ mod tests {
         let person_oca_bundle = facade.build_from_ocafile(oca_file1.clone()).unwrap();
         let person_bundle_said = person_oca_bundle.said.unwrap();
 
-        let presentation = handle_get(person_bundle_said.clone(), &facade).unwrap();
+        let presentation = handle_generate(person_bundle_said.clone(), &facade).unwrap();
 
         let expected_presentation_json = r#"{"v":"1.0.0","bd":"EGU0faBu85GSuo4rwDAo7Qi52OpZpHS8GutS8Rh5rIfl","l":[],"d":"ENJ7xiQa2_41CEBZ68zX-U83OXDJE7QZYR_V7Yg6rOg-","p":[{"n":"Page 1","ao":[{"n":"person","ao":["name","number"]}]}],"po":["page1"],"pl":{"eng":{"page1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{"attr_1":{"t":"textarea"}}}]}"#;
         assert_eq!(
@@ -298,7 +302,7 @@ mod tests {
         let many_persons_bundle = facade.build_from_ocafile(oca_file2.clone()).unwrap();
         let many_person_bundle_digest = many_persons_bundle.said.unwrap();
 
-        let presentation = handle_get(many_person_bundle_digest, &facade).unwrap();
+        let presentation = handle_generate(many_person_bundle_digest, &facade).unwrap();
 
         let expected_presentation_json = r#"{"v":"1.0.0","bd":"EDqTtz-Lp5tWstJ8nLfhpe5UC1cnFQkA27CZQeSfnvHs","l":[],"d":"EKhA8TSloFD8EmVcE4frhmLeqwhkWODBPSvu1cH0hiUx","p":[{"n":"Page 1","ao":[{"n":"many_persons","ao":[{"n":"person","ao":["name","number"]}]}]}],"po":["page1"],"pl":{"eng":{"page1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{"attr_1":{"t":"textarea"}}}]}"#;
         assert_eq!(
@@ -314,6 +318,31 @@ mod tests {
         assert_eq!(
             presentation.pages.get(0).unwrap().attribute_order,
             vec![page_element_5]
+        );
+    }
+
+    #[test]
+    fn test_languages() {
+        let tmp_dir = tempdir::TempDir::new("db").unwrap();
+
+        let mut facade = get_oca_facade(tmp_dir.path().to_path_buf());
+
+        let oca_file = r#"ADD ATTRIBUTE name=Text age=Numeric radio=Text
+ADD LABEL eo ATTRS name="Nomo" age="aĝo" radio="radio"
+ADD INFORMATION en ATTRS name="Object" age="Object"
+ADD CHARACTER_ENCODING ATTRS name="utf-8" age="utf-8"
+ADD ENTRY_CODE ATTRS radio=["o1", "o2", "o3"]
+ADD ENTRY eo ATTRS radio={"o1": "etikedo1", "o2": "etikedo2", "o3": "etikiedo3"}
+ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3"}
+"#;
+
+        let oca_bundle = facade.build_from_ocafile(oca_file.to_string()).unwrap();
+        let digest = oca_bundle.said.unwrap();
+
+        let presentation = handle_generate(digest, &facade).unwrap();
+        assert_eq!(
+            presentation.languages,
+            vec![Language::Epo, Language::Eng, Language::Pol]
         );
     }
 }

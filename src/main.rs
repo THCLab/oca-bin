@@ -133,7 +133,7 @@ enum PresentationCommand {
 
 use std::io::Error;
 
-use crate::presentation_command::handle_get;
+use crate::presentation_command::handle_generate;
 use crate::presentation_command::handle_parse;
 
 fn read_config(path: &PathBuf) -> Result<Config, Error> {
@@ -477,7 +477,7 @@ fn main() -> Result<(), CliError> {
                 PresentationCommand::Generate { said } => {
                     let said = SelfAddressingIdentifier::from_str(said)?;
                     let facade = get_oca_facade(local_repository_path);
-                    let presentation = handle_get(said, &facade)?;
+                    let presentation = handle_generate(said, &facade)?;
                     println!("{}", serde_json::to_string_pretty(&presentation).unwrap());
                     Ok(())
                 }
