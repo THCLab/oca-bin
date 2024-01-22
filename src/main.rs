@@ -113,13 +113,19 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum PresentationCommand {
+    /// Generate presentation for OCA bundle of provided SAID
     Generate {
+        /// SAID of OCA Bundle
         #[arg(short, long)]
         said: String,
     },
+    /// Parse presentation from file. If `d` field is empty, it computes
+    /// presentation SAID and put it into `d` field
     Parse {
+        /// Path to input file
         #[arg(short, long)]
         from_file: PathBuf,
+        /// Path to output file
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
