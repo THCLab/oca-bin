@@ -1,3 +1,4 @@
+use clap::Subcommand;
 use isolang::Language;
 use itertools::Itertools;
 use oca_ast::ast::recursive_attributes::NestedAttrTypeFrame;
@@ -12,10 +13,62 @@ use oca_rs::Facade;
 use recursion::{CollapsibleExt, ExpandableExt};
 use said::{sad::SAD, SelfAddressingIdentifier};
 use std::collections::BTreeMap;
+use std::path::PathBuf;
+use std::str::FromStr;
 use thiserror::Error;
 
-pub fn handle_parse(input_str: &str) -> Result<Presentation, PresentationError> {
-    let mut pres: Presentation = serde_json::from_str(input_str)?;
+#[derive(Subcommand)]
+pub enum PresentationCommand {
+    /// Generate presentation for OCA bundle of provided SAID
+    Generate {
+        /// SAID of OCA Bundle
+        #[arg(short, long)]
+        said: String,
+        /// Presentation output format: json or yaml. Default is json
+        #[arg(short, long)]
+        format: Option<Format>,
+    },
+    /// Parse presentation from file. If `d` field is empty, it computes
+    /// presentation SAID and put it into `d` field
+    Parse {
+        /// Path to input file
+        #[arg(short, long)]
+        from_file: PathBuf,
+        /// Path to output file
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Presentation output format: json or yaml. Default is json
+        #[arg(long)]
+        format: Option<Format>,
+    },
+}
+
+#[derive(Clone, Debug)]
+pub enum Format {
+    JSON,
+    YAML,
+}
+
+impl FromStr for Format {
+    type Err = super::CliError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "json" => Ok(Self::JSON),
+            "yaml" => Ok(Self::YAML),
+            other => Err(super::CliError::FormatError(other.to_string())),
+        }
+    }
+}
+
+pub fn handle_parse(input_str: &str, format: Format) -> Result<Presentation, PresentationError> {
+    let mut pres: Presentation = match format {
+        Format::JSON => serde_json::from_str(input_str)?,
+        Format::YAML => {
+            serde_yaml::from_str(input_str)?
+        },
+    };
+    dbg!(&pres);
     match pres.validate_digest() {
         Err(presentation::PresentationError::MissingSaid) => {
             pres.compute_digest();
@@ -131,6 +184,8 @@ fn handle_reference(
 pub enum PresentationError {
     #[error("Invalid json: {0}")]
     InvalidJson(#[from] serde_json::Error),
+    #[error("Invalid yaml: {0}")]
+    InvalidYaml(#[from] serde_yaml::Error),
     #[error("Oca bundle errors: {0:?}")]
     OcaBundleErrors(Vec<String>),
     #[error("Missing dependency to oca bundle of said {0}")]

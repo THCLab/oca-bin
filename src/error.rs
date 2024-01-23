@@ -22,4 +22,8 @@ pub enum CliError {
     ReadOcaError(serde_json::error::Error),
     #[error("Field to read oca bundle: {0}")]
     WriteOcaError(serde_json::error::Error),
+    #[error("Unsupported format {0}")]
+    FormatError(String),
+    #[error("Unsupported extension format {0}")]
+    FileExtensionError(String),
 }
