@@ -134,7 +134,6 @@ pub fn handle_generate(
         .unique()
         .collect();
 
-
     let mut pages_labels = indexmap::IndexMap::new();
     for overlay in bundle.overlays {
         match overlay.overlay_type() {
@@ -147,7 +146,7 @@ pub fn handle_generate(
                 let pages_label: BTreeMap<String, String> =
                     label.clone().attribute_labels.into_iter().collect();
 
-                pages_labels.insert(label.language().unwrap().clone(), pages_label);
+                pages_labels.insert(*label.language().unwrap(), pages_label);
             }
             _ => {}
         }
@@ -417,11 +416,11 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
             vec![Language::Epo, Language::Pol, Language::Eng]
         );
         let translations = &presentation.pages_label;
-        let epo_expected: BTreeMap<String, String> = serde_json::from_str(r#"{"age": "aĝo","name": "Nomo","radio": "radio"}"#)
-            .unwrap();
+        let epo_expected: BTreeMap<String, String> =
+            serde_json::from_str(r#"{"age": "aĝo","name": "Nomo","radio": "radio"}"#).unwrap();
 
-        let pol_expected: BTreeMap<String, String> = serde_json::from_str(r#"{"age": "wiek","name": "Imię","radio": "radio"}"#)
-            .unwrap();
+        let pol_expected: BTreeMap<String, String> =
+            serde_json::from_str(r#"{"age": "wiek","name": "Imię","radio": "radio"}"#).unwrap();
         assert_eq!(translations.get(&Language::Epo).unwrap(), &epo_expected);
         assert_eq!(translations.get(&Language::Pol).unwrap(), &pol_expected);
 
