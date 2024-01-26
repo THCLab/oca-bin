@@ -1,8 +1,9 @@
 use clap::Subcommand;
-use isolang::Language;
 use itertools::Itertools;
 use oca_ast::ast::recursive_attributes::NestedAttrTypeFrame;
 use oca_ast::ast::{NestedAttrType, RefValue};
+use oca_bundle::state::oca::overlay::label::LabelOverlay;
+use oca_bundle::state::oca::overlay::Overlay;
 use oca_bundle::state::oca::OCABundle;
 use oca_presentation::page::recursion_setup::PageElementFrame;
 use oca_presentation::{
@@ -64,9 +65,7 @@ impl FromStr for Format {
 pub fn handle_parse(input_str: &str, format: Format) -> Result<Presentation, PresentationError> {
     let mut pres: Presentation = match format {
         Format::JSON => serde_json::from_str(input_str)?,
-        Format::YAML => {
-            serde_yaml::from_str(input_str)?
-        },
+        Format::YAML => serde_yaml::from_str(input_str)?,
     };
     dbg!(&pres);
     match pres.validate_digest() {
@@ -129,21 +128,36 @@ pub fn handle_generate(
 
     let languages = bundle
         .overlays
+        .clone()
         .into_iter()
         .filter_map(|overlay| overlay.language().copied())
         .unique()
         .collect();
 
+
+    let mut pages_labels = indexmap::IndexMap::new();
+    for overlay in bundle.overlays {
+        match overlay.overlay_type() {
+            oca_ast::ast::OverlayType::Label => {
+                let label = overlay
+                    .as_any()
+                    .downcast_ref::<LabelOverlay>()
+                    .unwrap()
+                    .clone();
+                let pages_label: BTreeMap<String, String> =
+                    label.clone().attribute_labels.into_iter().collect();
+
+                pages_labels.insert(label.language().unwrap().clone(), pages_label);
+            }
+            _ => {}
+        }
+    }
+
+    let page_name = "page 1".to_string();
     let page = Page {
-        name: "Page 1".to_string(),
+        name: page_name.clone(),
         attribute_order: attr_order,
     };
-
-    let mut pages_label = indexmap::IndexMap::new();
-    let mut pages_label_en = BTreeMap::new();
-    pages_label_en.insert("page1".to_string(), "Page 1".to_string());
-    // Generate for all available languages
-    pages_label.insert(Language::Eng, pages_label_en);
 
     let mut presentation_base = presentation::Presentation {
         version: "1.0.0".to_string(),
@@ -151,7 +165,7 @@ pub fn handle_generate(
         said: None,
         pages: vec![page],
         pages_order: vec!["page1".to_string()],
-        pages_label,
+        pages_label: pages_labels,
         interaction: vec![presentation::Interaction {
             interaction_method: presentation::InteractionMethod::Web,
             context: presentation::Context::Capture,
@@ -196,6 +210,8 @@ pub enum PresentationError {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use isolang::Language;
     use oca_presentation::page::PageElement;
 
@@ -384,6 +400,7 @@ mod tests {
 
         let oca_file = r#"ADD ATTRIBUTE name=Text age=Numeric radio=Text
 ADD LABEL eo ATTRS name="Nomo" age="aĝo" radio="radio"
+ADD LABEL pl ATTRS name="Imię" age="wiek" radio="radio"
 ADD INFORMATION en ATTRS name="Object" age="Object"
 ADD CHARACTER_ENCODING ATTRS name="utf-8" age="utf-8"
 ADD ENTRY_CODE ATTRS radio=["o1", "o2", "o3"]
@@ -397,7 +414,17 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
         let presentation = handle_generate(digest, &facade).unwrap();
         assert_eq!(
             presentation.languages,
-            vec![Language::Epo, Language::Eng, Language::Pol]
+            vec![Language::Epo, Language::Pol, Language::Eng]
         );
+        let translations = &presentation.pages_label;
+        let epo_expected: BTreeMap<String, String> = serde_json::from_str(r#"{"age": "aĝo","name": "Nomo","radio": "radio"}"#)
+            .unwrap();
+
+        let pol_expected: BTreeMap<String, String> = serde_json::from_str(r#"{"age": "wiek","name": "Imię","radio": "radio"}"#)
+            .unwrap();
+        assert_eq!(translations.get(&Language::Epo).unwrap(), &epo_expected);
+        assert_eq!(translations.get(&Language::Pol).unwrap(), &pol_expected);
+
+        println!("{}", serde_json::to_string_pretty(&presentation).unwrap());
     }
 }

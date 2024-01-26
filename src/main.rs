@@ -461,7 +461,9 @@ fn main() -> Result<(), CliError> {
                     let facade = get_oca_facade(local_repository_path);
                     let presentation = handle_generate(said, &facade)?;
                     let output = match format {
-                        Some(Format::JSON) | None => serde_json::to_string_pretty(&presentation).unwrap(),
+                        Some(Format::JSON) | None => {
+                            serde_json::to_string_pretty(&presentation).unwrap()
+                        }
                         Some(Format::YAML) => serde_yaml::to_string(&presentation).unwrap(),
                     };
                     println!("{}", output);
@@ -475,14 +477,17 @@ fn main() -> Result<(), CliError> {
                     let ext = from_file.extension();
                     let extension = match ext {
                         Some(ext) => match ext.to_str() {
-                            Some(ext) => Format::from_str(ext).map_err(|e| CliError::FileExtensionError(e.to_string())),
-                            None => Err(CliError::FileExtensionError("Unsupported file extension".to_string())),
+                            Some(ext) => Format::from_str(ext)
+                                .map_err(|e| CliError::FileExtensionError(e.to_string())),
+                            None => Err(CliError::FileExtensionError(
+                                "Unsupported file extension".to_string(),
+                            )),
                         },
                         None => {
                             // CliError::ExtensionError("Missing file extension".to_string())
                             warn!("Missing input file extension. Using JSON");
                             Ok(Format::JSON)
-                        },
+                        }
                     }?;
 
                     let file_contents =
