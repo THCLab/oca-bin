@@ -1,11 +1,13 @@
 use clap::Subcommand;
+use indexmap::IndexMap;
 use itertools::Itertools;
 use oca_ast::ast::recursive_attributes::NestedAttrTypeFrame;
-use oca_ast::ast::{NestedAttrType, RefValue};
+use oca_ast::ast::{AttributeType, NestedAttrType, RefValue};
 use oca_bundle::state::oca::overlay::label::LabelOverlay;
 use oca_bundle::state::oca::overlay::Overlay;
 use oca_bundle::state::oca::OCABundle;
 use oca_presentation::page::recursion_setup::PageElementFrame;
+use oca_presentation::presentation::AttrType;
 use oca_presentation::{
     page::{Page, PageElement},
     presentation::{self, Presentation},
@@ -101,6 +103,7 @@ pub fn handle_generate(
     let attributes = bundle.capture_base.attributes;
 
     let mut attr_order = vec![];
+    let mut interactions: IndexMap<String, AttrType> = IndexMap::new();
     for (name, attr) in attributes {
         // Convert NestedAttrType to PageElement
         let page_element = PageElement::expand_frames((name, attr), |(name, attr)| match attr {
@@ -114,14 +117,20 @@ pub fn handle_generate(
                             attribute_order: more_nested_attributes.unwrap(),
                         }
                     }
-                    NestedAttrTypeFrame::Value(_) | NestedAttrTypeFrame::Null => {
+                    NestedAttrTypeFrame::Value(value) => {
+                        save_interaction(&name, value, &mut interactions);
                         PageElementFrame::Value(name.clone())
                     }
+                    NestedAttrTypeFrame::Null => PageElementFrame::Value(name.clone()),
                     NestedAttrTypeFrame::Array(arr) => arr,
                     NestedAttrTypeFrame::Reference(RefValue::Name(_name)) => todo!(),
                 })
             }
-            NestedAttrType::Value(_) | NestedAttrType::Null => PageElementFrame::Value(name),
+            NestedAttrType::Value(value) => {
+                save_interaction(&name, value, &mut interactions);
+                PageElementFrame::Value(name)
+            }
+            NestedAttrType::Null => PageElementFrame::Value(name),
             NestedAttrType::Reference(RefValue::Said(said)) => {
                 let more_nested_attributes = handle_reference(said, &dependencies);
                 PageElementFrame::Page {
@@ -177,14 +186,28 @@ pub fn handle_generate(
         interaction: vec![presentation::Interaction {
             interaction_method: presentation::InteractionMethod::Web,
             context: presentation::Context::Capture,
-            attr_properties: vec![("attr_1".to_string(), presentation::AttrType::TextArea)]
-                .into_iter()
-                .collect(),
+            attr_properties: interactions,
         }],
         languages,
     };
 
     Ok(presentation_base)
+}
+
+fn save_interaction(
+    name: &str,
+    value: AttributeType,
+    interactions: &mut IndexMap<String, AttrType>,
+) {
+    match value {
+        AttributeType::Binary => {
+            interactions.insert(name.to_owned(), AttrType::File);
+        }
+        AttributeType::DateTime => {
+            interactions.insert(name.to_owned(), AttrType::DateTime);
+        }
+        _ => (),
+    };
 }
 
 fn handle_reference(
@@ -220,7 +243,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use isolang::Language;
-    use oca_presentation::page::PageElement;
+    use oca_presentation::{page::PageElement, presentation::AttrType};
 
     use crate::{get_oca_facade, presentation_command::handle_generate};
 
@@ -431,6 +454,31 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
             serde_json::from_str(r#"{"age": "wiek","name": "Imię","radio": "radio"}"#).unwrap();
         assert_eq!(translations.get(&Language::Epo).unwrap(), &epo_expected);
         assert_eq!(translations.get(&Language::Pol).unwrap(), &pol_expected);
+
+        println!("{}", serde_json::to_string_pretty(&presentation).unwrap());
+    }
+
+    #[test]
+    fn test_interaction() {
+        let tmp_dir = tempdir::TempDir::new("db").unwrap();
+
+        let mut facade = get_oca_facade(tmp_dir.path().to_path_buf());
+
+        let oca_file = r#"ADD ATTRIBUTE radio=Text dt=DateTime img=Binary"#;
+
+        let oca_bundle = facade.build_from_ocafile(oca_file.to_string()).unwrap();
+        let digest = oca_bundle.said.unwrap();
+
+        let presentation = handle_generate(digest, &facade).unwrap();
+        let interaction_attrs = presentation.interaction[0].clone().attr_properties;
+        assert_eq!(
+            serde_json::to_string(interaction_attrs.get("dt").unwrap()).unwrap(),
+            serde_json::to_string(&AttrType::DateTime).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_string(interaction_attrs.get("img").unwrap()).unwrap(),
+            serde_json::to_string(&AttrType::File).unwrap()
+        );
 
         println!("{}", serde_json::to_string_pretty(&presentation).unwrap());
     }
