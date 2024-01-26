@@ -115,7 +115,7 @@ enum Commands {
 use std::io::Error;
 
 use crate::presentation_command::handle_generate;
-use crate::presentation_command::handle_parse;
+use crate::presentation_command::handle_validate;
 use crate::presentation_command::Format;
 
 fn read_config(path: &PathBuf) -> Result<Config, Error> {
@@ -469,10 +469,11 @@ fn main() -> Result<(), CliError> {
                     println!("{}", output);
                     Ok(())
                 }
-                PresentationCommand::Parse {
+                PresentationCommand::Validate {
                     from_file,
                     output,
                     format,
+                    recalculate,
                 } => {
                     let ext = from_file.extension();
                     let extension = match ext {
@@ -492,20 +493,31 @@ fn main() -> Result<(), CliError> {
 
                     let file_contents =
                         fs::read_to_string(from_file).map_err(CliError::ReadFileFailed)?;
-                    let pres = handle_parse(&file_contents, extension)?;
-                    // save to file
-                    let out_path = if let Some(out) = output {
-                        out
-                    } else {
-                        from_file
+                    let pres = handle_validate(&file_contents, extension, *recalculate);
+                    match pres {
+                        Ok(pres) => {
+                            // save to file
+                            let out_path = if let Some(out) = output {
+                                out
+                            } else {
+                                from_file
+                            };
+                            let mut file =
+                                File::create(out_path).map_err(CliError::WriteFileFailed)?;
+                            let output = match format {
+                                Some(Format::JSON) | None => {
+                                    serde_json::to_string_pretty(&pres).unwrap()
+                                }
+                                Some(Format::YAML) => serde_yaml::to_string(&pres).unwrap(),
+                            };
+                            file.write_all(output.as_bytes())
+                                .map_err(CliError::WriteFileFailed)?;
+                            println!("Presentation SAID is valid");
+                        }
+                        Err(e) => {
+                            println!("Error: {}", &e.to_string());
+                        }
                     };
-                    let mut file = File::create(out_path).map_err(CliError::WriteFileFailed)?;
-                    let output = match format {
-                        Some(Format::JSON) | None => serde_json::to_string_pretty(&pres).unwrap(),
-                        Some(Format::YAML) => serde_yaml::to_string(&pres).unwrap(),
-                    };
-                    file.write_all(output.as_bytes())
-                        .map_err(CliError::WriteFileFailed)?;
                     Ok(())
                 }
             }

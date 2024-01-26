@@ -29,9 +29,9 @@ pub enum PresentationCommand {
         #[arg(short, long)]
         format: Option<Format>,
     },
-    /// Parse presentation from file. If `d` field is empty, it computes
-    /// presentation SAID and put it into `d` field
-    Parse {
+    /// Parse presentation from file and validate its SAID. To recalculate it's
+    /// digest use `-r` flag.
+    Validate {
         /// Path to input file
         #[arg(short, long)]
         from_file: PathBuf,
@@ -41,6 +41,10 @@ pub enum PresentationCommand {
         /// Presentation output format: json or yaml. Default is json
         #[arg(long)]
         format: Option<Format>,
+        /// Recalculate SAID. It computes presentation SAID and put it into `d`
+        /// field
+        #[arg(long, short, default_value_t = false)]
+        recalculate: bool,
     },
 }
 
@@ -62,19 +66,24 @@ impl FromStr for Format {
     }
 }
 
-pub fn handle_parse(input_str: &str, format: Format) -> Result<Presentation, PresentationError> {
+pub fn handle_validate(
+    input_str: &str,
+    format: Format,
+    recalculate: bool,
+) -> Result<Presentation, PresentationError> {
     let mut pres: Presentation = match format {
         Format::JSON => serde_json::from_str(input_str)?,
         Format::YAML => serde_yaml::from_str(input_str)?,
     };
-    dbg!(&pres);
     match pres.validate_digest() {
-        Err(presentation::PresentationError::MissingSaid) => {
-            pres.compute_digest();
-            Ok(pres)
-        }
-        Err(presentation::PresentationError::SaidDoesNotMatch) => {
-            Err(presentation::PresentationError::SaidDoesNotMatch.into())
+        Err(e) => {
+            if recalculate {
+                println!("Computing presentation digest and inserting it into `d` field.");
+                pres.compute_digest();
+                Ok(pres)
+            } else {
+                Err(e.into())
+            }
         }
         Ok(_) => Ok(pres),
     }
@@ -158,7 +167,7 @@ pub fn handle_generate(
         attribute_order: attr_order,
     };
 
-    let mut presentation_base = presentation::Presentation {
+    let presentation_base = presentation::Presentation {
         version: "1.0.0".to_string(),
         bundle_digest: bundle.said.clone().unwrap(),
         said: None,
@@ -174,7 +183,6 @@ pub fn handle_generate(
         }],
         languages,
     };
-    presentation_base.compute_digest();
 
     Ok(presentation_base)
 }
