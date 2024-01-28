@@ -398,18 +398,22 @@ fn main() -> Result<(), CliError> {
                 local_repository_path
             );
             let facade = get_oca_facade(local_repository_path);
-            let mut result = facade.fetch_all_oca_bundle(10, 1).unwrap();
+            let mut page = 1;
+            let page_size = 20;
+            let mut result = facade.fetch_all_oca_bundle(page_size, page).unwrap();
             let meta = result.metadata;
             let mut count = 0;
-            info!("Found {} objects", meta.total);
+            info!("Found {} objects in repo", meta.total);
             let refs = facade.fetch_all_refs().unwrap();
+            info!("Found {:#?} refs in repo", refs);
             loop {
+                info!("Processing page: {}, count: {}", page, count);
                 if count >= meta.total {
                     break;
                 }
                 let records = result.records;
                 count += records.len();
-                info!("Found {} objects", count);
+                info!("Processing {} objects", records.len());
                 for bundle in records {
                     let said = bundle.said.unwrap();
                     let matching_ref = refs.iter().find(|&(_, v)| *v == said.to_string());
@@ -422,7 +426,8 @@ fn main() -> Result<(), CliError> {
                         }
                     }
                 }
-                result = facade.fetch_all_oca_bundle(10, meta.page + 1).unwrap();
+                page += 1;
+                result = facade.fetch_all_oca_bundle(page_size, page).unwrap();
             }
             Ok(())
         }
