@@ -1,4 +1,5 @@
 use error::CliError;
+use presentation_command::PresentationCommand;
 use std::env;
 use std::fs;
 use std::fs::File;
@@ -111,30 +112,11 @@ enum Commands {
     },
 }
 
-#[derive(Subcommand)]
-enum PresentationCommand {
-    /// Generate presentation for OCA bundle of provided SAID
-    Generate {
-        /// SAID of OCA Bundle
-        #[arg(short, long)]
-        said: String,
-    },
-    /// Parse presentation from file. If `d` field is empty, it computes
-    /// presentation SAID and put it into `d` field
-    Parse {
-        /// Path to input file
-        #[arg(short, long)]
-        from_file: PathBuf,
-        /// Path to output file
-        #[arg(short, long)]
-        output: Option<PathBuf>,
-    },
-}
-
 use std::io::Error;
 
 use crate::presentation_command::handle_generate;
-use crate::presentation_command::handle_parse;
+use crate::presentation_command::handle_validate;
+use crate::presentation_command::Format;
 
 fn read_config(path: &PathBuf) -> Result<Config, Error> {
     let content = fs::read_to_string(path)?;
@@ -479,26 +461,68 @@ fn main() -> Result<(), CliError> {
         }
         Some(Commands::Presentation { command }) => {
             match command {
-                PresentationCommand::Generate { said } => {
+                PresentationCommand::Generate { said, format } => {
                     let said = SelfAddressingIdentifier::from_str(said)?;
                     let facade = get_oca_facade(local_repository_path);
                     let presentation = handle_generate(said, &facade)?;
-                    println!("{}", serde_json::to_string_pretty(&presentation).unwrap());
+                    let output = match format {
+                        Some(Format::JSON) | None => {
+                            serde_json::to_string_pretty(&presentation).unwrap()
+                        }
+                        Some(Format::YAML) => serde_yaml::to_string(&presentation).unwrap(),
+                    };
+                    println!("{}", output);
                     Ok(())
                 }
-                PresentationCommand::Parse { from_file, output } => {
+                PresentationCommand::Validate {
+                    from_file,
+                    output,
+                    format,
+                    recalculate,
+                } => {
+                    let ext = from_file.extension();
+                    let extension = match ext {
+                        Some(ext) => match ext.to_str() {
+                            Some(ext) => Format::from_str(ext)
+                                .map_err(|e| CliError::FileExtensionError(e.to_string())),
+                            None => Err(CliError::FileExtensionError(
+                                "Unsupported file extension".to_string(),
+                            )),
+                        },
+                        None => {
+                            // CliError::ExtensionError("Missing file extension".to_string())
+                            warn!("Missing input file extension. Using JSON");
+                            Ok(Format::JSON)
+                        }
+                    }?;
+
                     let file_contents =
                         fs::read_to_string(from_file).map_err(CliError::ReadFileFailed)?;
-                    let pres = handle_parse(&file_contents)?;
-                    // save to file
-                    let out_path = if let Some(out) = output {
-                        out
-                    } else {
-                        from_file
+                    let pres = handle_validate(&file_contents, extension, *recalculate);
+                    match pres {
+                        Ok(pres) => {
+                            // save to file
+                            let out_path = if let Some(out) = output {
+                                out
+                            } else {
+                                from_file
+                            };
+                            let mut file =
+                                File::create(out_path).map_err(CliError::WriteFileFailed)?;
+                            let output = match format {
+                                Some(Format::JSON) | None => {
+                                    serde_json::to_string_pretty(&pres).unwrap()
+                                }
+                                Some(Format::YAML) => serde_yaml::to_string(&pres).unwrap(),
+                            };
+                            file.write_all(output.as_bytes())
+                                .map_err(CliError::WriteFileFailed)?;
+                            println!("Presentation SAID is valid");
+                        }
+                        Err(e) => {
+                            println!("Error: {}", &e.to_string());
+                        }
                     };
-                    let mut file = File::create(out_path).map_err(CliError::WriteFileFailed)?;
-                    file.write_all(serde_json::to_string_pretty(&pres).unwrap().as_bytes())
-                        .map_err(CliError::WriteFileFailed)?;
                     Ok(())
                 }
             }

@@ -1203,6 +1203,7 @@ dependencies = [
  "said",
  "serde",
  "serde_json",
+ "serde_yaml",
  "tempdir",
  "thiserror",
  "toml",
