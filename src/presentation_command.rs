@@ -105,6 +105,7 @@ pub fn handle_generate(
     let mut attr_order = vec![];
     let mut interactions: IndexMap<String, AttrType> = IndexMap::new();
     for (name, attr) in attributes {
+        let mut reference_name: Option<String> = None;
         // Convert NestedAttrType to PageElement
         let page_element = PageElement::expand_frames((name, attr), |(name, attr)| match attr {
             NestedAttrType::Array(arr) => {
@@ -118,7 +119,7 @@ pub fn handle_generate(
                         }
                     }
                     NestedAttrTypeFrame::Value(value) => {
-                        save_interaction(&name, value, &mut interactions);
+                        save_interaction(&name, value, reference_name.as_deref(), &mut interactions);
                         PageElementFrame::Value(name.clone())
                     }
                     NestedAttrTypeFrame::Null => PageElementFrame::Value(name.clone()),
@@ -127,12 +128,16 @@ pub fn handle_generate(
                 })
             }
             NestedAttrType::Value(value) => {
-                save_interaction(&name, value, &mut interactions);
+                save_interaction(&name, value, reference_name.as_deref(), &mut interactions);
                 PageElementFrame::Value(name)
             }
             NestedAttrType::Null => PageElementFrame::Value(name),
             NestedAttrType::Reference(RefValue::Said(said)) => {
                 let more_nested_attributes = handle_reference(said, &dependencies);
+                reference_name = match &reference_name {
+                    Some(nested) => Some([nested, ".", &name].concat()),
+                    None => Some(name.to_string()),
+                };
                 PageElementFrame::Page {
                     name,
                     attribute_order: more_nested_attributes.unwrap(),
@@ -197,8 +202,13 @@ pub fn handle_generate(
 fn save_interaction(
     name: &str,
     value: AttributeType,
+    nested: Option<&str>,
     interactions: &mut IndexMap<String, AttrType>,
 ) {
+    let name = match &nested {
+        Some(nested) => {[nested, ".", name].concat()},
+        None => {name.to_string()},
+    };
     match value {
         AttributeType::Binary => {
             interactions.insert(name.to_owned(), AttrType::File);
@@ -333,7 +343,7 @@ mod tests {
 
         let presentation = handle_generate(array_bundle_said.clone(), &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EJi486RStLv0EzSOaOfY1RtCPfY7-tGBdS6CnFLacKqW","l":[],"d":"EIuRKiaSq6yXfKcz_YUxrrRz_g-c81Amtg9tu3jUttDr","p":[{"n":"Page 1","ao":["list","name"]}],"po":["page1"],"pl":{"eng":{"page1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{"attr_1":{"t":"textarea"}}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EJi486RStLv0EzSOaOfY1RtCPfY7-tGBdS6CnFLacKqW","l":[],"d":"","p":[{"n":"page 1","ao":["list","name"]}],"po":["page1"],"pl":{},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -357,7 +367,7 @@ mod tests {
 
         let presentation = handle_generate(digest0.clone(), &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EEx1y3CnK5LcByLUb_MF7hR3Iv-Fs8enGdbYCiiil21T","l":[],"d":"EMYXQEd9C0WSVqAt9-_GtHGziIbNDjz3utGF0nI-sqVz","p":[{"n":"Page 1","ao":["name","number"]}],"po":["page1"],"pl":{"eng":{"page1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{"attr_1":{"t":"textarea"}}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EEx1y3CnK5LcByLUb_MF7hR3Iv-Fs8enGdbYCiiil21T","l":[],"d":"","p":[{"n":"page 1","ao":["name","number"]}],"po":["page1"],"pl":{},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -373,7 +383,7 @@ mod tests {
 
         let presentation = handle_generate(person_bundle_said.clone(), &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EGU0faBu85GSuo4rwDAo7Qi52OpZpHS8GutS8Rh5rIfl","l":[],"d":"ENJ7xiQa2_41CEBZ68zX-U83OXDJE7QZYR_V7Yg6rOg-","p":[{"n":"Page 1","ao":[{"n":"person","ao":["name","number"]}]}],"po":["page1"],"pl":{"eng":{"page1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{"attr_1":{"t":"textarea"}}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EGU0faBu85GSuo4rwDAo7Qi52OpZpHS8GutS8Rh5rIfl","l":[],"d":"","p":[{"n":"page 1","ao":[{"n":"person","ao":["name","number"]}]}],"po":["page1"],"pl":{},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -405,7 +415,7 @@ mod tests {
 
         let presentation = handle_generate(many_person_bundle_digest, &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EDqTtz-Lp5tWstJ8nLfhpe5UC1cnFQkA27CZQeSfnvHs","l":[],"d":"EKhA8TSloFD8EmVcE4frhmLeqwhkWODBPSvu1cH0hiUx","p":[{"n":"Page 1","ao":[{"n":"many_persons","ao":[{"n":"person","ao":["name","number"]}]}]}],"po":["page1"],"pl":{"eng":{"page1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{"attr_1":{"t":"textarea"}}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EDqTtz-Lp5tWstJ8nLfhpe5UC1cnFQkA27CZQeSfnvHs","l":[],"d":"","p":[{"n":"page 1","ao":[{"n":"many_persons","ao":[{"n":"person","ao":["name","number"]}]}]}],"po":["page1"],"pl":{},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -480,6 +490,48 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
             serde_json::to_string(&AttrType::File).unwrap()
         );
 
+        println!("{}", serde_json::to_string_pretty(&presentation).unwrap());
+    }
+
+    #[test]
+    fn test_complex_interaction() {
+        let tmp_dir = tempdir::TempDir::new("db").unwrap();
+
+        let mut facade = get_oca_facade(tmp_dir.path().to_path_buf());
+
+        let oca_file = r#"ADD ATTRIBUTE radio=Text dt=DateTime img=Binary"#;
+
+        let oca_bundle = facade.build_from_ocafile(oca_file.to_string()).unwrap();
+        let digest = oca_bundle.said.unwrap();
+
+        let oca_file_2 = format!(r#"ADD ATTRIBUTE nested=refs:{}"#, digest.to_string());
+        let oca_bundle2 = facade.build_from_ocafile(oca_file_2.to_string()).unwrap();
+        let nested_digest = oca_bundle2.said.unwrap();
+
+        let oca_file_3 = format!(r#"ADD ATTRIBUTE again=refs:{} once=refs:{}"#, nested_digest.to_string(), digest.to_string());
+        let oca_bundle3 = facade.build_from_ocafile(oca_file_3.to_string()).unwrap();
+        let nested_digest = oca_bundle3.said.unwrap();
+
+        let presentation = handle_generate(nested_digest, &facade).unwrap();
+        let interaction_attrs = presentation.interaction[0].clone().attr_properties;
+        assert_eq!(
+            serde_json::to_string(interaction_attrs.get("once.dt").unwrap()).unwrap(),
+            serde_json::to_string(&AttrType::DateTime).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_string(interaction_attrs.get("once.img").unwrap()).unwrap(),
+            serde_json::to_string(&AttrType::File).unwrap()
+        
+        );
+        assert_eq!(
+            serde_json::to_string(interaction_attrs.get("again.nested.dt").unwrap()).unwrap(),
+            serde_json::to_string(&AttrType::DateTime).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_string(interaction_attrs.get("again.nested.img").unwrap()).unwrap(),
+            serde_json::to_string(&AttrType::File).unwrap()
+        
+        );
         println!("{}", serde_json::to_string_pretty(&presentation).unwrap());
     }
 }
