@@ -1,3 +1,8 @@
+# 0.4.0-rc.5
+
+Improve the presentation parsing and validation
+Fix listing local oca objects
+
 # 0.4.0-rc.4
 
 Support recursive scaning of the directory while building from dir
