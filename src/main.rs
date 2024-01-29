@@ -466,10 +466,8 @@ fn main() -> Result<(), CliError> {
                     let facade = get_oca_facade(local_repository_path);
                     let presentation = handle_generate(said, &facade)?;
                     let output = match format {
-                        Some(Format::JSON) | None => {
-                            serde_json::to_string_pretty(&presentation).unwrap()
-                        }
-                        Some(Format::YAML) => serde_yaml::to_string(&presentation).unwrap(),
+                        Some(f) => f.format(&presentation),
+                        None => Format::JSON.format(&presentation),
                     };
                     println!("{}", output);
                     Ok(())
@@ -498,24 +496,31 @@ fn main() -> Result<(), CliError> {
 
                     let file_contents =
                         fs::read_to_string(from_file).map_err(CliError::ReadFileFailed)?;
-                    let pres = handle_validate(&file_contents, extension, *recalculate);
+                    let pres = handle_validate(&file_contents, extension.clone(), *recalculate);
                     match pres {
                         Ok(pres) => {
                             // save to file
-                            let out_path = if let Some(out) = output {
-                                out
-                            } else {
-                                from_file
+                            let (path, content) = match (output, format) {
+                                (None, None) => (from_file.into(), extension.format(&pres)),
+                                (None, Some(format)) => match format {
+                                    Format::JSON => {
+                                        let mut output_path = from_file.clone();
+                                        output_path.set_extension("json");
+                                        (output_path, serde_json::to_string_pretty(&pres).unwrap())
+                                    }
+                                    Format::YAML => {
+                                        let mut output_path = from_file.clone();
+                                        output_path.set_extension("yaml");
+                                        (output_path, serde_yaml::to_string(&pres).unwrap())
+                                    }
+                                },
+                                (Some(out), None) => (out.into(), extension.format(&pres)),
+                                (Some(out), Some(format)) => (out.into(), format.format(&pres)),
                             };
-                            let mut file =
-                                File::create(out_path).map_err(CliError::WriteFileFailed)?;
-                            let output = match format {
-                                Some(Format::JSON) | None => {
-                                    serde_json::to_string_pretty(&pres).unwrap()
-                                }
-                                Some(Format::YAML) => serde_yaml::to_string(&pres).unwrap(),
-                            };
-                            file.write_all(output.as_bytes())
+
+                            let mut file = File::create(path).map_err(CliError::WriteFileFailed)?;
+
+                            file.write_all(content.as_bytes())
                                 .map_err(CliError::WriteFileFailed)?;
                             println!("Presentation SAID is valid");
                         }

@@ -14,6 +14,7 @@ use oca_presentation::{
 use oca_rs::Facade;
 use recursion::{CollapsibleExt, ExpandableExt};
 use said::{sad::SAD, SelfAddressingIdentifier};
+use serde::Serialize;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -53,6 +54,15 @@ pub enum PresentationCommand {
 pub enum Format {
     JSON,
     YAML,
+}
+
+impl Format {
+    pub fn format<S: Serialize>(&self, data: &S) -> String {
+        match self {
+            Format::JSON => serde_json::to_string_pretty(data).unwrap(),
+            Format::YAML => serde_yaml::to_string(data).unwrap(),
+        }
+    }
 }
 
 impl FromStr for Format {
@@ -122,7 +132,12 @@ pub fn handle_generate(
                         }
                     }
                     NestedAttrTypeFrame::Value(value) => {
-                        save_interaction(&name, value, reference_name.as_deref(), &mut interactions);
+                        save_interaction(
+                            &name,
+                            value,
+                            reference_name.as_deref(),
+                            &mut interactions,
+                        );
                         PageElementFrame::Value(name.clone())
                     }
                     NestedAttrTypeFrame::Null => PageElementFrame::Value(name.clone()),
@@ -156,8 +171,13 @@ pub fn handle_generate(
         .overlays
         .clone()
         .into_iter()
-        .filter_map(|overlay| if overlay.overlay_type() == &OverlayType::Label {
-            overlay.language().copied()} else {None})
+        .filter_map(|overlay| {
+            if overlay.overlay_type() == &OverlayType::Label {
+                overlay.language().copied()
+            } else {
+                None
+            }
+        })
         .unique()
         .collect();
 
@@ -196,8 +216,8 @@ fn save_interaction(
     interactions: &mut IndexMap<String, AttrType>,
 ) {
     let name = match &nested {
-        Some(nested) => {[nested, ".", name].concat()},
-        None => {name.to_string()},
+        Some(nested) => [nested, ".", name].concat(),
+        None => name.to_string(),
     };
     match value {
         AttributeType::Binary => {
@@ -442,10 +462,7 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
         let digest = oca_bundle.said.unwrap();
 
         let presentation = handle_generate(digest, &facade).unwrap();
-        assert_eq!(
-            presentation.languages,
-            vec![Language::Epo, Language::Pol]
-        );
+        assert_eq!(presentation.languages, vec![Language::Epo, Language::Pol]);
         let translations = &presentation.pages_label;
         let eng_expected: BTreeMap<String, String> =
             serde_json::from_str(r#"{"page 1": "Page 1"}"#).unwrap();
@@ -494,7 +511,11 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
         let oca_bundle2 = facade.build_from_ocafile(oca_file_2.to_string()).unwrap();
         let nested_digest = oca_bundle2.said.unwrap();
 
-        let oca_file_3 = format!(r#"ADD ATTRIBUTE again=refs:{} once=refs:{}"#, nested_digest.to_string(), digest.to_string());
+        let oca_file_3 = format!(
+            r#"ADD ATTRIBUTE again=refs:{} once=refs:{}"#,
+            nested_digest.to_string(),
+            digest.to_string()
+        );
         let oca_bundle3 = facade.build_from_ocafile(oca_file_3.to_string()).unwrap();
         let nested_digest = oca_bundle3.said.unwrap();
 
@@ -507,7 +528,6 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
         assert_eq!(
             serde_json::to_string(interaction_attrs.get("once.img").unwrap()).unwrap(),
             serde_json::to_string(&AttrType::File).unwrap()
-        
         );
         assert_eq!(
             serde_json::to_string(interaction_attrs.get("again.nested.dt").unwrap()).unwrap(),
@@ -516,7 +536,6 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
         assert_eq!(
             serde_json::to_string(interaction_attrs.get("again.nested.img").unwrap()).unwrap(),
             serde_json::to_string(&AttrType::File).unwrap()
-        
         );
 
         let oca_file_4 = format!(r#"ADD ATTRIBUTE list=Array[refs:{}]"#, digest.to_string());
@@ -524,14 +543,13 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
         let array_digest = oca_bundle4.said.unwrap();
         let presentation = handle_generate(array_digest, &facade).unwrap();
         let interaction_attrs = presentation.interaction[0].clone().attr_properties;
-         assert_eq!(
+        assert_eq!(
             serde_json::to_string(interaction_attrs.get("list.dt").unwrap()).unwrap(),
             serde_json::to_string(&AttrType::DateTime).unwrap()
         );
         assert_eq!(
             serde_json::to_string(interaction_attrs.get("list.img").unwrap()).unwrap(),
             serde_json::to_string(&AttrType::File).unwrap()
-        
         );
 
         println!("{}", serde_json::to_string_pretty(&presentation).unwrap());
