@@ -1,10 +1,9 @@
 use clap::Subcommand;
 use indexmap::IndexMap;
+use isolang::Language;
 use itertools::Itertools;
 use oca_ast::ast::recursive_attributes::NestedAttrTypeFrame;
-use oca_ast::ast::{AttributeType, NestedAttrType, RefValue};
-use oca_bundle::state::oca::overlay::label::LabelOverlay;
-use oca_bundle::state::oca::overlay::Overlay;
+use oca_ast::ast::{AttributeType, NestedAttrType, OverlayType, RefValue};
 use oca_bundle::state::oca::OCABundle;
 use oca_presentation::page::recursion_setup::PageElementFrame;
 use oca_presentation::presentation::AttrType;
@@ -153,33 +152,20 @@ pub fn handle_generate(
         attr_order.push(page_element);
     }
 
-    let languages = bundle
+    let languages: Vec<_> = bundle
         .overlays
         .clone()
         .into_iter()
-        .filter_map(|overlay| overlay.language().copied())
+        .filter_map(|overlay| if overlay.overlay_type() == &OverlayType::Label {
+            overlay.language().copied()} else {None})
         .unique()
         .collect();
 
-    let mut pages_labels = indexmap::IndexMap::new();
-    for overlay in bundle.overlays {
-        match overlay.overlay_type() {
-            oca_ast::ast::OverlayType::Label => {
-                let label = overlay
-                    .as_any()
-                    .downcast_ref::<LabelOverlay>()
-                    .unwrap()
-                    .clone();
-                let pages_label: BTreeMap<String, String> =
-                    label.clone().attribute_labels.into_iter().collect();
-
-                pages_labels.insert(*label.language().unwrap(), pages_label);
-            }
-            _ => {}
-        }
-    }
-
     let page_name = "page 1".to_string();
+    let mut page_translation = IndexMap::new();
+    let mut eng_translation = BTreeMap::new();
+    eng_translation.insert(page_name.clone(), "Page 1".to_string());
+    page_translation.insert(Language::Eng, eng_translation);
     let page = Page {
         name: page_name.clone(),
         attribute_order: attr_order,
@@ -191,7 +177,7 @@ pub fn handle_generate(
         said: None,
         pages: vec![page],
         pages_order: vec!["page1".to_string()],
-        pages_label: pages_labels,
+        pages_label: page_translation,
         interaction: vec![presentation::Interaction {
             interaction_method: presentation::InteractionMethod::Web,
             context: presentation::Context::Capture,
@@ -347,7 +333,7 @@ mod tests {
 
         let presentation = handle_generate(array_bundle_said.clone(), &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EJi486RStLv0EzSOaOfY1RtCPfY7-tGBdS6CnFLacKqW","l":[],"d":"","p":[{"n":"page 1","ao":["list","name"]}],"po":["page1"],"pl":{},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EJi486RStLv0EzSOaOfY1RtCPfY7-tGBdS6CnFLacKqW","l":[],"d":"","p":[{"n":"page 1","ao":["list","name"]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -371,7 +357,7 @@ mod tests {
 
         let presentation = handle_generate(digest0.clone(), &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EEx1y3CnK5LcByLUb_MF7hR3Iv-Fs8enGdbYCiiil21T","l":[],"d":"","p":[{"n":"page 1","ao":["name","number"]}],"po":["page1"],"pl":{},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EEx1y3CnK5LcByLUb_MF7hR3Iv-Fs8enGdbYCiiil21T","l":[],"d":"","p":[{"n":"page 1","ao":["name","number"]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -387,7 +373,7 @@ mod tests {
 
         let presentation = handle_generate(person_bundle_said.clone(), &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EGU0faBu85GSuo4rwDAo7Qi52OpZpHS8GutS8Rh5rIfl","l":[],"d":"","p":[{"n":"page 1","ao":[{"n":"person","ao":["name","number"]}]}],"po":["page1"],"pl":{},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EGU0faBu85GSuo4rwDAo7Qi52OpZpHS8GutS8Rh5rIfl","l":[],"d":"","p":[{"n":"page 1","ao":[{"n":"person","ao":["name","number"]}]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -419,7 +405,7 @@ mod tests {
 
         let presentation = handle_generate(many_person_bundle_digest, &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EDqTtz-Lp5tWstJ8nLfhpe5UC1cnFQkA27CZQeSfnvHs","l":[],"d":"","p":[{"n":"page 1","ao":[{"n":"many_persons","ao":[{"n":"person","ao":["name","number"]}]}]}],"po":["page1"],"pl":{},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EDqTtz-Lp5tWstJ8nLfhpe5UC1cnFQkA27CZQeSfnvHs","l":[],"d":"","p":[{"n":"page 1","ao":[{"n":"many_persons","ao":[{"n":"person","ao":["name","number"]}]}]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -458,16 +444,12 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
         let presentation = handle_generate(digest, &facade).unwrap();
         assert_eq!(
             presentation.languages,
-            vec![Language::Epo, Language::Pol, Language::Eng]
+            vec![Language::Epo, Language::Pol]
         );
         let translations = &presentation.pages_label;
-        let epo_expected: BTreeMap<String, String> =
-            serde_json::from_str(r#"{"age": "aĝo","name": "Nomo","radio": "radio"}"#).unwrap();
-
-        let pol_expected: BTreeMap<String, String> =
-            serde_json::from_str(r#"{"age": "wiek","name": "Imię","radio": "radio"}"#).unwrap();
-        assert_eq!(translations.get(&Language::Epo).unwrap(), &epo_expected);
-        assert_eq!(translations.get(&Language::Pol).unwrap(), &pol_expected);
+        let eng_expected: BTreeMap<String, String> =
+            serde_json::from_str(r#"{"page 1": "Page 1"}"#).unwrap();
+        assert_eq!(translations.get(&Language::Eng).unwrap(), &eng_expected);
 
         println!("{}", serde_json::to_string_pretty(&presentation).unwrap());
     }
