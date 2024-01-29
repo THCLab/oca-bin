@@ -109,6 +109,10 @@ pub fn handle_generate(
         // Convert NestedAttrType to PageElement
         let page_element = PageElement::expand_frames((name, attr), |(name, attr)| match attr {
             NestedAttrType::Array(arr) => {
+                reference_name = match &reference_name {
+                    Some(nested) => Some([nested, ".", &name].concat()),
+                    None => Some(name.to_string()),
+                };
                 // Array elements can have nested references inside
                 arr.collapse_frames(|frame| match frame {
                     NestedAttrTypeFrame::Reference(RefValue::Said(said)) => {
@@ -532,6 +536,22 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
             serde_json::to_string(&AttrType::File).unwrap()
         
         );
+
+        let oca_file_4 = format!(r#"ADD ATTRIBUTE list=Array[refs:{}]"#, digest.to_string());
+        let oca_bundle4 = facade.build_from_ocafile(oca_file_4.to_string()).unwrap();
+        let array_digest = oca_bundle4.said.unwrap();
+        let presentation = handle_generate(array_digest, &facade).unwrap();
+        let interaction_attrs = presentation.interaction[0].clone().attr_properties;
+         assert_eq!(
+            serde_json::to_string(interaction_attrs.get("list.dt").unwrap()).unwrap(),
+            serde_json::to_string(&AttrType::DateTime).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_string(interaction_attrs.get("list.img").unwrap()).unwrap(),
+            serde_json::to_string(&AttrType::File).unwrap()
+        
+        );
+
         println!("{}", serde_json::to_string_pretty(&presentation).unwrap());
     }
 }
