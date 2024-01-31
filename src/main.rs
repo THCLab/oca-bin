@@ -1,4 +1,5 @@
 use error::CliError;
+use oca_presentation::presentation::Presentation;
 use presentation_command::PresentationCommand;
 use std::env;
 use std::fs;
@@ -465,9 +466,10 @@ fn main() -> Result<(), CliError> {
                     let said = SelfAddressingIdentifier::from_str(said)?;
                     let facade = get_oca_facade(local_repository_path);
                     let presentation = handle_generate(said, &facade)?;
+                    let wrapped_presentation = WrappedPresentation { presentation };
                     let output = match format {
-                        Some(f) => f.format(&presentation),
-                        None => Format::JSON.format(&presentation),
+                        Some(f) => f.format(&wrapped_presentation),
+                        None => Format::JSON.format(&wrapped_presentation),
                     };
                     println!("{}", output);
                     Ok(())
@@ -496,26 +498,44 @@ fn main() -> Result<(), CliError> {
 
                     let file_contents =
                         fs::read_to_string(from_file).map_err(CliError::ReadFileFailed)?;
-                    let pres = handle_validate(&file_contents, extension.clone(), *recalculate);
+                    let pres: WrappedPresentation = match extension {
+                        Format::JSON => serde_json::from_str(&file_contents).unwrap(),
+                        Format::YAML => serde_yaml::from_str(&file_contents).unwrap(),
+                    };
+                    let pres = handle_validate(pres.presentation, *recalculate);
                     match pres {
                         Ok(pres) => {
+                            let presentation_wrapped = WrappedPresentation { presentation: pres };
                             // save to file
                             let (path, content) = match (output, format) {
-                                (None, None) => (from_file.into(), extension.format(&pres)),
+                                (None, None) => {
+                                    (from_file.into(), extension.format(&presentation_wrapped))
+                                }
                                 (None, Some(format)) => match format {
                                     Format::JSON => {
                                         let mut output_path = from_file.clone();
                                         output_path.set_extension("json");
-                                        (output_path, serde_json::to_string_pretty(&pres).unwrap())
+                                        (
+                                            output_path,
+                                            serde_json::to_string_pretty(&presentation_wrapped)
+                                                .unwrap(),
+                                        )
                                     }
                                     Format::YAML => {
                                         let mut output_path = from_file.clone();
                                         output_path.set_extension("yaml");
-                                        (output_path, serde_yaml::to_string(&pres).unwrap())
+                                        (
+                                            output_path,
+                                            serde_yaml::to_string(&presentation_wrapped).unwrap(),
+                                        )
                                     }
                                 },
-                                (Some(out), None) => (out.into(), extension.format(&pres)),
-                                (Some(out), Some(format)) => (out.into(), format.format(&pres)),
+                                (Some(out), None) => {
+                                    (out.into(), extension.format(&presentation_wrapped))
+                                }
+                                (Some(out), Some(format)) => {
+                                    (out.into(), format.format(&presentation_wrapped))
+                                }
                             };
 
                             let mut file = File::create(path).map_err(CliError::WriteFileFailed)?;
@@ -536,6 +556,11 @@ fn main() -> Result<(), CliError> {
             todo!()
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct WrappedPresentation {
+    presentation: Presentation,
 }
 
 // ocafile build -i OCAfile

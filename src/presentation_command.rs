@@ -78,14 +78,9 @@ impl FromStr for Format {
 }
 
 pub fn handle_validate(
-    input_str: &str,
-    format: Format,
+    mut pres: Presentation,
     recalculate: bool,
 ) -> Result<Presentation, PresentationError> {
-    let mut pres: Presentation = match format {
-        Format::JSON => serde_json::from_str(input_str)?,
-        Format::YAML => serde_yaml::from_str(input_str)?,
-    };
     match pres.validate_digest() {
         Err(e) => {
             if recalculate {
