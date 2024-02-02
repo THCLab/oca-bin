@@ -1,3 +1,7 @@
+# 0.4.0-rc.6
+
+Add presentation object to the presentation output
+
 # 0.4.0-rc.5
 
 Improve the presentation parsing and validation
