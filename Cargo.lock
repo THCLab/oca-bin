@@ -1198,6 +1198,7 @@ dependencies = [
  "oca-presentation",
  "oca-rs",
  "recursion",
+ "regex",
  "reqwest",
  "rusqlite",
  "said",
