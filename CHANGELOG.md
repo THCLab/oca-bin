@@ -1,3 +1,8 @@
+# 0.4.0-rc.7
+
+Update presentation parsing
+Support for dependency detection while building ocafiles
+
 # 0.4.0-rc.6
 
 Add presentation object to the presentation output
