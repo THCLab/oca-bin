@@ -1,44 +1,33 @@
+use config::create_or_open_local_storage;
+use config::OCA_CACHE_DB_DIR;
+use config::OCA_INDEX_DIR;
+use config::OCA_REPOSITORY_DIR;
 use error::CliError;
 use oca_presentation::presentation::Presentation;
 use presentation_command::PresentationCommand;
-use regex::Regex;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::env;
-use std::fs;
-use std::fs::File;
-use std::io;
-use std::io::Write;
-use std::path::PathBuf;
-use std::process;
-use std::str::FromStr;
+use std::{env, fs, fs::File, io::Write, path::PathBuf, process, str::FromStr};
 use walkdir::WalkDir;
 
 use clap::Parser as ClapParser;
 use clap::Subcommand;
-use oca_rs::data_storage::SledDataStorageConfig;
-use oca_rs::repositories::SQLiteConfig;
-use oca_rs::Facade;
+use oca_rs::{repositories::SQLiteConfig, Facade};
 
-use oca_rs::data_storage::DataStorage;
-use oca_rs::data_storage::SledDataStorage;
+use crate::config::{init_or_read_config, write_config, Config, OCA_DIR_NAME};
+use crate::dependency_graph::{build_dependency_graph, topological_sort};
+use crate::presentation_command::{handle_generate, handle_validate, Format};
 use said::SelfAddressingIdentifier;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 extern crate dirs;
 
 #[macro_use]
 extern crate log;
 
+mod config;
+mod dependency_graph;
 pub mod error;
 pub mod presentation_command;
 mod tui;
-
-const OCA_CACHE_DB_DIR: &str = "oca_cache";
-const OCA_REPOSITORY_DIR: &str = "oca_repository";
-const OCA_INDEX_DIR: &str = "read_db";
-const OCA_DIR_NAME: &str = ".oca";
 
 #[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
@@ -47,21 +36,6 @@ struct Args {
     command: Option<Commands>,
     #[arg(short, long)]
     config_path: Option<String>,
-}
-
-#[derive(Default, Debug, Serialize, Deserialize)]
-struct Config {
-    local_repository_path: PathBuf,
-    remote_repo_url: Option<String>,
-}
-
-impl Config {
-    fn new(local_repository_path: PathBuf) -> Self {
-        Config {
-            local_repository_path,
-            ..Default::default()
-        }
-    }
 }
 
 #[derive(Subcommand)]
@@ -122,40 +96,6 @@ enum Commands {
     },
 }
 
-use std::io::Error;
-
-use crate::presentation_command::handle_generate;
-use crate::presentation_command::handle_validate;
-use crate::presentation_command::Format;
-
-fn read_config(path: &PathBuf) -> Result<Config, Error> {
-    let content = fs::read_to_string(path)?;
-    let config: Config = toml::from_str(&content)?;
-    Ok(config)
-}
-
-fn write_config(config: &Config, path: &PathBuf) -> Result<(), Error> {
-    let content = toml::to_string_pretty(config).unwrap();
-    if let Some(parent) = path.parent() {
-        info!("Create local repository: {:?}", parent);
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, content)?;
-    Ok(())
-}
-
-fn write_default_config(path: &PathBuf) -> Result<Config, Error> {
-    let local_repository_path = path.parent().unwrap().to_path_buf();
-    let config = Config::new(local_repository_path);
-    write_config(&config, path)?;
-    Ok(config)
-}
-
-fn create_or_open_local_storage(path: PathBuf) -> SledDataStorage {
-    let config = SledDataStorageConfig::build().path(path).unwrap();
-    SledDataStorage::new().config(config)
-}
-
 fn get_oca_facade(local_repository_path: PathBuf) -> Facade {
     let db = create_or_open_local_storage(local_repository_path.join(OCA_REPOSITORY_DIR));
     let cache = create_or_open_local_storage(local_repository_path.join(OCA_CACHE_DB_DIR));
@@ -163,19 +103,6 @@ fn get_oca_facade(local_repository_path: PathBuf) -> Facade {
         .path(local_repository_path.join(OCA_INDEX_DIR))
         .unwrap();
     Facade::new(Box::new(db), Box::new(cache), cache_storage_config)
-}
-
-fn ask_for_confirmation(prompt: &str) -> bool {
-    print!("{} ", prompt);
-    io::stdout().flush().unwrap();
-
-    let mut input = String::new();
-    io::stdin()
-        .read_line(&mut input)
-        .expect("Failed to read line");
-
-    let input = input.trim().to_lowercase();
-    input == "y" || input == "yes"
 }
 
 /// Publish oca bundle pointed by SAID to configured repository
@@ -215,146 +142,6 @@ fn publish_oca_file_for(
             println!("{:?}", errors);
         }
     }
-}
-
-fn init_or_read_config() -> Config {
-    let local_config_path = env::current_dir()
-        .unwrap()
-        .join(OCA_DIR_NAME)
-        .join("config.toml");
-    if local_config_path.is_file() {
-        read_config(&local_config_path).unwrap()
-    } else {
-        // Try to read home directory configuration
-        let p = dirs::home_dir()
-            .unwrap()
-            .join(OCA_DIR_NAME)
-            .join("config.toml");
-        match read_config(&p) {
-            Ok(config) => config,
-            Err(_) => {
-                if ask_for_confirmation("OCA config not found do you want to initialize it in your home directory? (y/N)") {
-                write_default_config(&p).unwrap()
-             } else {
-                println!("Consider runing oca init in this directory to initialize local repository");
-                process::exit(1)
-             }
-            }
-        }
-    }
-    // Check currnet path
-    // Check home
-    // ask to initialize home or run oca init to create it in local directory
-}
-
-fn find_refn(lines: Vec<&str>) -> Vec<String> {
-    let re = Regex::new(r"refn:([^\s\]]+)").expect("Invalid regex");
-    let mut refn = Vec::new();
-
-    for line in lines {
-        for cap in re.captures_iter(line) {
-            if let Some(matched) = cap.get(1) {
-                refn.push(matched.as_str().to_string());
-            }
-        }
-    }
-    refn
-}
-
-fn parse_file(file_path: PathBuf) -> Option<(String, PathBuf, Vec<String>)> {
-    let content = fs::read_to_string(file_path.clone()).expect("Failed to read file");
-    let lines: Vec<&str> = content.lines().collect();
-    let ref_name_line = lines.first().expect("File is empty");
-    match ref_name_line.split("name=").nth(1) {
-        Some(name_part) => {
-            let ref_name = name_part.trim_matches('"').to_string();
-
-            let dependencies = find_refn(lines);
-            info!("path {:?} RefN: {:?}, dependencies: {:?}", file_path, ref_name, dependencies);
-            Some((ref_name, file_path, dependencies))
-        }
-        None => {
-            print!("RefN not found in parsed file: {:?}", file_path);
-            None
-        }
-    }
-}
-
-struct DependencyPathPair {
-    path: PathBuf,
-    dependencies: Vec<String>,
-}
-
-fn build_dependency_graph(file_paths: Vec<PathBuf>) -> HashMap<String, DependencyPathPair> {
-    let mut graph = HashMap::new();
-    for file_path in file_paths {
-        match parse_file(file_path.clone()) {
-            Some((ref_name, path, dependencies)) => {
-                graph.insert(ref_name, DependencyPathPair { path, dependencies });
-            }
-            None => {
-                println!("Failed to parse file: {:?}", file_path);
-            }
-        }
-    }
-    graph
-}
-
-fn topological_sort(graph: &HashMap<String, DependencyPathPair>) -> Vec<String> {
-    let mut sorted = Vec::new();
-    let mut visited = HashSet::new();
-    let mut temp_marks = HashSet::new();
-    let mut has_cycles = false;
-
-    fn dfs(
-        node: &String,
-        graph: &HashMap<String, DependencyPathPair>,
-        visited: &mut HashSet<String>,
-        temp_marks: &mut HashSet<String>,
-        sorted: &mut Vec<String>,
-        has_cycles: &mut bool,
-    ) {
-        if visited.contains(node) {
-            return;
-        }
-        if temp_marks.contains(node) {
-            *has_cycles = true; // Cycle detected
-            return;
-        }
-
-        temp_marks.insert(node.clone());
-
-        if let Some(dep_pair) = graph.get(node) {
-            let mut dependencies = dep_pair.dependencies.clone();
-            dependencies.sort(); // Ensure deterministic order
-            for dep in dependencies {
-                dfs(&dep, graph, visited, temp_marks, sorted, has_cycles);
-            }
-        }
-
-        temp_marks.remove(node);
-        visited.insert(node.clone());
-        sorted.push(node.clone());
-    }
-
-    let mut keys: Vec<_> = graph.keys().cloned().collect();
-    keys.sort(); // Ensure deterministic order
-    for node in keys {
-        dfs(
-            &node,
-            graph,
-            &mut visited,
-            &mut temp_marks,
-            &mut sorted,
-            &mut has_cycles,
-        );
-    }
-
-    if has_cycles {
-        // Handle cycle detection case
-        println!("Warning: Cycles detected in the graph");
-    }
-    sorted
 }
 
 fn main() -> Result<(), CliError> {
