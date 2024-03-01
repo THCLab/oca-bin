@@ -106,7 +106,7 @@ impl Widget for &mut App {
 
         self.render_title(header_area, buf);
         self.render_list(list_area, buf);
-        self.render_info(deps_area, buf);
+        self.render_dependencies(deps_area, buf);
         self.render_about(changes_area, buf);
         self.render_footer(footer_area, buf);
     }
@@ -165,7 +165,7 @@ impl App {
         StatefulWidget::render(items, inner_area, buf, &mut self.items.state);
     }
 
-    fn render_info(&self, area: Rect, buf: &mut Buffer) {
+    fn render_dependencies(&self, area: Rect, buf: &mut Buffer) {
         // We get the info depending on the item's state.
         let info = if let Some(i) = self.items.state.selected() {
             match self.items.items[i].status {
@@ -220,7 +220,7 @@ impl App {
             .borders(Borders::NONE)
             // .fg(TEXT_COLOR)
             // .bg(TODO_HEADER_BG)
-            .title("Dependencies")
+            .title("OCA Bundle")
             .title_alignment(Alignment::Center);
         let inner_info_block = Block::default()
             .borders(Borders::NONE)

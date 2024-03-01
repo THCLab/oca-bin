@@ -1,12 +1,15 @@
+use crate::get_oca_facade;
 use anyhow::Result;
+use app::App;
 use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
 use oca_bundle::state::oca::OCABundle;
+use ratatui::prelude::*;
 use std::{io::stdout, path::PathBuf};
+
 pub mod app;
-use app::App;
 mod list;
 
 pub fn draw(path: Vec<PathBuf>, local_bundle_path: PathBuf) -> Result<()> {
@@ -21,10 +24,6 @@ pub fn draw(path: Vec<PathBuf>, local_bundle_path: PathBuf) -> Result<()> {
     stdout().execute(LeaveAlternateScreen)?;
     Ok(())
 }
-
-use ratatui::prelude::*;
-
-use crate::get_oca_facade;
 
 fn get_oca_bundle(oca_repo: PathBuf, refn: String) -> Option<OCABundle> {
     let facade = get_oca_facade(oca_repo);
