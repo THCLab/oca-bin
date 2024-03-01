@@ -13,7 +13,7 @@ use clap::Subcommand;
 use oca_rs::{repositories::SQLiteConfig, Facade};
 
 use crate::config::{init_or_read_config, write_config, Config, OCA_DIR_NAME};
-use crate::dependency_graph::{build_dependency_graph, topological_sort};
+use crate::dependency_graph::DependencyGraph;
 use crate::presentation_command::{handle_generate, handle_validate, Format};
 use said::SelfAddressingIdentifier;
 use serde::{Deserialize, Serialize};
@@ -219,8 +219,8 @@ fn main() -> Result<(), CliError> {
             }
 
             let mut facade = get_oca_facade(local_repository_path);
-            let graph = build_dependency_graph(paths);
-            let sorted_refn = topological_sort(&graph);
+            let graph =  DependencyGraph::new(paths);
+            let sorted_refn = graph.sort();
             println!("Sorted: {:?}", sorted_refn);
             for refn in sorted_refn {
                 println!("Processing: {}", refn);

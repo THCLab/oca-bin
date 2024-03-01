@@ -6,7 +6,23 @@ use std::{
 
 use regex::Regex;
 
-pub fn find_refn(lines: Vec<&str>) -> Vec<String> {
+pub struct DependencyGraph(HashMap<String, DependencyPathPair>);
+
+impl DependencyGraph {
+	pub fn new(file_paths: Vec<PathBuf>) -> Self {
+		build_dependency_graph(file_paths)
+	}
+
+    pub fn sort(&self) -> Vec<String> {
+        topological_sort(&self.0)
+    }
+
+    pub fn get(&self, refn: &str) -> Option<&DependencyPathPair> {
+        self.0.get(refn)
+    }
+}
+
+fn find_refn(lines: Vec<&str>) -> Vec<String> {
     let re = Regex::new(r"refn:([^\s\]]+)").expect("Invalid regex");
     let mut refn = Vec::new();
 
@@ -20,7 +36,7 @@ pub fn find_refn(lines: Vec<&str>) -> Vec<String> {
     refn
 }
 
-pub fn parse_file(file_path: PathBuf) -> Option<(String, PathBuf, Vec<String>)> {
+fn parse_file(file_path: PathBuf) -> Option<(String, PathBuf, Vec<String>)> {
     let content = fs::read_to_string(file_path.clone()).expect("Failed to read file");
     let lines: Vec<&str> = content.lines().collect();
     let ref_name_line = lines.first().expect("File is empty");
@@ -48,7 +64,7 @@ pub struct DependencyPathPair {
     pub dependencies: Vec<String>,
 }
 
-pub fn build_dependency_graph(file_paths: Vec<PathBuf>) -> HashMap<String, DependencyPathPair> {
+fn build_dependency_graph(file_paths: Vec<PathBuf>) -> DependencyGraph {
     let mut graph = HashMap::new();
     for file_path in file_paths {
         match parse_file(file_path.clone()) {
@@ -60,10 +76,10 @@ pub fn build_dependency_graph(file_paths: Vec<PathBuf>) -> HashMap<String, Depen
             }
         }
     }
-    graph
+    DependencyGraph(graph)
 }
 
-pub fn topological_sort(graph: &HashMap<String, DependencyPathPair>) -> Vec<String> {
+fn topological_sort(graph: &HashMap<String, DependencyPathPair>) -> Vec<String> {
     let mut sorted = Vec::new();
     let mut visited = HashSet::new();
     let mut temp_marks = HashSet::new();
