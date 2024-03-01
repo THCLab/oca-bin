@@ -4,7 +4,7 @@ use anyhow::Result;
 use crossterm::event::{self, KeyCode, KeyEventKind};
 use ratatui::{prelude::*, widgets::*};
 
-use crate::{build_dependency_graph, topological_sort};
+use crate::dependency_graph::DependencyGraph;
 
 use super::{
     get_oca_bundle,
@@ -15,9 +15,9 @@ pub struct App {
     items: StatefulList,
 }
 impl App {
-    pub fn new<'a>(path: Vec<PathBuf>, local_bundle_path: PathBuf) -> App {
-        let graph = build_dependency_graph(path);
-        let sorted_refn = topological_sort(&graph);
+    pub fn new<'a>(paths: Vec<PathBuf>, local_bundle_path: PathBuf) -> App {
+        let graph =  DependencyGraph::new(paths);
+        let sorted_refn = graph.sort();
 
         let dependencies: Vec<BundleInfo> = sorted_refn
             .into_iter()
