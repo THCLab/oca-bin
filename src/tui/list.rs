@@ -77,7 +77,7 @@ impl BundleInfo {
             Status::Completed => Line::styled(format!(" ✓ {}", self.refn), bg_color),
         };
 
-        ListItem::new(line).bg(bg_color)
+        ListItem::new(line)
     }
 
     fn to_budnle(&self) {}
