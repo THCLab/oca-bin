@@ -33,6 +33,7 @@ extern crate log;
 
 pub mod error;
 pub mod presentation_command;
+mod tui;
 
 const OCA_CACHE_DB_DIR: &str = "oca_cache";
 const OCA_REPOSITORY_DIR: &str = "oca_repository";
@@ -113,6 +114,11 @@ enum Commands {
     Presentation {
         #[command(subcommand)]
         command: PresentationCommand,
+    },
+    About {
+        /// Browse oca objects from directory (recursive)
+        #[arg(short, long)]
+        dir: Option<PathBuf>,
     },
 }
 
@@ -259,15 +265,18 @@ fn parse_file(file_path: PathBuf) -> Option<(String, PathBuf, Vec<String>)> {
     let content = fs::read_to_string(file_path.clone()).expect("Failed to read file");
     let lines: Vec<&str> = content.lines().collect();
     let ref_name_line = lines.first().expect("File is empty");
-     match ref_name_line.split("name=").nth(1) {
+    match ref_name_line.split("name=").nth(1) {
         Some(name_part) => {
             let ref_name = name_part.trim_matches('"').to_string();
 
             let dependencies = find_refn(lines);
-            println!("path {:?} RefN: {:?}, dependencies: {:?}", file_path, ref_name, dependencies);
+            // println!(
+            // "path {:?} RefN: {:?}, dependencies: {:?}",
+            // file_path, ref_name, dependencies
+            // );
 
             Some((ref_name, file_path, dependencies))
-        },
+        }
         None => {
             print!("RefN not found in parsed file: {:?}", file_path);
             None
@@ -301,7 +310,14 @@ fn topological_sort(graph: &HashMap<String, DependencyPathPair>) -> Vec<String> 
     let mut temp_marks = HashSet::new();
     let mut has_cycles = false;
 
-     fn dfs(node: &String, graph: &HashMap<String, DependencyPathPair>, visited: &mut HashSet<String>, temp_marks: &mut HashSet<String>, sorted: &mut Vec<String>, has_cycles: &mut bool) {
+    fn dfs(
+        node: &String,
+        graph: &HashMap<String, DependencyPathPair>,
+        visited: &mut HashSet<String>,
+        temp_marks: &mut HashSet<String>,
+        sorted: &mut Vec<String>,
+        has_cycles: &mut bool,
+    ) {
         if visited.contains(node) {
             return;
         }
@@ -312,7 +328,7 @@ fn topological_sort(graph: &HashMap<String, DependencyPathPair>) -> Vec<String> 
 
         temp_marks.insert(node.clone());
 
-        println!("Visiting: {}", node);
+        // println!("Visiting: {}", node);
         if let Some(dep_pair) = graph.get(node) {
             let mut dependencies = dep_pair.dependencies.clone();
             dependencies.sort(); // Ensure deterministic order
@@ -323,14 +339,21 @@ fn topological_sort(graph: &HashMap<String, DependencyPathPair>) -> Vec<String> 
 
         temp_marks.remove(node);
         visited.insert(node.clone());
-        println!("Adding to sorted: {}", node);
+        // println!("Adding to sorted: {}", node);
         sorted.push(node.clone());
     }
 
     let mut keys: Vec<_> = graph.keys().cloned().collect();
     keys.sort(); // Ensure deterministic order
     for node in keys {
-        dfs(&node, graph, &mut visited, &mut temp_marks, &mut sorted, &mut has_cycles);
+        dfs(
+            &node,
+            graph,
+            &mut visited,
+            &mut temp_marks,
+            &mut sorted,
+            &mut has_cycles,
+        );
     }
 
     if has_cycles {
@@ -423,7 +446,8 @@ fn main() -> Result<(), CliError> {
                 match graph.get(&refn) {
                     Some(node) => {
                         let path = node.path.clone();
-                        let unparsed_file = fs::read_to_string(path).map_err(CliError::ReadFileFailed)?;
+                        let unparsed_file =
+                            fs::read_to_string(path).map_err(CliError::ReadFileFailed)?;
                         let oca_bundle = facade
                             .build_from_ocafile(unparsed_file)
                             .map_err(CliError::OcaBundleError)?;
@@ -665,6 +689,28 @@ fn main() -> Result<(), CliError> {
                     Ok(())
                 }
             }
+        }
+        Some(Commands::About { dir }) => {
+            let mut paths = Vec::new();
+            if let Some(directory) = dir {
+                info!("Building OCA bundle from directory");
+                for entry in WalkDir::new(directory).into_iter().filter_map(|e| e.ok()) {
+                    let path = entry.path();
+                    if path.is_dir() {
+                        continue;
+                    }
+                    if let Some(ext) = path.extension() {
+                        if ext == "ocafile" {
+                            paths.push(path.to_path_buf());
+                        }
+                    }
+                }
+            } else {
+                println!("No file or directory provided");
+                process::exit(1);
+            }
+            tui::draw(paths, local_repository_path).unwrap();
+            Ok(())
         }
         None => {
             todo!()
