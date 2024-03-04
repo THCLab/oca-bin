@@ -26,6 +26,7 @@ extern crate log;
 mod config;
 mod dependency_graph;
 pub mod error;
+mod petgraph;
 pub mod presentation_command;
 mod tui;
 
@@ -219,7 +220,7 @@ fn main() -> Result<(), CliError> {
             }
 
             let mut facade = get_oca_facade(local_repository_path);
-            let graph =  DependencyGraph::new(paths);
+            let graph = DependencyGraph::new(paths);
             let sorted_refn = graph.sort();
             info!("Sorted: {:?}", sorted_refn);
             for refn in sorted_refn {

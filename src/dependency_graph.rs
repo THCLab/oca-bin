@@ -8,10 +8,16 @@ use regex::Regex;
 
 pub struct DependencyGraph(HashMap<String, DependencyPathPair>);
 
+#[derive(Default, Debug, Clone)]
+pub struct Node {
+    pub refn: String,
+    pub path: PathBuf,
+}
+
 impl DependencyGraph {
-	pub fn new(file_paths: Vec<PathBuf>) -> Self {
-		build_dependency_graph(file_paths)
-	}
+    pub fn new(file_paths: Vec<PathBuf>) -> Self {
+        build_dependency_graph(file_paths)
+    }
 
     pub fn sort(&self) -> Vec<String> {
         topological_sort(&self.0)
@@ -22,7 +28,7 @@ impl DependencyGraph {
     }
 }
 
-fn find_refn(lines: Vec<&str>) -> Vec<String> {
+pub fn find_refn(lines: Vec<&str>) -> Vec<String> {
     let re = Regex::new(r"refn:([^\s\]]+)").expect("Invalid regex");
     let mut refn = Vec::new();
 
