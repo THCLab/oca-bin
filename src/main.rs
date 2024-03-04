@@ -26,7 +26,6 @@ extern crate log;
 mod config;
 mod dependency_graph;
 pub mod error;
-mod petgraph;
 pub mod presentation_command;
 mod tui;
 
@@ -225,9 +224,8 @@ fn main() -> Result<(), CliError> {
             info!("Sorted: {:?}", sorted_refn);
             for refn in sorted_refn {
                 debug!("Processing: {}", refn);
-                match graph.get(&refn) {
-                    Some(node) => {
-                        let path = node.path.clone();
+                match graph.oca_file_path(&refn) {
+                    Some(path) => {
                         let unparsed_file =
                             fs::read_to_string(path).map_err(CliError::ReadFileFailed)?;
                         let oca_bundle = facade

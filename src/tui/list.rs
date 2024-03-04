@@ -1,6 +1,8 @@
 use oca_bundle::state::oca::OCABundle;
 use ratatui::{prelude::*, widgets::*};
 
+use crate::dependency_graph::Node;
+
 pub struct StatefulList {
     pub state: ListState,
     pub items: Vec<BundleInfo>,
@@ -62,7 +64,7 @@ pub enum Status {
 pub struct BundleInfo {
     pub oca_bundle: OCABundle,
     pub refn: String,
-    pub dependencies: Vec<String>,
+    pub dependencies: Vec<Node>,
     pub status: Status,
 }
 

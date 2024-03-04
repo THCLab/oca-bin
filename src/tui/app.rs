@@ -22,11 +22,11 @@ impl App {
         let dependencies: Vec<BundleInfo> = sorted_refn
             .into_iter()
             .map(|refn| {
-                let deps = graph.get(&refn);
+                let deps = graph.neighbors(&refn);
                 let oca_bundle = get_oca_bundle(local_bundle_path.clone(), refn.clone()).unwrap();
                 BundleInfo {
                     refn: refn,
-                    dependencies: deps.unwrap().dependencies.clone(),
+                    dependencies: deps,
                     status: Status::Completed,
                     oca_bundle,
                 }
@@ -170,9 +170,23 @@ impl App {
         let info = if let Some(i) = self.items.state.selected() {
             match self.items.items[i].status {
                 Status::Completed => {
-                    "✓ ".to_string() + &self.items.items[i].dependencies.join("\n")
+                    "✓ ".to_string()
+                        + &self.items.items[i]
+                            .dependencies
+                            .iter()
+                            .map(|d| d.refn.clone())
+                            .collect::<Vec<_>>()
+                            .join("\n")
                 }
-                Status::Todo => "".to_string() + &self.items.items[i].dependencies.join("\n"),
+                Status::Todo => {
+                    "".to_string()
+                        + &self.items.items[i]
+                            .dependencies
+                            .iter()
+                            .map(|d| d.refn.clone())
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                }
             }
         } else {
             "Nothing to see here...".to_string()
