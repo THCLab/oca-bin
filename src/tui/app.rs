@@ -16,7 +16,7 @@ pub struct App {
 }
 impl App {
     pub fn new<'a>(paths: Vec<PathBuf>, local_bundle_path: PathBuf) -> App {
-        let graph =  DependencyGraph::new(paths);
+        let graph = DependencyGraph::new(paths);
         let sorted_refn = graph.sort();
 
         let dependencies: Vec<BundleInfo> = sorted_refn
