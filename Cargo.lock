@@ -1381,7 +1381,7 @@ dependencies = [
 
 [[package]]
 name = "oca-presentation"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "indexmap 2.1.0",
  "isolang",
