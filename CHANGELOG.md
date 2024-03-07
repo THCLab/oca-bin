@@ -1,3 +1,7 @@
+# 0.4.0-rc.8
+
+Support new presentation model
+
 # 0.4.0-rc.7
 
 Update presentation parsing
