@@ -264,8 +264,7 @@ fn parse_file(file_path: PathBuf) -> Option<(String, PathBuf, Vec<String>)> {
             let ref_name = name_part.trim_matches('"').to_string();
 
             let dependencies = find_refn(lines);
-            println!("path {:?} RefN: {:?}, dependencies: {:?}", file_path, ref_name, dependencies);
-
+            info!("path {:?} RefN: {:?}, dependencies: {:?}", file_path, ref_name, dependencies);
             Some((ref_name, file_path, dependencies))
         },
         None => {
@@ -312,7 +311,6 @@ fn topological_sort(graph: &HashMap<String, DependencyPathPair>) -> Vec<String> 
 
         temp_marks.insert(node.clone());
 
-        println!("Visiting: {}", node);
         if let Some(dep_pair) = graph.get(node) {
             let mut dependencies = dep_pair.dependencies.clone();
             dependencies.sort(); // Ensure deterministic order
@@ -323,7 +321,6 @@ fn topological_sort(graph: &HashMap<String, DependencyPathPair>) -> Vec<String> 
 
         temp_marks.remove(node);
         visited.insert(node.clone());
-        println!("Adding to sorted: {}", node);
         sorted.push(node.clone());
     }
 
@@ -417,9 +414,9 @@ fn main() -> Result<(), CliError> {
             let mut facade = get_oca_facade(local_repository_path);
             let graph = build_dependency_graph(paths);
             let sorted_refn = topological_sort(&graph);
-            println!("Sorted: {:?}", sorted_refn);
+            info!("Sorted: {:?}", sorted_refn);
             for refn in sorted_refn {
-                println!("Processing: {}", refn);
+                debug!("Processing: {}", refn);
                 match graph.get(&refn) {
                     Some(node) => {
                         let path = node.path.clone();
