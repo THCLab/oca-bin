@@ -1287,6 +1287,7 @@ dependencies = [
  "tempdir",
  "thiserror",
  "toml",
+ "tui-tree-widget",
  "walkdir",
 ]
 
@@ -1381,7 +1382,7 @@ dependencies = [
 
 [[package]]
 name = "oca-presentation"
-version = "0.4.0"
+version = "0.6.0"
 dependencies = [
  "indexmap 2.1.0",
  "isolang",
@@ -2534,6 +2535,16 @@ name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
+
+[[package]]
+name = "tui-tree-widget"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb0c6f924587e719c50b8f83485afbe4d4c16edca6b641d5d9a3204edeba5cf0"
+dependencies = [
+ "ratatui",
+ "unicode-width",
+]
 
 [[package]]
 name = "typenum"
