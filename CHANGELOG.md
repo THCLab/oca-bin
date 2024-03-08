@@ -1,3 +1,7 @@
+# 0.4.0-rc.10
+
+Fix number types for presentation model
+
 # 0.4.0-rc.9
 
 Support number in presentation model
