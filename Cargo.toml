@@ -24,7 +24,7 @@ serde = { version = "1.0", features = ["derive"] }
 reqwest = { version = "0.11", features = ["json", "blocking"] }
 toml = "0.5"
 said = { version = "0.3.0", features = ["macros"] }
-oca-presentation = { path = "../oca-presentation/presentation-base", version = "0.4.0" }
+oca-presentation = { path = "../oca-presentation/presentation-base", version = "0.6.0" }
 isolang = { version = "2.3.0", features = ["serde"] }
 walkdir = "2.3"
 indexmap = "2.1.0"
@@ -39,6 +39,7 @@ ratatui = "0.26.1"
 crossterm = "0.27.0"
 anyhow = "1.0.80"
 petgraph = "0.6.4"
+tui-tree-widget = "0.19.0"
 
 [dev-dependencies]
 tempdir = "0.3.7"

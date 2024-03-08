@@ -6,6 +6,7 @@ use std::{
 
 use petgraph::{algo::toposort, graph::NodeIndex, Graph};
 use regex::Regex;
+use said::SelfAddressingIdentifier;
 
 #[derive(Default, Debug, Clone)]
 pub struct Node {
@@ -57,12 +58,12 @@ impl DependencyGraph {
         out
     }
 
-    pub fn sort(&self) -> Vec<String> {
+    pub fn sort(&self) -> Vec<Node> {
         let sorted = toposort(&self.graph, None).unwrap();
         sorted
             .into_iter()
             .rev()
-            .map(|i| self.graph[i].refn.clone())
+            .map(|i| self.graph[i].clone())
             .collect()
     }
 
@@ -172,7 +173,14 @@ fn test_sort() -> anyhow::Result<()> {
     }
 
     let petgraph = DependencyGraph::new(paths);
-    assert_eq!(petgraph.sort(), vec!["first", "second", "third", "fourth"]);
+    assert_eq!(
+        petgraph
+            .sort()
+            .iter()
+            .map(|node| node.refn.clone())
+            .collect::<Vec<_>>(),
+        vec!["first", "second", "third", "fourth"]
+    );
 
     let n: Vec<_> = petgraph
         .neighbors("fourth")

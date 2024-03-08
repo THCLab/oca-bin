@@ -224,7 +224,7 @@ fn main() -> Result<(), CliError> {
             info!("Sorted: {:?}", sorted_refn);
             for refn in sorted_refn {
                 debug!("Processing: {}", refn);
-                match graph.oca_file_path(&refn) {
+                match graph.oca_file_path(&refn.refn) {
                     Some(path) => {
                         let unparsed_file =
                             fs::read_to_string(path).map_err(CliError::ReadFileFailed)?;
@@ -249,7 +249,7 @@ fn main() -> Result<(), CliError> {
                         };
                     }
                     None => {
-                        println!("RefN not found in graph: {}", refn);
+                        println!("RefN not found in graph: {}", refn.refn);
                     }
                 }
             }
