@@ -36,8 +36,8 @@ pub fn draw(path: Vec<PathBuf>, local_bundle_path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn get_oca_bundle(oca_repo: PathBuf, refn: String) -> Option<OCABundle> {
-    let facade = get_oca_facade(oca_repo);
+fn get_oca_bundle(oca_repo: &Path, refn: &str) -> Option<OCABundle> {
+    let facade = get_oca_facade(oca_repo.to_owned());
     let page = 1;
     let page_size = 20;
     let result = facade.fetch_all_oca_bundle(page_size, page).unwrap();

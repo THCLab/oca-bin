@@ -1,6 +1,7 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+use oca_ast::ast::NestedAttrType;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
@@ -43,7 +44,7 @@ impl<'a> BundleList<'a> {
             .map(|node| {
                 let deps = graph.neighbors(&node.refn);
                 let oca_bundle =
-                    get_oca_bundle(local_bundle_path.clone(), node.refn.clone()).unwrap();
+                    get_oca_bundle(&local_bundle_path, &node.refn).unwrap();
                 BundleInfo {
                     refn: node.refn,
                     dependencies: deps,
@@ -60,36 +61,7 @@ impl<'a> BundleList<'a> {
                 let attributes = dep.oca_bundle.capture_base.attributes;
                 let attrs = attributes
                     .into_iter()
-                    .map(|(key, attr)| match attr {
-                        oca_ast::ast::NestedAttrType::Reference(reference) => {
-                            let bundle = match reference {
-                                oca_ast::ast::RefValue::Said(said) => {
-                                    let (refn, _bundle) =
-                                        get_oca_bundle_by_said(&local_bundle_path, &said).unwrap();
-                                    graph.oca_file_path(&refn)
-                                }
-                                oca_ast::ast::RefValue::Name(refn) => graph.oca_file_path(&refn),
-                            };
-                            let mixed_line = vec![
-                                Span::styled(format!("{}: Reference", key), Style::default()),
-                                Span::styled(
-                                    format!("      • {}", bundle.unwrap().to_str().unwrap()),
-                                    Style::default()
-                                        .fg(Color::Yellow)
-                                        .add_modifier(Modifier::ITALIC),
-                                ),
-                            ];
-                            TreeItem::new_leaf(i.current(), Line::from(mixed_line))
-                        }
-                        oca_ast::ast::NestedAttrType::Value(attr) => TreeItem::new_leaf(
-                            i.current(),
-                            format!("{}: {}", key, attr.to_string()),
-                        ),
-                        oca_ast::ast::NestedAttrType::Array(_arr) => {
-                            TreeItem::new_leaf(i.current(), format!("{}: {}", key, "Array"))
-                        }
-                        oca_ast::ast::NestedAttrType::Null => todo!(),
-                    })
+                    .map(|(key, attr)| Self::to_tree_item(key, attr, &i, &local_bundle_path, &graph))
                     .collect::<Vec<_>>();
                 TreeItem::new(i.current(), dep.refn, attrs)
             })
@@ -99,6 +71,45 @@ impl<'a> BundleList<'a> {
         Self {
             state: TreeState::default(),
             items: deps,
+        }
+    }
+
+    fn to_tree_item(key: String, attr: NestedAttrType, i: &Indexer, oca_path: &Path, graph: &DependencyGraph) -> TreeItem<'a, String> {
+        match attr {
+            oca_ast::ast::NestedAttrType::Reference(reference) => {
+                let (ocafile_path, oca_bundle) = match reference {
+                    oca_ast::ast::RefValue::Said(said) => {
+                        let (refn, bundle) =
+                            get_oca_bundle_by_said(&oca_path, &said).unwrap();
+                        (graph.oca_file_path(&refn), bundle)
+                    }
+                    oca_ast::ast::RefValue::Name(refn) => {
+                        let bundle = get_oca_bundle(&oca_path, &refn).unwrap();
+                        (graph.oca_file_path(&refn), bundle)
+                    },
+                };
+                let mixed_line = vec![
+                    Span::styled(format!("{}: Reference", key), Style::default().fg(Color::Red)),
+                    Span::styled(
+                        format!("      • {}", ocafile_path.unwrap().to_str().unwrap()),
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::ITALIC),
+                    ),
+                ];
+                let children: Vec<TreeItem<'a, String>> = oca_bundle.capture_base.attributes.into_iter().map(|(key, attr)|
+                    Self::to_tree_item(key, attr, i, oca_path, graph)
+                ).collect();
+                TreeItem::new(i.current(), Line::from(mixed_line), children).unwrap()
+            }
+            oca_ast::ast::NestedAttrType::Value(attr) => TreeItem::new_leaf(
+                i.current(),
+                format!("{}: {}", key, attr.to_string()),
+            ),
+            oca_ast::ast::NestedAttrType::Array(_arr) => {
+                TreeItem::new_leaf(i.current(), format!("{}: {}", key, "Array"))
+            }
+            oca_ast::ast::NestedAttrType::Null => todo!(),
         }
     }
 
