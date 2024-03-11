@@ -44,7 +44,7 @@ impl<'a> BundleList<'a> {
             .map(|node| {
                 let deps = graph.neighbors(&node.refn);
                 let oca_bundle =
-                    get_oca_bundle(&local_bundle_path, &node.refn).unwrap();
+                    get_oca_bundle(&local_bundle_path, &node.refn).expect(&format!("Unknown refn: {}", &node.refn));
                 BundleInfo {
                     refn: node.refn,
                     dependencies: deps,
@@ -89,7 +89,7 @@ impl<'a> BundleList<'a> {
                     },
                 };
                 let mixed_line = vec![
-                    Span::styled(format!("{}: Reference", key), Style::default().fg(Color::Red)),
+                    Span::styled(format!("{}: Reference", key), Style::default()),
                     Span::styled(
                         format!("      • {}", ocafile_path.unwrap().to_str().unwrap()),
                         Style::default()
@@ -116,7 +116,7 @@ impl<'a> BundleList<'a> {
     pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
         let widget = Tree::new(self.items.clone())
             .expect("all item identifiers are unique")
-            .block(Block::bordered().title("Attributes"))
+            .block(Block::bordered().title("OCA Bundles"))
             .experimental_scrollbar(Some(
                 Scrollbar::new(ScrollbarOrientation::VerticalRight)
                     .begin_symbol(None)

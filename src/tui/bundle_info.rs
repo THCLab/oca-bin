@@ -17,17 +17,3 @@ pub struct BundleInfo {
     pub status: Status,
 }
 
-impl BundleInfo {
-    pub fn to_list_item(&self, index: usize) -> ListItem {
-        let bg_color = match index % 2 {
-            0 => Color::Green,
-            _ => Color::Red,
-        };
-        let line = match self.status {
-            Status::Todo => Line::styled(format!(" ☐ {}", self.refn), bg_color),
-            Status::Completed => Line::styled(format!(" ✓ {}", self.refn), bg_color),
-        };
-
-        ListItem::new(line)
-    }
-}
