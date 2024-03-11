@@ -1,12 +1,11 @@
 use oca_bundle::state::oca::OCABundle;
-use ratatui::{style::Color, text::Line, widgets::ListItem};
 
 use crate::dependency_graph::Node;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Status {
-    Todo,
-    Completed,
+    _Selected,
+    Unselected,
 }
 
 #[derive(Debug)]

@@ -91,7 +91,7 @@ enum Commands {
         #[command(subcommand)]
         command: PresentationCommand,
     },
-    TUI {
+    Tui {
         /// Browse oca objects from directory (recursive)
         #[arg(short, long)]
         dir: Option<PathBuf>,
@@ -457,10 +457,10 @@ fn main() -> Result<(), CliError> {
                 }
             }
         }
-        Some(Commands::TUI { dir }) => {
+        Some(Commands::Tui { dir }) => {
             let all_oca_files = if let Some(directory) = dir.as_ref() {
                 info!("Building OCA bundle from directory");
-                visit_dirs(&directory)
+                visit_dirs(directory)
             } else {
                 println!("No file or directory provided");
                 process::exit(1);
@@ -505,11 +505,9 @@ fn visit_current_dir(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
             let entry = entry?;
             let path = entry.path();
             if path.is_dir() {
-            } else {
-                if let Some(ext) = path.extension() {
-                    if ext == "ocafile" {
-                        paths.push(path.to_path_buf());
-                    }
+            } else if let Some(ext) = path.extension() {
+                if ext == "ocafile" {
+                    paths.push(path.to_path_buf());
                 }
             }
         }

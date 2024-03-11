@@ -8,7 +8,7 @@ use oca_bundle::state::oca::OCABundle;
 use oca_rs::Facade;
 use ratatui::prelude::*;
 use said::SelfAddressingIdentifier;
-use std::{io::stdout, path::PathBuf};
+use std::io::stdout;
 
 use crate::dependency_graph::{DependencyGraph, Node};
 
@@ -42,8 +42,8 @@ fn get_oca_bundle(refn: &str, facade: &Facade) -> Option<OCABundle> {
     let refs = facade.fetch_all_refs().unwrap();
     let (_refn, said) = refs
         .into_iter()
-        .find(|(name, s)| *name == refn)
-        .expect(&format!("Unknown oca bundle of refn: {}", refn));
+        .find(|(name, _s)| *name == refn)
+        .unwrap_or_else(|| panic!("Unknown oca bundle of refn: {}", refn));
     let oca_bun = facade.get_oca_bundle(said.parse().unwrap(), false).unwrap();
     Some(oca_bun.bundle)
 }
@@ -56,7 +56,7 @@ fn get_oca_bundle_by_said(
     let (refn, _said) = refs
         .into_iter()
         .find(|(_name, s)| *s == said.to_string())
-        .expect(&format!("Unknown oca bundle of said: {}", said));
+        .unwrap_or_else(|| panic!("Unknown oca bundle of said: {}", said));
     let oca_bun = facade.get_oca_bundle(said.clone(), false).unwrap();
     Some((refn, oca_bun.bundle))
 }
