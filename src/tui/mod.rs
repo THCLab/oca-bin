@@ -10,18 +10,23 @@ use ratatui::prelude::*;
 use said::SelfAddressingIdentifier;
 use std::{io::stdout, path::PathBuf};
 
+use crate::dependency_graph::{DependencyGraph, Node};
+
 pub mod app;
 // mod list;
 mod bundle_info;
 mod bundle_list;
 
-pub fn draw(path: Vec<PathBuf>, local_bundle_path: PathBuf) -> Result<()> {
+pub fn draw<I>(nodes_to_show: I, graph: &DependencyGraph, facade: &Facade) -> Result<()>
+where
+    I: IntoIterator<Item = Node>,
+{
     stdout().execute(EnterAlternateScreen)?;
     enable_raw_mode()?;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     terminal.clear()?;
 
-    let res = App::new(path, local_bundle_path).run(terminal);
+    let res = App::new(nodes_to_show, facade, graph).run(terminal);
 
     if let Err(err) = res {
         println!("{err:?}");

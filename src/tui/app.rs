@@ -1,24 +1,25 @@
-use std::path::PathBuf;
-
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, MouseEventKind};
 use oca_rs::Facade;
 use ratatui::{prelude::*, widgets::*};
 
-use crate::get_oca_facade;
+use crate::dependency_graph::{DependencyGraph, Node};
 
 use super::bundle_list::BundleList;
 
 pub struct App<'a> {
     bundles: BundleList<'a>,
-    facade: Facade,
 }
 impl<'a> App<'a> {
-    pub fn new(paths: Vec<PathBuf>, local_bundle_path: PathBuf) -> App<'a> {
-        let facade = get_oca_facade(local_bundle_path);
-        let bundles = BundleList::new(paths, &facade);
+    pub fn new<I: IntoIterator<Item = Node>>(
+        to_show: I,
+        facade: &Facade,
+        graph: &DependencyGraph,
+    ) -> App<'a> {
+        let bundles = BundleList::new(to_show, &facade, &graph);
+        info!("Rows: {}", bundles.items.len());
 
-        App { bundles, facade }
+        App { bundles }
     }
 }
 

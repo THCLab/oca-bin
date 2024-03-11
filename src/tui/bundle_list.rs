@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::sync::Mutex;
 
 use oca_ast::ast::{NestedAttrType, RefValue};
@@ -11,7 +10,7 @@ use ratatui::widgets::{Block, Scrollbar, ScrollbarOrientation, StatefulWidget};
 
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
-use crate::dependency_graph::DependencyGraph;
+use crate::dependency_graph::{DependencyGraph, Node};
 
 use super::bundle_info::{BundleInfo, Status};
 use super::{get_oca_bundle, get_oca_bundle_by_said};
@@ -36,11 +35,12 @@ impl Indexer {
 }
 
 impl<'a> BundleList<'a> {
-    pub fn new(paths: Vec<PathBuf>, facade: &Facade) -> Self {
-        let graph = DependencyGraph::new(paths);
-        let sorted_refn = graph.sort();
-
-        let dependencies: Vec<BundleInfo> = sorted_refn
+    pub fn new<I: IntoIterator<Item = Node>>(
+        to_show: I,
+        facade: &Facade,
+        graph: &DependencyGraph,
+    ) -> Self {
+        let dependencies: Vec<BundleInfo> = to_show
             .into_iter()
             .map(|node| {
                 let deps = graph.neighbors(&node.refn);
