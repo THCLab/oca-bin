@@ -32,14 +32,14 @@ impl DependencyGraph {
         };
         file_paths
             .into_iter()
-            .map(|path| parse_oca_file(&path.as_ref()))
+            .map(|path| parse_oca_file(path.as_ref()))
             .for_each(|(node, dependencies)| {
                 let index = out.insert_node(node, &mut edges_to_save);
                 for dep in dependencies {
                     let edges = edges_to_save.get_mut(&dep);
                     match edges {
                         Some(edges) => {
-                            edges.push(index.clone());
+                            edges.push(index);
                         }
                         None => {
                             edges_to_save.insert(dep.clone(), vec![index]);
@@ -50,8 +50,8 @@ impl DependencyGraph {
 
         // Process remaining edges.
         for (refn, nodes) in edges_to_save.iter() {
-            let ind = out.get_index(&refn).unwrap();
-            let edges = nodes.into_iter().map(|n| (n.to_owned(), ind));
+            let ind = out.get_index(refn).unwrap();
+            let edges = nodes.iter().map(|n| (n.to_owned(), ind));
             out.graph.extend_with_edges(edges);
         }
         out
@@ -69,7 +69,7 @@ impl DependencyGraph {
     pub fn get_index(&self, refn: &str) -> Option<NodeIndex> {
         self.graph
             .node_indices()
-            .find(|id| self.graph[id.clone()].refn.eq(&refn))
+            .find(|id| self.graph[*id].refn.eq(&refn))
     }
 
     pub fn neighbors(&self, refn: &str) -> Vec<Node> {
@@ -96,13 +96,10 @@ impl DependencyGraph {
     ) -> NodeIndex {
         let refn = node.refn.clone();
         let index = self.graph.add_node(node);
-        match edges_to_save.remove(&refn) {
-            Some(edges) => {
-                for edge in edges {
-                    self.graph.add_edge(edge, index, ());
-                }
+        if let Some(edges) = edges_to_save.remove(&refn) {
+            for edge in edges {
+                self.graph.add_edge(edge, index, ());
             }
-            None => (),
         }
         index
     }

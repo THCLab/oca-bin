@@ -16,7 +16,7 @@ impl<'a> App<'a> {
         facade: &Facade,
         graph: &DependencyGraph,
     ) -> App<'a> {
-        let bundles = BundleList::new(to_show, &facade, &graph);
+        let bundles = BundleList::new(to_show, facade, graph);
         info!("Rows: {}", bundles.items.len());
 
         App { bundles }
@@ -76,8 +76,8 @@ impl<'a> Widget for &mut App<'a> {
 
         // Create two chunks with equal horizontal screen space. One for the list and dependencies and the other for
         // the changes block.
-        let vertical = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]);
-        let [list_area, changes_area] = vertical.areas(rest_area);
+        // let vertical = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]);
+        // let [list_area, changes_area] = vertical.areas(rest_area);
 
         self.render_title(header_area, buf);
         self.bundles.render(rest_area, buf);

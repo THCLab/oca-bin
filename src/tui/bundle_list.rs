@@ -44,12 +44,12 @@ impl<'a> BundleList<'a> {
             .into_iter()
             .map(|node| {
                 let deps = graph.neighbors(&node.refn);
-                let oca_bundle = get_oca_bundle(&node.refn, &facade)
-                    .expect(&format!("Unknown refn: {}", &node.refn));
+                let oca_bundle = get_oca_bundle(&node.refn, facade)
+                    .unwrap_or_else(|| panic!("Unknown refn: {}", &node.refn));
                 BundleInfo {
                     refn: node.refn,
                     dependencies: deps,
-                    status: Status::Completed,
+                    status: Status::Unselected,
                     oca_bundle,
                 }
             })
@@ -62,7 +62,7 @@ impl<'a> BundleList<'a> {
                 let attributes = dep.oca_bundle.capture_base.attributes;
                 let attrs = attributes
                     .into_iter()
-                    .map(|(key, attr)| to_tree_item(key, &attr, &i, &facade, &graph))
+                    .map(|(key, attr)| to_tree_item(key, &attr, &i, facade, graph))
                     .collect::<Vec<_>>();
                 TreeItem::new(i.current(), dep.refn, attrs)
             })
@@ -109,7 +109,7 @@ fn to_tree_item<'a>(
             handle_reference_type(format!("{}: Reference", key), reference, facade, graph, i)
         }
         NestedAttrType::Value(attr) => {
-            TreeItem::new_leaf(i.current(), format!("{}: {}", key, attr.to_string()))
+            TreeItem::new_leaf(i.current(), format!("{}: {}", key, attr))
         }
         NestedAttrType::Array(arr_type) => handle_arr_type(key, arr_type, facade, graph, i),
         NestedAttrType::Null => todo!(),
@@ -125,13 +125,14 @@ fn handle_reference_type<'a>(
 ) -> TreeItem<'a, String> {
     let (ocafile_path, oca_bundle) = match reference {
         RefValue::Said(said) => {
-            let (refn, bundle) =
-                get_oca_bundle_by_said(&said, facade).expect(&format!("Unknown said: {}", &said));
+            let (refn, bundle) = get_oca_bundle_by_said(said, facade)
+                .unwrap_or_else(|| panic!("Unknown said: {}", &said));
             (graph.oca_file_path(&refn), bundle)
         }
         RefValue::Name(refn) => {
-            let bundle = get_oca_bundle(&refn, facade).expect(&format!("Unknown refn: {}", &refn));
-            (graph.oca_file_path(&refn), bundle)
+            let bundle =
+                get_oca_bundle(refn, facade).unwrap_or_else(|| panic!("Unknown refn: {}", &refn));
+            (graph.oca_file_path(refn), bundle)
         }
     };
     let mixed_line = vec![
