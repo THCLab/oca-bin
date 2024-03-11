@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use oca_ast::ast::NestedAttrType;
+use oca_ast::ast::{NestedAttrType, RefValue};
 use oca_rs::Facade;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
@@ -62,7 +62,7 @@ impl<'a> BundleList<'a> {
                 let attributes = dep.oca_bundle.capture_base.attributes;
                 let attrs = attributes
                     .into_iter()
-                    .map(|(key, attr)| Self::to_tree_item(key, attr, &i, &facade, &graph))
+                    .map(|(key, attr)| to_tree_item(key, &attr, &i, &facade, &graph))
                     .collect::<Vec<_>>();
                 TreeItem::new(i.current(), dep.refn, attrs)
             })
@@ -72,54 +72,6 @@ impl<'a> BundleList<'a> {
         Self {
             state: TreeState::default(),
             items: deps,
-        }
-    }
-
-    fn to_tree_item(
-        key: String,
-        attr: NestedAttrType,
-        i: &Indexer,
-        facade: &Facade,
-        graph: &DependencyGraph,
-    ) -> TreeItem<'a, String> {
-        match attr {
-            oca_ast::ast::NestedAttrType::Reference(reference) => {
-                let (ocafile_path, oca_bundle) = match reference {
-                    oca_ast::ast::RefValue::Said(said) => {
-                        let (refn, bundle) = get_oca_bundle_by_said(&said, facade)
-                            .expect(&format!("Unknown said: {}", &said));
-                        (graph.oca_file_path(&refn), bundle)
-                    }
-                    oca_ast::ast::RefValue::Name(refn) => {
-                        let bundle = get_oca_bundle(&refn, facade)
-                            .expect(&format!("Unknown refn: {}", &refn));
-                        (graph.oca_file_path(&refn), bundle)
-                    }
-                };
-                let mixed_line = vec![
-                    Span::styled(format!("{}: Reference", key), Style::default()),
-                    Span::styled(
-                        format!("      • {}", ocafile_path.unwrap().to_str().unwrap()),
-                        Style::default()
-                            .fg(Color::Yellow)
-                            .add_modifier(Modifier::ITALIC),
-                    ),
-                ];
-                let children: Vec<TreeItem<'a, String>> = oca_bundle
-                    .capture_base
-                    .attributes
-                    .into_iter()
-                    .map(|(key, attr)| Self::to_tree_item(key, attr, i, facade, graph))
-                    .collect();
-                TreeItem::new(i.current(), Line::from(mixed_line), children).unwrap()
-            }
-            oca_ast::ast::NestedAttrType::Value(attr) => {
-                TreeItem::new_leaf(i.current(), format!("{}: {}", key, attr.to_string()))
-            }
-            oca_ast::ast::NestedAttrType::Array(_arr) => {
-                TreeItem::new_leaf(i.current(), format!("{}: {}", key, "Array"))
-            }
-            oca_ast::ast::NestedAttrType::Null => todo!(),
         }
     }
 
@@ -142,5 +94,83 @@ impl<'a> BundleList<'a> {
             .highlight_symbol("> ");
 
         StatefulWidget::render(widget, area, buf, &mut self.state);
+    }
+}
+
+fn to_tree_item<'a>(
+    key: String,
+    attr: &NestedAttrType,
+    i: &Indexer,
+    facade: &Facade,
+    graph: &DependencyGraph,
+) -> TreeItem<'a, String> {
+    match attr {
+        NestedAttrType::Reference(reference) => {
+            handle_reference_type(format!("{}: Reference", key), reference, facade, graph, i)
+        }
+        NestedAttrType::Value(attr) => {
+            TreeItem::new_leaf(i.current(), format!("{}: {}", key, attr.to_string()))
+        }
+        NestedAttrType::Array(arr_type) => handle_arr_type(key, arr_type, facade, graph, i),
+        NestedAttrType::Null => todo!(),
+    }
+}
+
+fn handle_reference_type<'a>(
+    line: String,
+    reference: &RefValue,
+    facade: &Facade,
+    graph: &DependencyGraph,
+    i: &Indexer,
+) -> TreeItem<'a, String> {
+    let (ocafile_path, oca_bundle) = match reference {
+        RefValue::Said(said) => {
+            let (refn, bundle) =
+                get_oca_bundle_by_said(&said, facade).expect(&format!("Unknown said: {}", &said));
+            (graph.oca_file_path(&refn), bundle)
+        }
+        RefValue::Name(refn) => {
+            let bundle = get_oca_bundle(&refn, facade).expect(&format!("Unknown refn: {}", &refn));
+            (graph.oca_file_path(&refn), bundle)
+        }
+    };
+    let mixed_line = vec![
+        Span::styled(line, Style::default()),
+        Span::styled(
+            format!("      • {}", ocafile_path.unwrap().to_str().unwrap()),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::ITALIC),
+        ),
+    ];
+    let children: Vec<TreeItem<'a, String>> = oca_bundle
+        .capture_base
+        .attributes
+        .into_iter()
+        .map(|(key, attr)| to_tree_item(key, &attr, i, facade, graph))
+        .collect();
+    TreeItem::new(i.current(), Line::from(mixed_line), children).unwrap()
+}
+
+fn handle_arr_type<'a>(
+    key: String,
+    arr_type: &NestedAttrType,
+    facade: &Facade,
+    graph: &DependencyGraph,
+    i: &Indexer,
+) -> TreeItem<'a, String> {
+    match arr_type {
+        NestedAttrType::Reference(reference) => handle_reference_type(
+            format!("{}: Array[Reference]", key),
+            reference,
+            facade,
+            graph,
+            i,
+        ),
+        NestedAttrType::Value(value) => {
+            TreeItem::new_leaf(i.current(), format!("{}: Array[{}]", key, value))
+        }
+        NestedAttrType::Array(arr_t) => handle_arr_type(key, arr_t, facade, graph, i),
+        NestedAttrType::Null => todo!(),
     }
 }
