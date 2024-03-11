@@ -5,6 +5,7 @@ use config::OCA_REPOSITORY_DIR;
 use error::CliError;
 use oca_presentation::presentation::Presentation;
 use presentation_command::PresentationCommand;
+use std::path::Path;
 use std::{env, fs, fs::File, io::Write, path::PathBuf, process, str::FromStr};
 use walkdir::WalkDir;
 
@@ -89,7 +90,7 @@ enum Commands {
         #[command(subcommand)]
         command: PresentationCommand,
     },
-    About {
+    TUI {
         /// Browse oca objects from directory (recursive)
         #[arg(short, long)]
         dir: Option<PathBuf>,
@@ -196,27 +197,12 @@ fn main() -> Result<(), CliError> {
             Ok(())
         }
         Some(Commands::Build { ocafile, directory }) => {
-            let mut paths = Vec::new();
-            if let Some(directory) = directory {
-                info!("Building OCA bundle from directory");
-                for entry in WalkDir::new(directory).into_iter().filter_map(|e| e.ok()) {
-                    let path = entry.path();
-                    if path.is_dir() {
-                        continue;
-                    }
-                    if let Some(ext) = path.extension() {
-                        if ext == "ocafile" {
-                            paths.push(path.to_path_buf());
-                        }
-                    }
-                }
-            } else if let Some(file) = ocafile {
-                info!("Building OCA bundle from oca file");
-                paths.push(PathBuf::from(file));
+            let paths = if let Some(directory) = directory {
+                visit_dirs(Path::new(directory)).unwrap()
             } else {
                 println!("No file or directory provided");
                 process::exit(1);
-            }
+            };
 
             let mut facade = get_oca_facade(local_repository_path);
             let graph = DependencyGraph::new(paths);
@@ -470,7 +456,7 @@ fn main() -> Result<(), CliError> {
                 }
             }
         }
-        Some(Commands::About { dir }) => {
+        Some(Commands::TUI { dir }) => {
             let mut paths = Vec::new();
             if let Some(directory) = dir {
                 info!("Building OCA bundle from directory");
@@ -496,6 +482,30 @@ fn main() -> Result<(), CliError> {
             todo!()
         }
     }
+}
+
+fn visit_dirs(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
+    info!(
+        "Building OCA bundles from directory: {}",
+        dir.to_str().unwrap()
+    );
+    let mut paths = Vec::new();
+    if dir.is_dir() {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                paths.append(&mut visit_dirs(&path)?);
+            } else {
+                if let Some(ext) = path.extension() {
+                    if ext == "ocafile" {
+                        paths.push(path.to_path_buf());
+                    }
+                }
+            }
+        }
+    }
+    Ok(paths)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
