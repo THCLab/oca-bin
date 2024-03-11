@@ -16,4 +16,3 @@ pub struct BundleInfo {
     pub dependencies: Vec<Node>,
     pub status: Status,
 }
-

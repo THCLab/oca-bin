@@ -1,4 +1,3 @@
-use crate::get_oca_facade;
 use anyhow::Result;
 use app::App;
 use crossterm::{
@@ -6,12 +5,10 @@ use crossterm::{
     ExecutableCommand,
 };
 use oca_bundle::state::oca::OCABundle;
+use oca_rs::Facade;
 use ratatui::prelude::*;
 use said::SelfAddressingIdentifier;
-use std::{
-    io::stdout,
-    path::{Path, PathBuf},
-};
+use std::{io::stdout, path::PathBuf};
 
 pub mod app;
 // mod list;
@@ -36,38 +33,25 @@ pub fn draw(path: Vec<PathBuf>, local_bundle_path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn get_oca_bundle(oca_repo: &Path, refn: &str) -> Option<OCABundle> {
-    let facade = get_oca_facade(oca_repo.to_owned());
-    let page = 1;
-    let page_size = 20;
-    let result = facade.fetch_all_oca_bundle(page_size, page).unwrap();
-    // Lista (said, refn)
+fn get_oca_bundle(refn: &str, facade: &Facade) -> Option<OCABundle> {
     let refs = facade.fetch_all_refs().unwrap();
-    let (refn, digest) = refs.into_iter().find(|(name, s)| *name == refn).unwrap();
-    let oca_bundle = result
-        .records
+    let (_refn, said) = refs
         .into_iter()
-        .find(|oca_bundle| oca_bundle.said.as_ref().unwrap() == &digest.parse().unwrap());
-    oca_bundle
+        .find(|(name, s)| *name == refn)
+        .expect(&format!("Unknown oca bundle of refn: {}", refn));
+    let oca_bun = facade.get_oca_bundle(said.parse().unwrap(), false).unwrap();
+    Some(oca_bun.bundle)
 }
 
 fn get_oca_bundle_by_said(
-    oca_repo: &Path,
     said: &SelfAddressingIdentifier,
+    facade: &Facade,
 ) -> Option<(String, OCABundle)> {
-    let facade = get_oca_facade(oca_repo.to_owned());
-    let page = 1;
-    let page_size = 20;
-    let result = facade.fetch_all_oca_bundle(page_size, page).unwrap();
-    // Lista (said, refn)
     let refs = facade.fetch_all_refs().unwrap();
-    let (refn, digest) = refs
+    let (refn, _said) = refs
         .into_iter()
-        .find(|(name, s)| *s == said.to_string())
-        .unwrap();
-    let oca_bundle = result
-        .records
-        .into_iter()
-        .find(|oca_bundle| oca_bundle.said.as_ref().unwrap() == said);
-    oca_bundle.map(|bundle| (refn, bundle))
+        .find(|(_name, s)| *s == said.to_string())
+        .expect(&format!("Unknown oca bundle of said: {}", said));
+    let oca_bun = facade.get_oca_bundle(said.clone(), false).unwrap();
+    Some((refn, oca_bun.bundle))
 }

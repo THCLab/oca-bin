@@ -2,18 +2,23 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, MouseEventKind};
+use oca_rs::Facade;
 use ratatui::{prelude::*, widgets::*};
+
+use crate::get_oca_facade;
 
 use super::bundle_list::BundleList;
 
 pub struct App<'a> {
     bundles: BundleList<'a>,
+    facade: Facade,
 }
 impl<'a> App<'a> {
     pub fn new(paths: Vec<PathBuf>, local_bundle_path: PathBuf) -> App<'a> {
-        let bundles = BundleList::new(paths, local_bundle_path);
+        let facade = get_oca_facade(local_bundle_path);
+        let bundles = BundleList::new(paths, &facade);
 
-        App { bundles }
+        App { bundles, facade }
     }
 }
 
