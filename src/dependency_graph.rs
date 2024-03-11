@@ -6,7 +6,6 @@ use std::{
 
 use petgraph::{algo::toposort, graph::NodeIndex, Graph};
 use regex::Regex;
-use said::SelfAddressingIdentifier;
 
 #[derive(Default, Debug, Clone)]
 pub struct Node {
@@ -33,7 +32,7 @@ impl DependencyGraph {
         };
         file_paths
             .into_iter()
-            .map(|path| Self::parse_oca_file(&path.as_ref()))
+            .map(|path| parse_oca_file(&path.as_ref()))
             .for_each(|(node, dependencies)| {
                 let index = out.insert_node(node, &mut edges_to_save);
                 for dep in dependencies {
@@ -108,27 +107,6 @@ impl DependencyGraph {
         index
     }
 
-    fn parse_oca_file(file_path: &Path) -> (Node, Vec<String>) {
-        let content = fs::read_to_string(file_path).expect("Failed to read file");
-        let lines: Vec<&str> = content.lines().collect();
-        let ref_name_line = lines.first().expect("File is empty");
-        match ref_name_line.split("name=").nth(1) {
-            Some(name_part) => {
-                let ref_name = name_part.trim_matches('"').to_string();
-                let ref_node = Node {
-                    refn: ref_name,
-                    path: file_path.into(),
-                };
-                (ref_node, Self::find_refn(lines))
-            }
-            None => {
-                print!("RefN not found in parsed file: {:?}", file_path);
-                // None
-                todo!()
-            }
-        }
-    }
-
     fn find_refn(lines: Vec<&str>) -> Vec<String> {
         let re = Regex::new(r"refn:([^\s\]]+)").expect("Invalid regex");
         let mut refn = Vec::new();
@@ -141,6 +119,27 @@ impl DependencyGraph {
             }
         }
         refn
+    }
+}
+
+pub fn parse_oca_file(file_path: &Path) -> (Node, Vec<String>) {
+    let content = fs::read_to_string(file_path).expect("Failed to read file");
+    let lines: Vec<&str> = content.lines().collect();
+    let ref_name_line = lines.first().expect("File is empty");
+    match ref_name_line.split("name=").nth(1) {
+        Some(name_part) => {
+            let ref_name = name_part.trim_matches('"').to_string();
+            let ref_node = Node {
+                refn: ref_name,
+                path: file_path.into(),
+            };
+            (ref_node, DependencyGraph::find_refn(lines))
+        }
+        None => {
+            print!("RefN not found in parsed file: {:?}", file_path);
+            // None
+            todo!()
+        }
     }
 }
 

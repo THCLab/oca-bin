@@ -14,6 +14,7 @@ use clap::Subcommand;
 use oca_rs::{repositories::SQLiteConfig, Facade};
 
 use crate::config::{init_or_read_config, write_config, Config, OCA_DIR_NAME};
+use crate::dependency_graph::parse_oca_file;
 use crate::dependency_graph::DependencyGraph;
 use crate::presentation_command::{handle_generate, handle_validate, Format};
 use said::SelfAddressingIdentifier;
@@ -457,25 +458,22 @@ fn main() -> Result<(), CliError> {
             }
         }
         Some(Commands::TUI { dir }) => {
-            let mut paths = Vec::new();
-            if let Some(directory) = dir {
+            let all_oca_files = if let Some(directory) = dir.as_ref() {
                 info!("Building OCA bundle from directory");
-                for entry in WalkDir::new(directory).into_iter().filter_map(|e| e.ok()) {
-                    let path = entry.path();
-                    if path.is_dir() {
-                        continue;
-                    }
-                    if let Some(ext) = path.extension() {
-                        if ext == "ocafile" {
-                            paths.push(path.to_path_buf());
-                        }
-                    }
-                }
+                visit_dirs(&directory)
             } else {
                 println!("No file or directory provided");
                 process::exit(1);
             }
-            tui::draw(paths, local_repository_path).unwrap();
+            .unwrap();
+            let facade = get_oca_facade(local_repository_path);
+            let graph = DependencyGraph::new(all_oca_files);
+
+            let to_show = visit_current_dir(dir.as_ref().unwrap())
+                .unwrap()
+                .into_iter()
+                .map(|of| parse_oca_file(&of).0);
+            tui::draw(to_show, &graph, &facade).unwrap();
             Ok(())
         }
         None => {
@@ -485,17 +483,28 @@ fn main() -> Result<(), CliError> {
 }
 
 fn visit_dirs(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
-    info!(
-        "Building OCA bundles from directory: {}",
-        dir.to_str().unwrap()
-    );
+    let mut paths = Vec::new();
+    for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
+        let path = entry.path();
+        if path.is_dir() {
+            continue;
+        }
+        if let Some(ext) = path.extension() {
+            if ext == "ocafile" {
+                paths.push(path.to_path_buf());
+            }
+        }
+    }
+    Ok(paths)
+}
+
+fn visit_current_dir(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
     let mut paths = Vec::new();
     if dir.is_dir() {
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
             if path.is_dir() {
-                paths.append(&mut visit_dirs(&path)?);
             } else {
                 if let Some(ext) = path.extension() {
                     if ext == "ocafile" {
@@ -504,7 +513,7 @@ fn visit_dirs(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
                 }
             }
         }
-    }
+    };
     Ok(paths)
 }
 
