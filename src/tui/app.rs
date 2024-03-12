@@ -1,12 +1,24 @@
+use std::{io, path::PathBuf};
+
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, MouseEventKind};
 use oca_rs::Facade;
 use ratatui::{prelude::*, widgets::*};
+use said::error;
+use thiserror::Error;
+pub use super::bundle_list::BundleListError;
 
 use crate::dependency_graph::{DependencyGraph, Node};
 
 use super::bundle_list::BundleList;
 
+#[derive(Error, Debug)]
+pub enum AppError {
+    #[error(transparent)]
+    BundleListError(#[from] BundleListError),
+    #[error(transparent)]
+    InputError(#[from] io::Error),
+}
 pub struct App<'a> {
     bundles: BundleList<'a>,
 }
@@ -15,15 +27,13 @@ impl<'a> App<'a> {
         to_show: I,
         facade: &Facade,
         graph: &DependencyGraph,
-    ) -> App<'a> {
-        let bundles = BundleList::new(to_show, facade, graph);
-
-        App { bundles }
+    ) -> Result<App<'a>, AppError> {
+        Ok(BundleList::from_nodes(to_show, facade, graph).map(|bundles| App {bundles})?)
     }
 }
 
 impl<'a> App<'a> {
-    pub fn run(&mut self, mut terminal: Terminal<impl Backend>) -> Result<()> {
+    pub fn run(&mut self, mut terminal: Terminal<impl Backend>) -> Result<(), AppError> {
         loop {
             self.draw(&mut terminal)?;
             if !self.handle_input()? {
@@ -32,7 +42,7 @@ impl<'a> App<'a> {
         }
     }
 
-    fn handle_input(&mut self) -> Result<bool> {
+    fn handle_input(&mut self) -> Result<bool, AppError> {
         match event::read()? {
             event::Event::Key(key) => match key.code {
                 KeyCode::Char('q') | KeyCode::Esc => return Ok(false),
@@ -57,7 +67,7 @@ impl<'a> App<'a> {
         Ok(true)
     }
 
-    fn draw(&mut self, terminal: &mut Terminal<impl Backend>) -> Result<()> {
+    fn draw(&mut self, terminal: &mut Terminal<impl Backend>) -> Result<(), AppError> {
         terminal.draw(|f| f.render_widget(self, f.size()))?;
         Ok(())
     }

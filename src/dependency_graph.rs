@@ -31,7 +31,7 @@ pub struct DependencyGraph {
 }
 
 impl DependencyGraph {
-    pub fn new<I, P>(file_paths: I) -> Self
+    pub fn from_paths<I, P>(file_paths: I) -> Result<Self, GraphError>
     where
         P: AsRef<Path>,
         I: IntoIterator<Item = P>,
@@ -64,11 +64,11 @@ impl DependencyGraph {
 
         // Process remaining edges.
         for (refn, nodes) in edges_to_save.iter() {
-            let ind = graph.get_index(refn).unwrap();
+            let ind = graph.get_index(refn)?;
             let edges = nodes.iter().map(|n| (n.to_owned(), ind));
             graph.graph.extend_with_edges(edges);
         }
-        graph
+        Ok(graph)
     }
 
     pub fn sort(&self) -> Result<Vec<Node>, GraphError> {
@@ -80,16 +80,15 @@ impl DependencyGraph {
             .collect())
     }
 
-    pub fn get_index(&self, refn: &str) -> Option<NodeIndex> {
+    pub fn get_index(&self, refn: &str) -> Result<NodeIndex, GraphError> {
         self.graph
             .node_indices()
             .find(|id| self.graph[*id].refn.eq(&refn))
+            .ok_or(GraphError::UnknownRefn(refn.to_owned()))
     }
 
     pub fn neighbors(&self, refn: &str) -> Result<Vec<Node>, GraphError> {
-        let index = self
-            .get_index(refn)
-            .ok_or(GraphError::UnknownRefn(refn.to_owned()))?;
+        let index = self.get_index(refn)?;
         Ok(self
             .graph
             .neighbors(index)
@@ -98,9 +97,7 @@ impl DependencyGraph {
     }
 
     pub fn oca_file_path(&self, refn: &str) -> Result<PathBuf, GraphError> {
-        let index = self
-            .get_index(refn)
-            .ok_or(GraphError::UnknownRefn(refn.to_owned()))?;
+        let index = self.get_index(refn)?;
         Ok(self.graph[index].path.clone())
     }
 }
@@ -186,7 +183,7 @@ fn test_sort() -> anyhow::Result<()> {
         paths.push(path)
     }
 
-    let petgraph = DependencyGraph::new(paths);
+    let petgraph = DependencyGraph::from_paths(paths)?;
     assert_eq!(
         petgraph
             .sort()?

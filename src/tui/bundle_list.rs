@@ -8,6 +8,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Scrollbar, ScrollbarOrientation, StatefulWidget};
 
+use thiserror::Error;
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
 use crate::dependency_graph::{DependencyGraph, Node};
@@ -15,6 +16,12 @@ use crate::dependency_graph::{DependencyGraph, Node};
 use super::bundle_info::{BundleInfo, Status};
 use super::{get_oca_bundle, get_oca_bundle_by_said};
 // use super::list::{BundleInfo, Status};
+
+#[derive(Error, Debug)]
+pub enum BundleListError {
+    #[error("All references are unknown")]
+    AllRefnUnknown,
+}
 
 pub struct BundleList<'a> {
     pub state: TreeState<String>,
@@ -35,44 +42,41 @@ impl Indexer {
 }
 
 impl<'a> BundleList<'a> {
-    pub fn new<I: IntoIterator<Item = Node>>(
+    pub fn from_nodes<I: IntoIterator<Item = Node>>(
         to_show: I,
         facade: &Facade,
         graph: &DependencyGraph,
-    ) -> Self {
-        let dependencies: Vec<BundleInfo> = to_show
+    ) -> Result<Self, BundleListError> {
+        let mut dependencies = to_show
             .into_iter()
             .map(|node| {
                 let deps = graph.neighbors(&node.refn).unwrap();
-                let oca_bundle = get_oca_bundle(&node.refn, facade)
-                    .unwrap_or_else(|| panic!("Unknown refn: {}", &node.refn));
-                BundleInfo {
+                let oca_bundle = get_oca_bundle(&node.refn, facade);
+                match oca_bundle {
+                    Some(oca_bundle) => Ok(BundleInfo {
                     refn: node.refn,
                     dependencies: deps,
                     status: Status::Unselected,
                     oca_bundle,
+                }),
+                    None => {Err((node.refn, "Unknown refn".to_string()))},
                 }
-            })
-            .collect();
+                
+            });
+        if dependencies.all(|d| d.is_err()) {return Err(BundleListError::AllRefnUnknown);};
 
         let i = Indexer::new();
         let deps = dependencies
             .into_iter()
             .map(|dep| {
-                let attributes = dep.oca_bundle.capture_base.attributes;
-                let attrs = attributes
-                    .into_iter()
-                    .map(|(key, attr)| to_tree_item(key, &attr, &i, facade, graph))
-                    .collect::<Vec<_>>();
-                TreeItem::new(i.current(), dep.refn, attrs)
+               result_to_tree_item(dep, &i, facade, graph) 
             })
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
+            .collect();
 
-        Self {
+        Ok(Self {
             state: TreeState::default(),
             items: deps,
-        }
+        })
     }
 
     pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
@@ -126,6 +130,33 @@ fn to_tree_item<'a>(
         NestedAttrType::Array(arr_type) => handle_arr_type(key, arr_type, facade, graph, i),
         NestedAttrType::Null => todo!(),
     }
+}
+
+fn result_to_tree_item<'a>(
+    ob: Result<BundleInfo, (String, String)>,
+    i: &Indexer,
+    facade: &Facade,
+    graph: &DependencyGraph,
+) -> TreeItem<'a, String> {
+    match ob {
+        Ok(bundle) => {
+            let attributes = bundle.oca_bundle.capture_base.attributes;
+            let attrs = attributes
+                .into_iter()
+                .map(|(key, attr)| to_tree_item(key, &attr, &i, facade, graph))
+                .collect::<Vec<_>>();
+            TreeItem::new(i.current(), bundle.refn, attrs).unwrap()
+        },
+        Err(err) => {
+            let line = Span::styled(
+            format!("! {}: {}", err.0, err.1),
+            Style::default()
+                .fg(Color::Red)
+                .add_modifier(Modifier::ITALIC));
+            TreeItem::new_leaf(i.current(), line)
+        },
+    }
+    
 }
 
 fn handle_reference_type<'a>(

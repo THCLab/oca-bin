@@ -34,4 +34,6 @@ pub enum CliError {
     NotDirectory(PathBuf),
     #[error("Can't read directory: {0}")]
     DirectoryReadFailed(io::Error),
+    #[error("All references are unknown. Run `build -d {0}` first")]
+    AllRefnUnknown(PathBuf),
 }

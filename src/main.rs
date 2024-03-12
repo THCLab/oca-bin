@@ -17,6 +17,7 @@ use crate::config::{init_or_read_config, write_config, Config, OCA_DIR_NAME};
 use crate::dependency_graph::parse_node;
 use crate::dependency_graph::DependencyGraph;
 use crate::presentation_command::{handle_generate, handle_validate, Format};
+use crate::tui::app::BundleListError;
 use said::SelfAddressingIdentifier;
 use serde::{Deserialize, Serialize};
 
@@ -210,7 +211,7 @@ fn main() -> Result<(), CliError> {
             };
 
             let mut facade = get_oca_facade(local_repository_path);
-            let graph = DependencyGraph::new(paths);
+            let graph = DependencyGraph::from_paths(paths).unwrap();
             let sorted_graph = graph.sort().unwrap();
             info!("Sorted: {:?}", sorted_graph);
             for node in sorted_graph {
@@ -468,13 +469,20 @@ fn main() -> Result<(), CliError> {
                     process::exit(1);
                 });
                 let facade = get_oca_facade(local_repository_path);
-                let graph = DependencyGraph::new(all_oca_files);
+                let graph = DependencyGraph::from_paths(all_oca_files).unwrap();
 
                 let to_show = visit_current_dir(&directory)?
                     .into_iter()
                     // Files without refn are ignored
                     .filter_map(|of| parse_node(&of).ok().map(|v| v.0));
-                tui::draw(to_show, &graph, &facade).unwrap();
+                tui::draw(to_show, &graph, &facade).unwrap_or_else(|err| {
+                    match err {
+                       tui::app::AppError::BundleListError(BundleListError::AllRefnUnknown) => eprintln!("{}", CliError::AllRefnUnknown(directory.to_owned())),
+                       err => eprintln!("{err}"),
+                    };
+                    ;
+                    process::exit(1);
+                });
                 Ok(())
             } else {
                 eprintln!("No file or directory provided");

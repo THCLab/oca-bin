@@ -12,12 +12,16 @@ use std::io::stdout;
 
 use crate::dependency_graph::{DependencyGraph, Node};
 
+use self::app::AppError;
+
 pub mod app;
 // mod list;
 mod bundle_info;
 mod bundle_list;
 
-pub fn draw<I>(nodes_to_show: I, graph: &DependencyGraph, facade: &Facade) -> Result<()>
+
+
+pub fn draw<I>(nodes_to_show: I, graph: &DependencyGraph, facade: &Facade) -> Result<(), AppError>
 where
     I: IntoIterator<Item = Node>,
 {
@@ -26,7 +30,7 @@ where
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     terminal.clear()?;
 
-    let res = App::new(nodes_to_show, facade, graph).run(terminal);
+    let res = App::new(nodes_to_show, facade, graph)?.run(terminal);
 
     if let Err(err) = res {
         println!("{err:?}");
@@ -40,12 +44,14 @@ where
 
 fn get_oca_bundle(refn: &str, facade: &Facade) -> Option<OCABundle> {
     let refs = facade.fetch_all_refs().unwrap();
-    let (_refn, said) = refs
-        .into_iter()
+    refs.into_iter()
         .find(|(name, _s)| *name == refn)
-        .unwrap_or_else(|| panic!("Unknown oca bundle of refn: {}", refn));
-    let oca_bun = facade.get_oca_bundle(said.parse().unwrap(), false).unwrap();
-    Some(oca_bun.bundle)
+        .and_then(|(_, said)| {
+            facade
+                .get_oca_bundle(said.parse().unwrap(), false)
+                .map(|b| b.bundle)
+                .ok()
+        })
 }
 
 fn get_oca_bundle_by_said(
