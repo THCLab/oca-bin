@@ -17,7 +17,6 @@ impl<'a> App<'a> {
         graph: &DependencyGraph,
     ) -> App<'a> {
         let bundles = BundleList::new(to_show, facade, graph);
-        info!("Rows: {}", bundles.items.len());
 
         App { bundles }
     }
@@ -37,15 +36,15 @@ impl<'a> App<'a> {
         match event::read()? {
             event::Event::Key(key) => match key.code {
                 KeyCode::Char('q') | KeyCode::Esc => return Ok(false),
-                KeyCode::Char('\n' | ' ') => self.bundles.state.toggle_selected(),
+                KeyCode::Char(' ') | KeyCode::Enter => self.bundles.state.toggle_selected(),
                 KeyCode::Left => self.bundles.state.key_left(),
                 KeyCode::Right => self.bundles.state.key_right(),
                 KeyCode::Down => self.bundles.state.key_down(&self.bundles.items),
                 KeyCode::Up => self.bundles.state.key_up(&self.bundles.items),
                 KeyCode::Home => self.bundles.state.select_first(&self.bundles.items),
                 KeyCode::End => self.bundles.state.select_last(&self.bundles.items),
-                KeyCode::PageDown => self.bundles.state.scroll_down(3),
-                KeyCode::PageUp => self.bundles.state.scroll_up(3),
+                KeyCode::PageDown => self.bundles.ten_down(),
+                KeyCode::PageUp => self.bundles.ten_up(),
                 _ => false,
             },
             Event::Mouse(mouse) => match mouse.kind {

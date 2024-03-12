@@ -95,6 +95,18 @@ impl<'a> BundleList<'a> {
 
         StatefulWidget::render(widget, area, buf, &mut self.state);
     }
+
+    pub fn ten_down(&mut self) -> bool {
+        self.state.select_visible_relative(&self.items, |current| {
+            current.map_or(0, |current| current.saturating_add(10))
+        })
+    }
+
+    pub fn ten_up(&mut self) -> bool {
+        self.state.select_visible_relative(&self.items, |current| {
+            current.map_or(0, |current| current.saturating_sub(10))
+        })
+    }
 }
 
 fn to_tree_item<'a>(
