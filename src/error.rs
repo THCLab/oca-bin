@@ -1,3 +1,5 @@
+use std::{io, path::PathBuf};
+
 use thiserror::Error;
 
 use crate::presentation_command::PresentationError;
@@ -26,4 +28,10 @@ pub enum CliError {
     FormatError(String),
     #[error("Unsupported extension format {0}")]
     FileExtensionError(String),
+    #[error("No such file or directory: {0}")]
+    NonexistentPath(PathBuf),
+    #[error("Not a directory: {0}")]
+    NotDirectory(PathBuf),
+    #[error("Can't read directory: {0}")]
+    DirectoryReadFailed(io::Error),
 }

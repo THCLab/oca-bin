@@ -200,7 +200,7 @@ fn main() -> Result<(), CliError> {
         Some(Commands::Build { ocafile, directory }) => {
             let paths = if let Some(directory) = directory {
                 info!("Building OCA bundle from directory {}", directory);
-                visit_dirs(Path::new(directory)).unwrap()
+                visit_dirs_recursive(Path::new(directory)).unwrap()
             } else if let Some(file) = ocafile {
                 info!("Building OCA bundle from oca file {}", file);
                 vec![PathBuf::from(file)]
@@ -462,22 +462,23 @@ fn main() -> Result<(), CliError> {
             }
         }
         Some(Commands::Tui { dir }) => {
-            let all_oca_files = if let Some(directory) = dir.as_ref() {
-                visit_dirs(directory)
+            if let Some(directory) = dir.as_ref() {
+                let all_oca_files = visit_dirs_recursive(directory).unwrap_or_else(|err| {
+                    eprintln!("{err}");
+                    process::exit(1);
+                });
+                let facade = get_oca_facade(local_repository_path);
+                let graph = DependencyGraph::new(all_oca_files);
+
+                let to_show = visit_current_dir(&directory)?
+                    .into_iter()
+                    .map(|of| parse_node(&of).unwrap().0);
+                tui::draw(to_show, &graph, &facade).unwrap();
+                Ok(())
             } else {
-                println!("No file or directory provided");
+                eprintln!("No file or directory provided");
                 process::exit(1);
             }
-            .unwrap();
-            let facade = get_oca_facade(local_repository_path);
-            let graph = DependencyGraph::new(all_oca_files);
-
-            let to_show = visit_current_dir(dir.as_ref().unwrap())
-                .unwrap()
-                .into_iter()
-                .map(|of| parse_node(&of).unwrap().0);
-            tui::draw(to_show, &graph, &facade).unwrap();
-            Ok(())
         }
         None => {
             todo!()
@@ -485,36 +486,45 @@ fn main() -> Result<(), CliError> {
     }
 }
 
-fn visit_dirs(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
+fn visit_dirs_recursive(dir: &Path) -> Result<Vec<PathBuf>, CliError> {
     let mut paths = Vec::new();
-    for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
-        let path = entry.path();
-        if path.is_dir() {
-            continue;
-        }
-        if let Some(ext) = path.extension() {
-            if ext == "ocafile" {
-                paths.push(path.to_path_buf());
+    for entry in WalkDir::new(dir).into_iter() {
+        if let Ok(entry_path) = entry {
+            let path = entry_path.path();
+            if path.is_dir() {
+                continue;
             }
+            if let Some(ext) = path.extension() {
+                if ext == "ocafile" {
+                    paths.push(path.to_path_buf());
+                }
+            }
+        } else {
+            return Err(CliError::NonexistentPath(dir.to_owned()));
         }
     }
     Ok(paths)
 }
 
-fn visit_current_dir(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
+fn visit_current_dir(dir: &Path) -> Result<Vec<PathBuf>, CliError> {
     let mut paths = Vec::new();
-    if dir.is_dir() {
-        for entry in fs::read_dir(dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.is_dir() {
-            } else if let Some(ext) = path.extension() {
-                if ext == "ocafile" {
-                    paths.push(path.to_path_buf());
-                }
+    if !dir.exists() {
+        return Err(CliError::NonexistentPath(dir.to_owned()));
+    };
+    if !dir.is_dir() {
+        return Err(CliError::NotDirectory(dir.to_owned()));
+    };
+    let files = fs::read_dir(dir).map_err(|err| CliError::DirectoryReadFailed(err))?;
+    for entry in files {
+        let entry = entry.map_err(|err| CliError::DirectoryReadFailed(err))?;
+        let path = entry.path();
+        if path.is_dir() {
+        } else if let Some(ext) = path.extension() {
+            if ext == "ocafile" {
+                paths.push(path.to_path_buf());
             }
         }
-    };
+    }
     Ok(paths)
 }
 
