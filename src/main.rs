@@ -199,7 +199,11 @@ fn main() -> Result<(), CliError> {
         }
         Some(Commands::Build { ocafile, directory }) => {
             let paths = if let Some(directory) = directory {
+                info!("Building OCA bundle from directory {}", directory);
                 visit_dirs(Path::new(directory)).unwrap()
+            } else if let Some(file) = ocafile {
+                info!("Building OCA bundle from oca file {}", file);
+                vec![PathBuf::from(file)]
             } else {
                 println!("No file or directory provided");
                 process::exit(1);
@@ -459,7 +463,6 @@ fn main() -> Result<(), CliError> {
         }
         Some(Commands::Tui { dir }) => {
             let all_oca_files = if let Some(directory) = dir.as_ref() {
-                info!("Building OCA bundle from directory");
                 visit_dirs(directory)
             } else {
                 println!("No file or directory provided");
