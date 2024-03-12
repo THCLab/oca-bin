@@ -207,11 +207,11 @@ fn main() -> Result<(), CliError> {
 
             let mut facade = get_oca_facade(local_repository_path);
             let graph = DependencyGraph::new(paths);
-            let sorted_refn = graph.sort();
-            info!("Sorted: {:?}", sorted_refn);
-            for refn in sorted_refn {
-                debug!("Processing: {}", refn);
-                match graph.oca_file_path(&refn.refn) {
+            let sorted_graph = graph.sort();
+            info!("Sorted: {:?}", sorted_graph);
+            for node in sorted_graph {
+                debug!("Processing: {}", node.refn);
+                match graph.oca_file_path(&node.refn) {
                     Some(path) => {
                         let unparsed_file =
                             fs::read_to_string(path).map_err(CliError::ReadFileFailed)?;
@@ -236,7 +236,7 @@ fn main() -> Result<(), CliError> {
                         };
                     }
                     None => {
-                        println!("RefN not found in graph: {}", refn.refn);
+                        println!("RefN not found in graph: {}", node.refn);
                     }
                 }
             }
