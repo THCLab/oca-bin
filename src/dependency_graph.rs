@@ -6,6 +6,19 @@ use std::{
 
 use petgraph::{algo::toposort, graph::NodeIndex, Graph};
 use regex::Regex;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum GraphError {
+    #[error("Cycle detected")]
+    Cycle,
+    #[error("Unknown node in graph: {0}")]
+    UnknownRefn(String),
+    #[error("File parsing error: {0}")]
+    FileParsing(String),
+    #[error("OCA file doesn't contain bundle name: {0}")]
+    MissingRefn(PathBuf),
+}
 
 #[derive(Default, Debug, Clone)]
 pub struct Node {
@@ -27,14 +40,14 @@ impl DependencyGraph {
         // added to graph. Key is refn, and values are indices of nodes, that
         // should have connection with node of given refn.
         let mut edges_to_save = HashMap::new();
-        let mut out = DependencyGraph {
+        let mut graph = DependencyGraph {
             graph: Graph::<Node, ()>::new(),
         };
         file_paths
             .into_iter()
-            .map(|path| parse_oca_file(path.as_ref()))
+            .map(|path| parse_node(path.as_ref()).unwrap())
             .for_each(|(node, dependencies)| {
-                let index = out.insert_node(node, &mut edges_to_save);
+                let index = graph.insert_node(node, &mut edges_to_save);
                 for dep in dependencies {
                     let edges = edges_to_save.get_mut(&dep);
                     match edges {
@@ -50,20 +63,20 @@ impl DependencyGraph {
 
         // Process remaining edges.
         for (refn, nodes) in edges_to_save.iter() {
-            let ind = out.get_index(refn).unwrap();
+            let ind = graph.get_index(refn).unwrap();
             let edges = nodes.iter().map(|n| (n.to_owned(), ind));
-            out.graph.extend_with_edges(edges);
+            graph.graph.extend_with_edges(edges);
         }
-        out
+        graph
     }
 
-    pub fn sort(&self) -> Vec<Node> {
-        let sorted = toposort(&self.graph, None).unwrap();
-        sorted
+    pub fn sort(&self) -> Result<Vec<Node>, GraphError> {
+        let sorted = toposort(&self.graph, None).map_err(|_e| GraphError::Cycle)?;
+        Ok(sorted
             .into_iter()
             .rev()
             .map(|i| self.graph[i].clone())
-            .collect()
+            .collect())
     }
 
     pub fn get_index(&self, refn: &str) -> Option<NodeIndex> {
@@ -72,17 +85,22 @@ impl DependencyGraph {
             .find(|id| self.graph[*id].refn.eq(&refn))
     }
 
-    pub fn neighbors(&self, refn: &str) -> Vec<Node> {
-        let index = self.get_index(refn).unwrap();
-        self.graph
+    pub fn neighbors(&self, refn: &str) -> Result<Vec<Node>, GraphError> {
+        let index = self
+            .get_index(refn)
+            .ok_or(GraphError::UnknownRefn(refn.to_owned()))?;
+        Ok(self
+            .graph
             .neighbors(index)
             .map(|n| self.graph[n].clone())
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>())
     }
 
-    pub fn oca_file_path(&self, refn: &str) -> Option<PathBuf> {
-        let index = self.get_index(refn).unwrap();
-        Some(self.graph[index].path.clone())
+    pub fn oca_file_path(&self, refn: &str) -> Result<PathBuf, GraphError> {
+        let index = self
+            .get_index(refn)
+            .ok_or(GraphError::UnknownRefn(refn.to_owned()))?;
+        Ok(self.graph[index].path.clone())
     }
 }
 
@@ -119,10 +137,13 @@ impl DependencyGraph {
     }
 }
 
-pub fn parse_oca_file(file_path: &Path) -> (Node, Vec<String>) {
-    let content = fs::read_to_string(file_path).expect("Failed to read file");
+pub fn parse_node(file_path: &Path) -> Result<(Node, Vec<String>), GraphError> {
+    let content = fs::read_to_string(file_path)
+        .map_err(|_e| GraphError::FileParsing("Failed to read file".to_string()))?;
     let lines: Vec<&str> = content.lines().collect();
-    let ref_name_line = lines.first().expect("File is empty");
+    let ref_name_line = lines
+        .first()
+        .ok_or(GraphError::FileParsing("File is empty".to_string()))?;
     match ref_name_line.split("name=").nth(1) {
         Some(name_part) => {
             let ref_name = name_part.trim_matches('"').to_string();
@@ -130,13 +151,9 @@ pub fn parse_oca_file(file_path: &Path) -> (Node, Vec<String>) {
                 refn: ref_name,
                 path: file_path.into(),
             };
-            (ref_node, DependencyGraph::find_refn(lines))
+            Ok((ref_node, DependencyGraph::find_refn(lines)))
         }
-        None => {
-            print!("RefN not found in parsed file: {:?}", file_path);
-            // None
-            todo!()
-        }
+        None => Err(GraphError::MissingRefn(file_path.to_owned())),
     }
 }
 
@@ -171,7 +188,7 @@ fn test_sort() -> anyhow::Result<()> {
     let petgraph = DependencyGraph::new(paths);
     assert_eq!(
         petgraph
-            .sort()
+            .sort()?
             .iter()
             .map(|node| node.refn.clone())
             .collect::<Vec<_>>(),
@@ -179,7 +196,7 @@ fn test_sort() -> anyhow::Result<()> {
     );
 
     let n: Vec<_> = petgraph
-        .neighbors("fourth")
+        .neighbors("fourth")?
         .iter()
         .map(|n| n.refn.clone())
         .collect();

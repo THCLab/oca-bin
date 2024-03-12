@@ -14,7 +14,7 @@ use clap::Subcommand;
 use oca_rs::{repositories::SQLiteConfig, Facade};
 
 use crate::config::{init_or_read_config, write_config, Config, OCA_DIR_NAME};
-use crate::dependency_graph::parse_oca_file;
+use crate::dependency_graph::parse_node;
 use crate::dependency_graph::DependencyGraph;
 use crate::presentation_command::{handle_generate, handle_validate, Format};
 use said::SelfAddressingIdentifier;
@@ -211,12 +211,12 @@ fn main() -> Result<(), CliError> {
 
             let mut facade = get_oca_facade(local_repository_path);
             let graph = DependencyGraph::new(paths);
-            let sorted_graph = graph.sort();
+            let sorted_graph = graph.sort().unwrap();
             info!("Sorted: {:?}", sorted_graph);
             for node in sorted_graph {
                 debug!("Processing: {}", node.refn);
                 match graph.oca_file_path(&node.refn) {
-                    Some(path) => {
+                    Ok(path) => {
                         let unparsed_file =
                             fs::read_to_string(path).map_err(CliError::ReadFileFailed)?;
                         let oca_bundle = facade
@@ -239,7 +239,7 @@ fn main() -> Result<(), CliError> {
                             );
                         };
                     }
-                    None => {
+                    _ => {
                         println!("RefN not found in graph: {}", node.refn);
                     }
                 }
@@ -475,7 +475,7 @@ fn main() -> Result<(), CliError> {
             let to_show = visit_current_dir(dir.as_ref().unwrap())
                 .unwrap()
                 .into_iter()
-                .map(|of| parse_oca_file(&of).0);
+                .map(|of| parse_node(&of).unwrap().0);
             tui::draw(to_show, &graph, &facade).unwrap();
             Ok(())
         }

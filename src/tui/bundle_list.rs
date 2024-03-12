@@ -43,7 +43,7 @@ impl<'a> BundleList<'a> {
         let dependencies: Vec<BundleInfo> = to_show
             .into_iter()
             .map(|node| {
-                let deps = graph.neighbors(&node.refn);
+                let deps = graph.neighbors(&node.refn).unwrap();
                 let oca_bundle = get_oca_bundle(&node.refn, facade)
                     .unwrap_or_else(|| panic!("Unknown refn: {}", &node.refn));
                 BundleInfo {
