@@ -45,7 +45,8 @@ impl DependencyGraph {
         };
         file_paths
             .into_iter()
-            .map(|path| parse_node(path.as_ref()).unwrap())
+            // Files without refn are ignored
+            .filter_map(|path| parse_node(path.as_ref()).ok())
             .for_each(|(node, dependencies)| {
                 let index = graph.insert_node(node, &mut edges_to_save);
                 for dep in dependencies {

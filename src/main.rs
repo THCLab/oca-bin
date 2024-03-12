@@ -472,7 +472,8 @@ fn main() -> Result<(), CliError> {
 
                 let to_show = visit_current_dir(&directory)?
                     .into_iter()
-                    .map(|of| parse_node(&of).unwrap().0);
+                    // Files without refn are ignored
+                    .filter_map(|of| parse_node(&of).ok().map(|v| v.0));
                 tui::draw(to_show, &graph, &facade).unwrap();
                 Ok(())
             } else {
