@@ -6,6 +6,7 @@ use std::{
 
 use petgraph::{algo::toposort, graph::NodeIndex, Graph};
 use regex::Regex;
+use said::SelfAddressingIdentifier;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -14,6 +15,8 @@ pub enum GraphError {
     Cycle,
     #[error("Unknown node in graph: {0}")]
     UnknownRefn(String),
+    #[error("Unknown said for refn {0}")]
+    UnknownSaid(String),
     #[error("File parsing error: {0}")]
     FileParsing(String),
     #[error("OCA file doesn't contain bundle name: {0}")]
@@ -24,6 +27,7 @@ pub enum GraphError {
 pub struct Node {
     pub refn: String,
     pub path: PathBuf,
+    pub said: Option<SelfAddressingIdentifier>,
 }
 
 pub struct DependencyGraph {
@@ -64,9 +68,11 @@ impl DependencyGraph {
 
         // Process remaining edges.
         for (refn, nodes) in edges_to_save.iter() {
-            let ind = graph.get_index(refn)?;
-            let edges = nodes.iter().map(|n| (n.to_owned(), ind));
-            graph.graph.extend_with_edges(edges);
+            let ind = graph.get_index(refn);
+            if let Ok(ind) = ind {
+                let edges = nodes.iter().map(|n| (n.to_owned(), ind));
+                graph.graph.extend_with_edges(edges);
+            }
         }
         Ok(graph)
     }
@@ -100,6 +106,14 @@ impl DependencyGraph {
         let index = self.get_index(refn)?;
         Ok(self.graph[index].path.clone())
     }
+
+    pub fn get_said(&self, refn: &str) -> Result<SelfAddressingIdentifier, GraphError> {
+        let i = self.get_index(refn)?;
+        let node = &self.graph[i];
+        node.said
+            .clone()
+            .ok_or(GraphError::UnknownSaid(refn.to_string()))
+    }
 }
 
 impl DependencyGraph {
@@ -118,6 +132,17 @@ impl DependencyGraph {
             }
         }
         index
+    }
+
+    pub fn update_node(
+        &mut self,
+        refn: &str,
+        value: SelfAddressingIdentifier,
+    ) -> Result<(), GraphError> {
+        let i = self.get_index(refn)?;
+        let node = self.graph.node_weight_mut(i).unwrap();
+        node.said = Some(value);
+        Ok(())
     }
 
     fn find_refn(lines: Vec<&str>) -> Vec<String> {
@@ -148,10 +173,21 @@ pub fn parse_node(file_path: &Path) -> Result<(Node, Vec<String>), GraphError> {
             let ref_node = Node {
                 refn: ref_name,
                 path: file_path.into(),
+                said: None,
             };
             Ok((ref_node, DependencyGraph::find_refn(lines)))
         }
         None => Err(GraphError::MissingRefn(file_path.to_owned())),
+    }
+}
+
+impl oca_rs::facade::build::References for DependencyGraph {
+    fn find(&self, refn: &str) -> Option<String> {
+        self.get_said(refn).map(|said| said.to_string()).ok()
+    }
+
+    fn save(&mut self, refn: &str, value: String) {
+        self.update_node(refn, value.parse().unwrap()).unwrap();
     }
 }
 

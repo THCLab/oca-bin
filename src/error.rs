@@ -1,8 +1,9 @@
 use std::{io, path::PathBuf};
 
+use oca_rs::facade::build::ValidationError;
 use thiserror::Error;
 
-use crate::presentation_command::PresentationError;
+use crate::{dependency_graph::GraphError, presentation_command::PresentationError};
 
 #[derive(Debug, Error)]
 pub enum CliError {
@@ -36,4 +37,8 @@ pub enum CliError {
     DirectoryReadFailed(io::Error),
     #[error("All references are unknown. Run `build -d {0}` first")]
     AllRefnUnknown(PathBuf),
+    #[error("Validation error: file: {0}, reason: {1:?}")]
+    ValidationError(PathBuf, Vec<ValidationError>),
+    #[error(transparent)]
+    GraphError(#[from] GraphError),
 }

@@ -1,12 +1,11 @@
-use std::{io, path::PathBuf};
+use std::io;
 
+pub use super::bundle_list::BundleListError;
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, MouseEventKind};
 use oca_rs::Facade;
 use ratatui::{prelude::*, widgets::*};
-use said::error;
 use thiserror::Error;
-pub use super::bundle_list::BundleListError;
 
 use crate::dependency_graph::{DependencyGraph, Node};
 
@@ -28,7 +27,7 @@ impl<'a> App<'a> {
         facade: &Facade,
         graph: &DependencyGraph,
     ) -> Result<App<'a>, AppError> {
-        Ok(BundleList::from_nodes(to_show, facade, graph).map(|bundles| App {bundles})?)
+        Ok(BundleList::from_nodes(to_show, facade, graph).map(|bundles| App { bundles })?)
     }
 }
 

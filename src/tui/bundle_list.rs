@@ -11,16 +11,17 @@ use ratatui::widgets::{Block, Scrollbar, ScrollbarOrientation, StatefulWidget};
 use thiserror::Error;
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
-use crate::dependency_graph::{DependencyGraph, Node};
+use crate::dependency_graph::{DependencyGraph, GraphError, Node};
 
 use super::bundle_info::{BundleInfo, Status};
 use super::{get_oca_bundle, get_oca_bundle_by_said};
-// use super::list::{BundleInfo, Status};
 
 #[derive(Error, Debug)]
 pub enum BundleListError {
     #[error("All references are unknown")]
     AllRefnUnknown,
+    #[error(transparent)]
+    GraphError(#[from] GraphError),
 }
 
 pub struct BundleList<'a> {
@@ -47,30 +48,14 @@ impl<'a> BundleList<'a> {
         facade: &Facade,
         graph: &DependencyGraph,
     ) -> Result<Self, BundleListError> {
-        let mut dependencies = to_show
+        let dependencies = to_show
             .into_iter()
-            .map(|node| {
-                let deps = graph.neighbors(&node.refn).unwrap();
-                let oca_bundle = get_oca_bundle(&node.refn, facade);
-                match oca_bundle {
-                    Some(oca_bundle) => Ok(BundleInfo {
-                    refn: node.refn,
-                    dependencies: deps,
-                    status: Status::Unselected,
-                    oca_bundle,
-                }),
-                    None => {Err((node.refn, "Unknown refn".to_string()))},
-                }
-                
-            });
-        if dependencies.all(|d| d.is_err()) {return Err(BundleListError::AllRefnUnknown);};
+            .map(|node| bundle_info_from_refn(&node.refn, graph, facade));
+        // if dependencies.all(|d| d.is_err()) {return Err(BundleListError::AllRefnUnknown);};
 
         let i = Indexer::new();
         let deps = dependencies
-            .into_iter()
-            .map(|dep| {
-               result_to_tree_item(dep, &i, facade, graph) 
-            })
+            .map(|dep| result_to_tree_item(dep, &i, facade, graph))
             .collect();
 
         Ok(Self {
@@ -113,6 +98,24 @@ impl<'a> BundleList<'a> {
     }
 }
 
+pub fn bundle_info_from_refn(
+    refn: &str,
+    graph: &DependencyGraph,
+    facade: &Facade,
+) -> Result<BundleInfo, BundleListError> {
+    let deps = graph.neighbors(&refn).unwrap();
+    let oca_bundle = get_oca_bundle(&refn, facade);
+    match oca_bundle {
+        Some(oca_bundle) => Ok(BundleInfo {
+            refn: refn.to_string(),
+            dependencies: deps,
+            status: Status::Unselected,
+            oca_bundle,
+        }),
+        None => Err(GraphError::UnknownRefn(refn.to_string()).into()),
+    }
+}
+
 fn to_tree_item<'a>(
     key: String,
     attr: &NestedAttrType,
@@ -133,7 +136,7 @@ fn to_tree_item<'a>(
 }
 
 fn result_to_tree_item<'a>(
-    ob: Result<BundleInfo, (String, String)>,
+    ob: Result<BundleInfo, BundleListError>,
     i: &Indexer,
     facade: &Facade,
     graph: &DependencyGraph,
@@ -146,17 +149,17 @@ fn result_to_tree_item<'a>(
                 .map(|(key, attr)| to_tree_item(key, &attr, &i, facade, graph))
                 .collect::<Vec<_>>();
             TreeItem::new(i.current(), bundle.refn, attrs).unwrap()
-        },
+        }
         Err(err) => {
             let line = Span::styled(
-            format!("! {}: {}", err.0, err.1),
-            Style::default()
-                .fg(Color::Red)
-                .add_modifier(Modifier::ITALIC));
+                format!("! {}", err.to_string()),
+                Style::default()
+                    .fg(Color::Red)
+                    .add_modifier(Modifier::ITALIC),
+            );
             TreeItem::new_leaf(i.current(), line)
-        },
+        }
     }
-    
 }
 
 fn handle_reference_type<'a>(
@@ -178,22 +181,46 @@ fn handle_reference_type<'a>(
             (graph.oca_file_path(refn), bundle)
         }
     };
-    let mixed_line = vec![
-        Span::styled(line, Style::default()),
-        Span::styled(
-            format!("      • {}", ocafile_path.unwrap().to_str().unwrap()),
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::ITALIC),
-        ),
-    ];
+    let line = match ocafile_path {
+        Ok(ocafile_path) => {
+            vec![
+                Span::styled(line, Style::default()),
+                Span::styled(
+                    format!("      • {}", ocafile_path.to_str().unwrap()),
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::ITALIC),
+                ),
+            ]
+        }
+        Err(e) => {
+            vec![
+                Span::styled(line, Style::default().fg(Color::Red)),
+                Span::styled(
+                    format!("      ! {}", e.to_string()),
+                    Style::default()
+                        .fg(Color::Red)
+                        .add_modifier(Modifier::ITALIC),
+                ),
+            ]
+        }
+    };
+    // let mixed_line = vec![
+    //     Span::styled(line, Style::default()),
+    //     Span::styled(
+    //         format!("      • {}", ocafile_path.unwrap().to_str().unwrap()),
+    //         Style::default()
+    //             .fg(Color::Yellow)
+    //             .add_modifier(Modifier::ITALIC),
+    //     ),
+    // ];
     let children: Vec<TreeItem<'a, String>> = oca_bundle
         .capture_base
         .attributes
         .into_iter()
         .map(|(key, attr)| to_tree_item(key, &attr, i, facade, graph))
         .collect();
-    TreeItem::new(i.current(), Line::from(mixed_line), children).unwrap()
+    TreeItem::new(i.current(), Line::from(line), children).unwrap()
 }
 
 fn handle_arr_type<'a>(

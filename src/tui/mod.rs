@@ -19,8 +19,6 @@ pub mod app;
 mod bundle_info;
 mod bundle_list;
 
-
-
 pub fn draw<I>(nodes_to_show: I, graph: &DependencyGraph, facade: &Facade) -> Result<(), AppError>
 where
     I: IntoIterator<Item = Node>,
@@ -42,7 +40,7 @@ where
     Ok(())
 }
 
-fn get_oca_bundle(refn: &str, facade: &Facade) -> Option<OCABundle> {
+pub fn get_oca_bundle(refn: &str, facade: &Facade) -> Option<OCABundle> {
     let refs = facade.fetch_all_refs().unwrap();
     refs.into_iter()
         .find(|(name, _s)| *name == refn)

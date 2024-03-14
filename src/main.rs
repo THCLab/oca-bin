@@ -5,9 +5,7 @@ use config::OCA_REPOSITORY_DIR;
 use error::CliError;
 use oca_presentation::presentation::Presentation;
 use presentation_command::PresentationCommand;
-use std::path::Path;
 use std::{env, fs, fs::File, io::Write, path::PathBuf, process, str::FromStr};
-use walkdir::WalkDir;
 
 use clap::Parser as ClapParser;
 use clap::Subcommand;
@@ -18,6 +16,7 @@ use crate::dependency_graph::parse_node;
 use crate::dependency_graph::DependencyGraph;
 use crate::presentation_command::{handle_generate, handle_validate, Format};
 use crate::tui::app::BundleListError;
+use crate::utils::{load_ocafiles_all, visit_current_dir};
 use said::SelfAddressingIdentifier;
 use serde::{Deserialize, Serialize};
 
@@ -31,6 +30,8 @@ mod dependency_graph;
 pub mod error;
 pub mod presentation_command;
 mod tui;
+mod utils;
+mod validate;
 
 #[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
@@ -52,10 +53,19 @@ enum Commands {
     Build {
         /// Specify ocafile to build from
         #[arg(short = 'f', long, group = "build")]
-        ocafile: Option<String>,
+        ocafile: Option<PathBuf>,
         /// Build oca objects from directory (recursive)
         #[arg(short, long, group = "build")]
-        directory: Option<String>,
+        directory: Option<PathBuf>,
+    },
+    #[clap(group = clap::ArgGroup::new("build").required(true).args(&["ocafile", "directory"]))]
+    Validate {
+        /// Specify ocafile to build from
+        #[arg(short = 'f', long, group = "build")]
+        ocafile: Option<PathBuf>,
+        /// Build oca objects from directory (recursive)
+        #[arg(short, long, group = "build")]
+        directory: Option<PathBuf>,
     },
     /// Publish oca objects into online repository
     Publish {
@@ -199,23 +209,18 @@ fn main() -> Result<(), CliError> {
             Ok(())
         }
         Some(Commands::Build { ocafile, directory }) => {
-            let paths = if let Some(directory) = directory {
-                info!("Building OCA bundle from directory {}", directory);
-                visit_dirs_recursive(Path::new(directory)).unwrap()
-            } else if let Some(file) = ocafile {
-                info!("Building OCA bundle from oca file {}", file);
-                vec![PathBuf::from(file)]
-            } else {
-                println!("No file or directory provided");
-                process::exit(1);
-            };
+            let paths =
+                load_ocafiles_all(ocafile.as_ref(), directory.as_ref()).unwrap_or_else(|err| {
+                    eprintln!("{err}");
+                    process::exit(1);
+                });
 
             let mut facade = get_oca_facade(local_repository_path);
             let graph = DependencyGraph::from_paths(paths).unwrap();
             let sorted_graph = graph.sort().unwrap();
             info!("Sorted: {:?}", sorted_graph);
             for node in sorted_graph {
-                debug!("Processing: {}", node.refn);
+                info!("Processing: {}", node.refn);
                 match graph.oca_file_path(&node.refn) {
                     Ok(path) => {
                         let unparsed_file =
@@ -247,6 +252,7 @@ fn main() -> Result<(), CliError> {
             }
             Ok(())
         }
+
         Some(Commands::Publish {
             repository_url,
             said,
@@ -462,12 +468,24 @@ fn main() -> Result<(), CliError> {
                 }
             }
         }
+        Some(Commands::Validate { ocafile, directory }) => {
+            let paths = load_ocafiles_all(ocafile.as_ref(), directory.as_ref())?;
+
+            let facade = get_oca_facade(local_repository_path);
+            let mut graph = DependencyGraph::from_paths(paths).unwrap();
+            let (oks, errs) = validate::validate_directory(&facade, &mut graph)?;
+            for err in errs {
+                println!("{}", err)
+            }
+            Ok(())
+        }
         Some(Commands::Tui { dir }) => {
             if let Some(directory) = dir.as_ref() {
-                let all_oca_files = visit_dirs_recursive(directory).unwrap_or_else(|err| {
-                    eprintln!("{err}");
-                    process::exit(1);
-                });
+                let all_oca_files =
+                    load_ocafiles_all(None, Some(directory)).unwrap_or_else(|err| {
+                        eprintln!("{err}");
+                        process::exit(1);
+                    });
                 let facade = get_oca_facade(local_repository_path);
                 let graph = DependencyGraph::from_paths(all_oca_files).unwrap();
 
@@ -477,10 +495,11 @@ fn main() -> Result<(), CliError> {
                     .filter_map(|of| parse_node(&of).ok().map(|v| v.0));
                 tui::draw(to_show, &graph, &facade).unwrap_or_else(|err| {
                     match err {
-                       tui::app::AppError::BundleListError(BundleListError::AllRefnUnknown) => eprintln!("{}", CliError::AllRefnUnknown(directory.to_owned())),
-                       err => eprintln!("{err}"),
+                        tui::app::AppError::BundleListError(BundleListError::AllRefnUnknown) => {
+                            eprintln!("{}", CliError::AllRefnUnknown(directory.to_owned()))
+                        }
+                        err => eprintln!("{err}"),
                     };
-                    ;
                     process::exit(1);
                 });
                 Ok(())
@@ -493,48 +512,6 @@ fn main() -> Result<(), CliError> {
             todo!()
         }
     }
-}
-
-fn visit_dirs_recursive(dir: &Path) -> Result<Vec<PathBuf>, CliError> {
-    let mut paths = Vec::new();
-    for entry in WalkDir::new(dir).into_iter() {
-        if let Ok(entry_path) = entry {
-            let path = entry_path.path();
-            if path.is_dir() {
-                continue;
-            }
-            if let Some(ext) = path.extension() {
-                if ext == "ocafile" {
-                    paths.push(path.to_path_buf());
-                }
-            }
-        } else {
-            return Err(CliError::NonexistentPath(dir.to_owned()));
-        }
-    }
-    Ok(paths)
-}
-
-fn visit_current_dir(dir: &Path) -> Result<Vec<PathBuf>, CliError> {
-    let mut paths = Vec::new();
-    if !dir.exists() {
-        return Err(CliError::NonexistentPath(dir.to_owned()));
-    };
-    if !dir.is_dir() {
-        return Err(CliError::NotDirectory(dir.to_owned()));
-    };
-    let files = fs::read_dir(dir).map_err(|err| CliError::DirectoryReadFailed(err))?;
-    for entry in files {
-        let entry = entry.map_err(|err| CliError::DirectoryReadFailed(err))?;
-        let path = entry.path();
-        if path.is_dir() {
-        } else if let Some(ext) = path.extension() {
-            if ext == "ocafile" {
-                paths.push(path.to_path_buf());
-            }
-        }
-    }
-    Ok(paths)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
