@@ -18,8 +18,9 @@ pub mod app;
 // mod list;
 mod bundle_info;
 mod bundle_list;
+mod errors_window;
 
-pub fn draw<I>(nodes_to_show: I, graph: &DependencyGraph, facade: &Facade) -> Result<(), AppError>
+pub fn draw<I>(nodes_to_show: I, graph: &mut DependencyGraph, facade: Facade) -> Result<(), AppError>
 where
     I: IntoIterator<Item = Node>,
 {

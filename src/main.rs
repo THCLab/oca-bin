@@ -487,13 +487,13 @@ fn main() -> Result<(), CliError> {
                         process::exit(1);
                     });
                 let facade = get_oca_facade(local_repository_path);
-                let graph = DependencyGraph::from_paths(all_oca_files).unwrap();
+                let mut graph = DependencyGraph::from_paths(all_oca_files).unwrap();
 
                 let to_show = visit_current_dir(&directory)?
                     .into_iter()
                     // Files without refn are ignored
                     .filter_map(|of| parse_node(&of).ok().map(|v| v.0));
-                tui::draw(to_show, &graph, &facade).unwrap_or_else(|err| {
+                tui::draw(to_show, &mut graph, facade).unwrap_or_else(|err| {
                     match err {
                         tui::app::AppError::BundleListError(BundleListError::AllRefnUnknown) => {
                             eprintln!("{}", CliError::AllRefnUnknown(directory.to_owned()))

@@ -1,15 +1,15 @@
-use std::io;
+use std::{io, time::Duration};
 
 pub use super::bundle_list::BundleListError;
 use anyhow::Result;
-use crossterm::event::{self, Event, KeyCode, MouseEventKind};
-use oca_rs::Facade;
+use crossterm::event::{self, poll, Event, KeyCode, MouseEventKind};
+use oca_rs::{facade::build::ValidationError, Facade};
 use ratatui::{prelude::*, widgets::*};
 use thiserror::Error;
 
-use crate::dependency_graph::{DependencyGraph, Node};
+use crate::{dependency_graph::{DependencyGraph, Node}, error::CliError, validate};
 
-use super::bundle_list::BundleList;
+use super::{bundle_list::BundleList, errors_window::ErrorsWindow};
 
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -17,27 +17,36 @@ pub enum AppError {
     BundleListError(#[from] BundleListError),
     #[error(transparent)]
     InputError(#[from] io::Error),
+    #[error("Validation error: {0}")]
+    ValidationError(String),
 }
 pub struct App<'a> {
     bundles: BundleList<'a>,
+    errors: ErrorsWindow,
+    facade: Facade,
+    graph: &'a mut DependencyGraph,
 }
 impl<'a> App<'a> {
     pub fn new<I: IntoIterator<Item = Node>>(
         to_show: I,
-        facade: &Facade,
-        graph: &DependencyGraph,
+        facade: Facade,
+        graph: &'a mut DependencyGraph,
     ) -> Result<App<'a>, AppError> {
-        Ok(BundleList::from_nodes(to_show, facade, graph).map(|bundles| App { bundles })?)
+        
+        Ok(BundleList::from_nodes(to_show, &facade, graph).map(|bundles| App { bundles, errors: ErrorsWindow::new(), facade, graph })?)
     }
 }
 
 impl<'a> App<'a> {
     pub fn run(&mut self, mut terminal: Terminal<impl Backend>) -> Result<(), AppError> {
         loop {
-            self.draw(&mut terminal)?;
-            if !self.handle_input()? {
+            if poll(Duration::from_millis(100))? {
+                if !self.handle_input()? {
                 return Ok(());
-            }
+                }
+            } 
+            self.draw(&mut terminal)?;
+            
         }
     }
 
@@ -54,6 +63,7 @@ impl<'a> App<'a> {
                 KeyCode::End => self.bundles.state.select_last(&self.bundles.items),
                 KeyCode::PageDown => self.bundles.ten_down(),
                 KeyCode::PageUp => self.bundles.ten_up(),
+                KeyCode::Char('v') => self.errors.check(&self.facade, self.graph)?,
                 _ => false,
             },
             Event::Mouse(mouse) => match mouse.kind {
@@ -84,11 +94,12 @@ impl<'a> Widget for &mut App<'a> {
 
         // Create two chunks with equal horizontal screen space. One for the list and dependencies and the other for
         // the changes block.
-        // let vertical = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]);
-        // let [list_area, changes_area] = vertical.areas(rest_area);
-
+        let vertical = Layout::vertical([Constraint::Percentage(80), Constraint::Min(0)]);
+        let [list_area, changes_area] = vertical.areas(rest_area);
+        
         self.render_title(header_area, buf);
-        self.bundles.render(rest_area, buf);
+        self.bundles.render(list_area, buf);
+        self.errors.render(changes_area, buf);
         self.render_footer(footer_area, buf);
     }
 }
