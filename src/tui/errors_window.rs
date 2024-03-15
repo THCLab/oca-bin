@@ -50,7 +50,7 @@ impl<'a> ErrorsWindow<'a> {
 		let items = self.errors.iter()
             .map(|dep| {
 				match dep {
-						CliError::ValidationError(file, errors) => {
+						CliError::GrammarError(file, errors) => {
 							let children = errors.into_iter().map(|err| {
 								let line = Span::styled(
 								format!("! {}", err.to_string()),
@@ -63,7 +63,10 @@ impl<'a> ErrorsWindow<'a> {
 							TreeItem::new(i.current(), file.to_str().unwrap().to_owned(), children).unwrap()
 
 						},
-						_ => todo!(),
+						CliError::GraphError(e) => {
+							TreeItem::new_leaf(i.current(), e.to_string())
+						},
+						e => TreeItem::new_leaf(i.current(), e.to_string()),
 					}
 			})
             .collect();

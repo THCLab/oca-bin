@@ -27,6 +27,7 @@ pub struct App<'a> {
     // graph: &'a mut DependencyGraph,
     active_window: Window,
     paths: Vec<PathBuf>,
+    base_dir: PathBuf,
 }
 
 enum Window {
@@ -38,14 +39,15 @@ enum Window {
 
 impl<'a> App<'a> {
     pub fn new<I: IntoIterator<Item = Node>>(
+        base: PathBuf,
         to_show: I,
         facade: Facade,
         paths: Vec<PathBuf>,
         // graph: &'a mut DependencyGraph,
     ) -> Result<App<'a>, AppError> {
         
-        let graph = DependencyGraph::from_paths(&paths).unwrap();
-        Ok(BundleList::from_nodes(to_show, &facade, &graph).map(|bundles| App { bundles, errors: ErrorsWindow::new(), facade, paths, active_window: Window::Bundles })?)
+        let graph = DependencyGraph::from_paths(&base, &paths).unwrap();
+        Ok(BundleList::from_nodes(to_show, &facade, &graph).map(|bundles| App { base_dir: base, bundles, errors: ErrorsWindow::new(), facade, paths, active_window: Window::Bundles })?)
     }
 }
 
@@ -94,7 +96,7 @@ impl<'a> App<'a> {
                         current.map_or(0, |current| current.saturating_sub(10))
                     }),
                     KeyCode::Char('v') => {
-                        let mut graph = DependencyGraph::from_paths(&self.paths).unwrap();
+                        let mut graph = DependencyGraph::from_paths(&self.base_dir, &self.paths).unwrap();
                         self.errors.check(&self.facade, &mut graph)?
                     },
                     KeyCode::Tab => self.change_window(),

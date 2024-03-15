@@ -21,7 +21,7 @@ pub fn validate_directory(
             let unparsed_file = fs::read_to_string(path).map_err(CliError::ReadFileFailed)?;
             match Facade::validate_ocafile(facade.storage(), unparsed_file, graph) {
                 Ok(_) => Ok(node),
-                Err(e) => Err(CliError::ValidationError(node.path.clone(), e)),
+                Err(e) => Err(CliError::GrammarError(node.path.clone(), e)),
             }
         })
         .partition(Result::is_ok);

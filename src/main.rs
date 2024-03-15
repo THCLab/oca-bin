@@ -216,7 +216,7 @@ fn main() -> Result<(), CliError> {
                 });
 
             let mut facade = get_oca_facade(local_repository_path);
-            let graph = DependencyGraph::from_paths(paths).unwrap();
+            let graph = DependencyGraph::from_paths(directory.as_ref().unwrap(), paths).unwrap();
             let sorted_graph = graph.sort().unwrap();
             info!("Sorted: {:?}", sorted_graph);
             for node in sorted_graph {
@@ -472,7 +472,7 @@ fn main() -> Result<(), CliError> {
             let paths = load_ocafiles_all(ocafile.as_ref(), directory.as_ref())?;
 
             let facade = get_oca_facade(local_repository_path);
-            let mut graph = DependencyGraph::from_paths(paths).unwrap();
+            let mut graph = DependencyGraph::from_paths(directory.as_ref().unwrap(), paths).unwrap();
             let (oks, errs) = validate::validate_directory(&facade, &mut graph)?;
             for err in errs {
                 println!("{}", err)
@@ -492,14 +492,9 @@ fn main() -> Result<(), CliError> {
                 let to_show = visit_current_dir(&directory)?
                     .into_iter()
                     // Files without refn are ignored
-                    .filter_map(|of| parse_node(&of).ok().map(|v| v.0));
-                tui::draw(to_show, all_oca_files, facade).unwrap_or_else(|err| {
-                    match err {
-                        tui::app::AppError::BundleListError(BundleListError::AllRefnUnknown) => {
-                            eprintln!("{}", CliError::AllRefnUnknown(directory.to_owned()))
-                        }
-                        err => eprintln!("{err}"),
-                    };
+                    .filter_map(|of| parse_node(directory, &of).ok().map(|v| v.0));
+                tui::draw(directory.clone(), to_show, all_oca_files, facade).unwrap_or_else(|err| {
+                    eprintln!("{err}");
                     process::exit(1);
                 });
                 Ok(())

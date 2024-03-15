@@ -103,7 +103,7 @@ pub fn bundle_info_from_refn(
     graph: &DependencyGraph,
     facade: &Facade,
 ) -> Result<BundleInfo, BundleListError> {
-    let deps = graph.neighbors(&refn).unwrap();
+    let deps = graph.neighbors(&refn)?;
     let oca_bundle = get_oca_bundle(&refn, facade);
     match oca_bundle {
         Some(oca_bundle) => Ok(BundleInfo {
@@ -181,9 +181,9 @@ fn handle_reference_type<'a>(
             (graph.oca_file_path(refn), bundle)
         }
     };
-    let line = match ocafile_path {
+    match ocafile_path {
         Ok(ocafile_path) => {
-            vec![
+            let line = vec![
                 Span::styled(line, Style::default()),
                 Span::styled(
                     format!("      • {}", ocafile_path.to_str().unwrap()),
@@ -191,10 +191,17 @@ fn handle_reference_type<'a>(
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::ITALIC),
                 ),
-            ]
+            ];
+            let children: Vec<TreeItem<'a, String>> = oca_bundle
+                .capture_base
+                .attributes
+                .into_iter()
+                .map(|(key, attr)| to_tree_item(key, &attr, i, facade, graph))
+                .collect();
+            TreeItem::new(i.current(), Line::from(line), children).unwrap()
         }
         Err(e) => {
-            vec![
+            let line = vec![
                 Span::styled(line, Style::default().fg(Color::Red)),
                 Span::styled(
                     format!("      ! {}", e.to_string()),
@@ -202,25 +209,10 @@ fn handle_reference_type<'a>(
                         .fg(Color::Red)
                         .add_modifier(Modifier::ITALIC),
                 ),
-            ]
+            ];
+            TreeItem::new_leaf(i.current(), Line::from(line))
         }
-    };
-    // let mixed_line = vec![
-    //     Span::styled(line, Style::default()),
-    //     Span::styled(
-    //         format!("      • {}", ocafile_path.unwrap().to_str().unwrap()),
-    //         Style::default()
-    //             .fg(Color::Yellow)
-    //             .add_modifier(Modifier::ITALIC),
-    //     ),
-    // ];
-    let children: Vec<TreeItem<'a, String>> = oca_bundle
-        .capture_base
-        .attributes
-        .into_iter()
-        .map(|(key, attr)| to_tree_item(key, &attr, i, facade, graph))
-        .collect();
-    TreeItem::new(i.current(), Line::from(line), children).unwrap()
+    }
 }
 
 fn handle_arr_type<'a>(

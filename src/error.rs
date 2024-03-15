@@ -38,7 +38,7 @@ pub enum CliError {
     #[error("All references are unknown. Run `build -d {0}` first")]
     AllRefnUnknown(PathBuf),
     #[error("Validation error: file: {0}, reason: {1:?}")]
-    ValidationError(PathBuf, Vec<ValidationError>),
+    GrammarError(PathBuf, Vec<ValidationError>),
     #[error(transparent)]
     GraphError(#[from] GraphError),
 }

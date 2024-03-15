@@ -13,10 +13,17 @@ use thiserror::Error;
 pub enum GraphError {
     #[error("Cycle detected")]
     Cycle,
-    #[error("Unknown node in graph: {0}")]
+    #[error("Unknown name: {0}")]
     UnknownRefn(String),
-    #[error("Unknown said for refn {0}")]
+    #[error("Unknown said for name {0}")]
     UnknownSaid(String),
+    #[error(transparent)]
+    NodeParsingError(#[from] NodeParsingError)
+}
+
+
+#[derive(Error, Debug)]
+pub enum NodeParsingError {
     #[error("File parsing error: {0}")]
     FileParsing(String),
     #[error("OCA file doesn't contain bundle name: {0}")]
@@ -31,11 +38,12 @@ pub struct Node {
 }
 
 pub struct DependencyGraph {
+    base_dir: PathBuf,
     graph: Graph<Node, ()>,
 }
 
 impl DependencyGraph {
-    pub fn from_paths<I, P>(file_paths: I) -> Result<Self, GraphError>
+    pub fn from_paths<I, P>(base_dir: &Path, file_paths: I) -> Result<Self, GraphError>
     where
         P: AsRef<Path>,
         I: IntoIterator<Item = P>,
@@ -45,12 +53,13 @@ impl DependencyGraph {
         // should have connection with node of given refn.
         let mut edges_to_save = HashMap::new();
         let mut graph = DependencyGraph {
+            base_dir: base_dir.to_path_buf(), 
             graph: Graph::<Node, ()>::new(),
         };
         file_paths
             .into_iter()
             // Files without refn are ignored
-            .filter_map(|path| parse_node(path.as_ref()).ok())
+            .filter_map(|path| parse_node(&base_dir, path.as_ref()).ok())
             .for_each(|(node, dependencies)| {
                 let index = graph.insert_node(node, &mut edges_to_save);
                 for dep in dependencies {
@@ -104,7 +113,10 @@ impl DependencyGraph {
 
     pub fn oca_file_path(&self, refn: &str) -> Result<PathBuf, GraphError> {
         let index = self.get_index(refn)?;
-        Ok(self.graph[index].path.clone())
+        let relative_path = self.graph[index].path.clone();
+        let mut path = self.base_dir.clone();
+        path.push(relative_path);
+        Ok(path)
     }
 
     pub fn get_said(&self, refn: &str) -> Result<SelfAddressingIdentifier, GraphError> {
@@ -160,24 +172,24 @@ impl DependencyGraph {
     }
 }
 
-pub fn parse_node(file_path: &Path) -> Result<(Node, Vec<String>), GraphError> {
+pub fn parse_node(base: &Path, file_path: &Path) -> Result<(Node, Vec<String>), NodeParsingError> {
     let content = fs::read_to_string(file_path)
-        .map_err(|_e| GraphError::FileParsing("Failed to read file".to_string()))?;
+        .map_err(|_e| NodeParsingError::FileParsing("Failed to read file".to_string()))?;
     let lines: Vec<&str> = content.lines().collect();
     let ref_name_line = lines
         .first()
-        .ok_or(GraphError::FileParsing("File is empty".to_string()))?;
+        .ok_or(NodeParsingError::FileParsing("File is empty".to_string()))?;
     match ref_name_line.split("name=").nth(1) {
         Some(name_part) => {
             let ref_name = name_part.trim_matches('"').to_string();
             let ref_node = Node {
                 refn: ref_name,
-                path: file_path.into(),
+                path: file_path.strip_prefix(base).unwrap().into(),
                 said: None,
             };
             Ok((ref_node, DependencyGraph::find_refn(lines)))
         }
-        None => Err(GraphError::MissingRefn(file_path.to_owned())),
+        None => Err(NodeParsingError::MissingRefn(file_path.to_owned())),
     }
 }
 
@@ -219,7 +231,7 @@ fn test_sort() -> anyhow::Result<()> {
         paths.push(path)
     }
 
-    let petgraph = DependencyGraph::from_paths(paths)?;
+    let petgraph = DependencyGraph::from_paths(tmp_dir.path(), paths)?;
     assert_eq!(
         petgraph
             .sort()?
