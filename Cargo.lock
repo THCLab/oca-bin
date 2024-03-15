@@ -1273,6 +1273,7 @@ dependencies = [
  "serde_yaml",
  "tempdir",
  "thiserror",
+ "throbber-widgets-tui",
  "toml",
  "tui-tree-widget",
  "walkdir",
@@ -1281,8 +1282,6 @@ dependencies = [
 [[package]]
 name = "oca-ast"
 version = "0.4.1-rc.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88774a19419e192a93077aa97f955417d819b4ee16f1b8e9c3e28bd10c157a4c"
 dependencies = [
  "env_logger",
  "indexmap 1.9.3",
@@ -1301,8 +1300,6 @@ dependencies = [
 [[package]]
 name = "oca-bundle"
 version = "0.4.1-rc.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e1535446dcf0129f15a91095ae00a4f60b8f355ef061c171f6d83bced3bd792"
 dependencies = [
  "cascade",
  "convert_case",
@@ -1330,8 +1327,6 @@ dependencies = [
 [[package]]
 name = "oca-dag"
 version = "0.4.1-rc.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e280cd0ec42dde857ba4ae6229525034c561beea7731ec368b9073ff47adfaf"
 dependencies = [
  "dyn-clonable",
  "indexmap 1.9.3",
@@ -1347,8 +1342,6 @@ dependencies = [
 [[package]]
 name = "oca-file"
 version = "0.4.1-rc.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9bae6a33343bda202de4b71187e9cf26a99a9b6ba36c7154b190c7a07563753"
 dependencies = [
  "clap 4.5.2",
  "convert_case",
@@ -1370,8 +1363,6 @@ dependencies = [
 [[package]]
 name = "oca-presentation"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "734ff3beac9a8d80e79babef06216fe5b11f572112ee592ed4dc22ae02237c2e"
 dependencies = [
  "indexmap 2.2.5",
  "isolang",
@@ -1385,8 +1376,6 @@ dependencies = [
 [[package]]
 name = "oca-rs"
 version = "0.4.1-rc.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58a56a8217f9e4b4d49451f6f9b9277d8b538354926b5f909445e5b4d3cc9456"
 dependencies = [
  "dyn-clonable",
  "isolang",
@@ -2450,6 +2439,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.52",
+]
+
+[[package]]
+name = "throbber-widgets-tui"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a99cd25e625314594c7eef24bfad0e7948cb37f697ca54c6a97f7987c92d4a49"
+dependencies = [
+ "rand 0.8.5",
+ "ratatui",
 ]
 
 [[package]]

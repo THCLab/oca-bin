@@ -1,4 +1,4 @@
-use std::{io, time::Duration};
+use std::{io, path::PathBuf, time::Duration};
 
 pub use super::bundle_list::BundleListError;
 use anyhow::Result;
@@ -22,18 +22,30 @@ pub enum AppError {
 }
 pub struct App<'a> {
     bundles: BundleList<'a>,
-    errors: ErrorsWindow,
+    errors: ErrorsWindow<'a>,
     facade: Facade,
-    graph: &'a mut DependencyGraph,
+    // graph: &'a mut DependencyGraph,
+    active_window: Window,
+    paths: Vec<PathBuf>,
 }
+
+enum Window {
+    Errors,
+    Bundles,
+}
+
+
+
 impl<'a> App<'a> {
     pub fn new<I: IntoIterator<Item = Node>>(
         to_show: I,
         facade: Facade,
-        graph: &'a mut DependencyGraph,
+        paths: Vec<PathBuf>,
+        // graph: &'a mut DependencyGraph,
     ) -> Result<App<'a>, AppError> {
         
-        Ok(BundleList::from_nodes(to_show, &facade, graph).map(|bundles| App { bundles, errors: ErrorsWindow::new(), facade, graph })?)
+        let graph = DependencyGraph::from_paths(&paths).unwrap();
+        Ok(BundleList::from_nodes(to_show, &facade, &graph).map(|bundles| App { bundles, errors: ErrorsWindow::new(), facade, paths, active_window: Window::Bundles })?)
     }
 }
 
@@ -50,22 +62,44 @@ impl<'a> App<'a> {
         }
     }
 
+    fn change_window(&mut self) -> bool {
+        match self.active_window {
+            Window::Errors => self.active_window = Window::Bundles,
+            Window::Bundles => self.active_window = Window::Errors,
+        }
+
+        true
+    }
+
     fn handle_input(&mut self) -> Result<bool, AppError> {
         match event::read()? {
-            event::Event::Key(key) => match key.code {
-                KeyCode::Char('q') | KeyCode::Esc => return Ok(false),
-                KeyCode::Char(' ') | KeyCode::Enter => self.bundles.state.toggle_selected(),
-                KeyCode::Left => self.bundles.state.key_left(),
-                KeyCode::Right => self.bundles.state.key_right(),
-                KeyCode::Down => self.bundles.state.key_down(&self.bundles.items),
-                KeyCode::Up => self.bundles.state.key_up(&self.bundles.items),
-                KeyCode::Home => self.bundles.state.select_first(&self.bundles.items),
-                KeyCode::End => self.bundles.state.select_last(&self.bundles.items),
-                KeyCode::PageDown => self.bundles.ten_down(),
-                KeyCode::PageUp => self.bundles.ten_up(),
-                KeyCode::Char('v') => self.errors.check(&self.facade, self.graph)?,
-                _ => false,
-            },
+            event::Event::Key(key) => {
+                let (state, items) = match self.active_window {
+                    Window::Bundles => (&mut self.bundles.state, &self.bundles.items),
+                    Window::Errors => (&mut self.errors.state, &self.errors.items)
+                };
+                match key.code {
+                    KeyCode::Char('q') | KeyCode::Esc => return Ok(false),
+                    KeyCode::Char(' ') | KeyCode::Enter => state.toggle_selected(),
+                    KeyCode::Left => state.key_left(),
+                    KeyCode::Right => state.key_right(),
+                    KeyCode::Down => state.key_down(&items),
+                    KeyCode::Up => state.key_up(&items),
+                    KeyCode::Home => state.select_first(&items),
+                    KeyCode::End => state.select_last(&items),
+                    KeyCode::PageDown => state.select_visible_relative(&items, |current| {
+                        current.map_or(0, |current| current.saturating_add(10))
+                    }),
+                    KeyCode::PageUp => state.select_visible_relative(&items, |current| {
+                        current.map_or(0, |current| current.saturating_sub(10))
+                    }),
+                    KeyCode::Char('v') => {
+                        let mut graph = DependencyGraph::from_paths(&self.paths).unwrap();
+                        self.errors.check(&self.facade, &mut graph)?
+                    },
+                    KeyCode::Tab => self.change_window(),
+                    _ => false,
+                }},
             Event::Mouse(mouse) => match mouse.kind {
                 MouseEventKind::ScrollDown => self.bundles.state.scroll_down(1),
                 MouseEventKind::ScrollUp => self.bundles.state.scroll_up(1),
@@ -94,7 +128,7 @@ impl<'a> Widget for &mut App<'a> {
 
         // Create two chunks with equal horizontal screen space. One for the list and dependencies and the other for
         // the changes block.
-        let vertical = Layout::vertical([Constraint::Percentage(80), Constraint::Min(0)]);
+        let vertical = Layout::vertical([Constraint::Percentage(70), Constraint::Min(0)]);
         let [list_area, changes_area] = vertical.areas(rest_area);
         
         self.render_title(header_area, buf);
@@ -113,7 +147,7 @@ impl<'a> App<'a> {
     }
 
     fn render_footer(&self, area: Rect, buf: &mut Buffer) {
-        Paragraph::new("\nUse ↓↑ to move, space to expand/collapse bundle attributes.")
+        Paragraph::new("\nUse ↓↑ to move, space or enter to expand/collapse list element, Tab to change active window and `v` to validate.")
             .centered()
             .render(area, buf);
     }

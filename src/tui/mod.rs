@@ -8,7 +8,7 @@ use oca_bundle::state::oca::OCABundle;
 use oca_rs::Facade;
 use ratatui::prelude::*;
 use said::SelfAddressingIdentifier;
-use std::io::stdout;
+use std::{io::stdout, path::PathBuf};
 
 use crate::dependency_graph::{DependencyGraph, Node};
 
@@ -20,7 +20,7 @@ mod bundle_info;
 mod bundle_list;
 mod errors_window;
 
-pub fn draw<I>(nodes_to_show: I, graph: &mut DependencyGraph, facade: Facade) -> Result<(), AppError>
+pub fn draw<I>(nodes_to_show: I, paths: Vec<PathBuf>, facade: Facade) -> Result<(), AppError>
 where
     I: IntoIterator<Item = Node>,
 {
@@ -29,7 +29,7 @@ where
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     terminal.clear()?;
 
-    let res = App::new(nodes_to_show, facade, graph)?.run(terminal);
+    let res = App::new(nodes_to_show, facade, paths)?.run(terminal);
 
     if let Err(err) = res {
         println!("{err:?}");

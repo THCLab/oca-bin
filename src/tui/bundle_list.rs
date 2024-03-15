@@ -29,13 +29,13 @@ pub struct BundleList<'a> {
     pub items: Vec<TreeItem<'a, String>>,
 }
 
-struct Indexer(Mutex<u32>);
+pub struct Indexer(Mutex<u32>);
 impl Indexer {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self(Mutex::new(0))
     }
 
-    fn current(&self) -> String {
+    pub fn current(&self) -> String {
         let mut s = self.0.lock().unwrap();
         *s += 1;
         s.to_string()
