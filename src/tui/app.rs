@@ -1,13 +1,17 @@
-use std::{io, path::PathBuf, time::Duration};
+use std::{io, path::PathBuf, sync::Arc, time::Duration};
 
 pub use super::bundle_list::BundleListError;
 use anyhow::Result;
 use crossterm::event::{self, poll, Event, KeyCode, MouseEventKind};
-use oca_rs::{facade::build::ValidationError, Facade};
+use oca_rs::{data_storage::SledDataStorage, facade::build::ValidationError, Facade};
 use ratatui::{prelude::*, widgets::*};
 use thiserror::Error;
 
-use crate::{dependency_graph::{DependencyGraph, Node}, error::CliError, validate};
+use crate::{
+    dependency_graph::{DependencyGraph, MutableGraph, Node},
+    error::CliError,
+    validate,
+};
 
 use super::{bundle_list::BundleList, errors_window::ErrorsWindow};
 
@@ -22,8 +26,9 @@ pub enum AppError {
 }
 pub struct App<'a> {
     bundles: BundleList<'a>,
-    errors: ErrorsWindow<'a>,
+    errors: ErrorsWindow,
     facade: Facade,
+    storage: Arc<SledDataStorage>,
     // graph: &'a mut DependencyGraph,
     active_window: Window,
     paths: Vec<PathBuf>,
@@ -35,19 +40,28 @@ enum Window {
     Bundles,
 }
 
-
-
 impl<'a> App<'a> {
     pub fn new<I: IntoIterator<Item = Node>>(
         base: PathBuf,
         to_show: I,
         facade: Facade,
         paths: Vec<PathBuf>,
+        storage: SledDataStorage,
         // graph: &'a mut DependencyGraph,
     ) -> Result<App<'a>, AppError> {
-        
         let graph = DependencyGraph::from_paths(&base, &paths).unwrap();
-        Ok(BundleList::from_nodes(to_show, &facade, &graph).map(|bundles| App { base_dir: base, bundles, errors: ErrorsWindow::new(), facade, paths, active_window: Window::Bundles })?)
+        let s = Arc::new(storage);
+        Ok(
+            BundleList::from_nodes(to_show, &facade, &graph).map(|bundles| App {
+                base_dir: base,
+                bundles,
+                errors: ErrorsWindow::new(),
+                facade,
+                paths,
+                storage: s,
+                active_window: Window::Bundles,
+            })?,
+        )
     }
 }
 
@@ -56,11 +70,10 @@ impl<'a> App<'a> {
         loop {
             if poll(Duration::from_millis(100))? {
                 if !self.handle_input()? {
-                return Ok(());
+                    return Ok(());
                 }
-            } 
+            }
             self.draw(&mut terminal)?;
-            
         }
     }
 
@@ -76,9 +89,12 @@ impl<'a> App<'a> {
     fn handle_input(&mut self) -> Result<bool, AppError> {
         match event::read()? {
             event::Event::Key(key) => {
+                let items = self.errors.items();
                 let (state, items) = match self.active_window {
                     Window::Bundles => (&mut self.bundles.state, &self.bundles.items),
-                    Window::Errors => (&mut self.errors.state, &self.errors.items)
+                    Window::Errors => {
+                        (&mut self.errors.state, &items)
+                    },
                 };
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => return Ok(false),
@@ -96,12 +112,14 @@ impl<'a> App<'a> {
                         current.map_or(0, |current| current.saturating_sub(10))
                     }),
                     KeyCode::Char('v') => {
-                        let mut graph = DependencyGraph::from_paths(&self.base_dir, &self.paths).unwrap();
-                        self.errors.check(&self.facade, &mut graph)?
-                    },
+                        let mut graph =
+                            MutableGraph::new(&self.base_dir, &self.paths);
+                        self.errors.check(self.storage.clone(), graph)?
+                    }
                     KeyCode::Tab => self.change_window(),
                     _ => false,
-                }},
+                }
+            }
             Event::Mouse(mouse) => match mouse.kind {
                 MouseEventKind::ScrollDown => self.bundles.state.scroll_down(1),
                 MouseEventKind::ScrollUp => self.bundles.state.scroll_up(1),
@@ -132,7 +150,7 @@ impl<'a> Widget for &mut App<'a> {
         // the changes block.
         let vertical = Layout::vertical([Constraint::Percentage(70), Constraint::Min(0)]);
         let [list_area, changes_area] = vertical.areas(rest_area);
-        
+
         self.render_title(header_area, buf);
         self.bundles.render(list_area, buf);
         self.errors.render(changes_area, buf);

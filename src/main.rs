@@ -4,6 +4,7 @@ use config::OCA_INDEX_DIR;
 use config::OCA_REPOSITORY_DIR;
 use error::CliError;
 use oca_presentation::presentation::Presentation;
+use oca_rs::data_storage::SledDataStorage;
 use presentation_command::PresentationCommand;
 use std::{env, fs, fs::File, io::Write, path::PathBuf, process, str::FromStr};
 
@@ -14,6 +15,7 @@ use oca_rs::{repositories::SQLiteConfig, Facade};
 use crate::config::{init_or_read_config, write_config, Config, OCA_DIR_NAME};
 use crate::dependency_graph::parse_node;
 use crate::dependency_graph::DependencyGraph;
+use crate::dependency_graph::MutableGraph;
 use crate::presentation_command::{handle_generate, handle_validate, Format};
 use crate::tui::app::BundleListError;
 use crate::utils::{load_ocafiles_all, visit_current_dir};
@@ -109,13 +111,13 @@ enum Commands {
     },
 }
 
-fn get_oca_facade(local_repository_path: PathBuf) -> Facade {
+fn get_oca_facade(local_repository_path: PathBuf) -> (Facade, SledDataStorage) {
     let db = create_or_open_local_storage(local_repository_path.join(OCA_REPOSITORY_DIR));
     let cache = create_or_open_local_storage(local_repository_path.join(OCA_CACHE_DB_DIR));
     let cache_storage_config = SQLiteConfig::build()
         .path(local_repository_path.join(OCA_INDEX_DIR))
         .unwrap();
-    Facade::new(Box::new(db), Box::new(cache), cache_storage_config)
+    (Facade::new(Box::new(db.clone()), Box::new(cache), cache_storage_config), db)
 }
 
 /// Publish oca bundle pointed by SAID to configured repository
@@ -215,7 +217,7 @@ fn main() -> Result<(), CliError> {
                     process::exit(1);
                 });
 
-            let mut facade = get_oca_facade(local_repository_path);
+            let (mut facade, s) = get_oca_facade(local_repository_path);
             let graph = DependencyGraph::from_paths(directory.as_ref().unwrap(), paths).unwrap();
             let sorted_graph = graph.sort().unwrap();
             info!("Sorted: {:?}", sorted_graph);
@@ -258,7 +260,7 @@ fn main() -> Result<(), CliError> {
             said,
         }) => {
             info!("Publish OCA bundle to repository");
-            let facade = get_oca_facade(local_repository_path);
+            let (facade, _) = get_oca_facade(local_repository_path);
             match SelfAddressingIdentifier::from_str(said) {
                 Ok(said) => {
                     let with_dependencies = true;
@@ -296,7 +298,7 @@ fn main() -> Result<(), CliError> {
                 "List OCA object from local repository: {:?}",
                 local_repository_path
             );
-            let facade = get_oca_facade(local_repository_path);
+            let (facade, _) = get_oca_facade(local_repository_path);
             let mut page = 1;
             let page_size = 20;
             let mut result = facade.fetch_all_oca_bundle(page_size, page).unwrap();
@@ -336,7 +338,7 @@ fn main() -> Result<(), CliError> {
             dereference,
         }) => {
             info!("Search for OCA object in local repository");
-            let facade = get_oca_facade(local_repository_path);
+            let (facade, _) = get_oca_facade(local_repository_path);
             match SelfAddressingIdentifier::from_str(said) {
                 Ok(said) => {
                     if *ast {
@@ -364,7 +366,7 @@ fn main() -> Result<(), CliError> {
             said,
             with_dependencies,
         }) => {
-            let facade = get_oca_facade(local_repository_path);
+            let (facade, _) = get_oca_facade(local_repository_path);
             let said = SelfAddressingIdentifier::from_str(said)?;
             let oca_bundles = facade
                 .get_oca_bundle(said, *with_dependencies)
@@ -380,7 +382,7 @@ fn main() -> Result<(), CliError> {
             match command {
                 PresentationCommand::Generate { said, format } => {
                     let said = SelfAddressingIdentifier::from_str(said)?;
-                    let facade = get_oca_facade(local_repository_path);
+                    let (facade, _) = get_oca_facade(local_repository_path);
                     let presentation = handle_generate(said, &facade)?;
                     let wrapped_presentation = WrappedPresentation { presentation };
                     let output = match format {
@@ -471,9 +473,10 @@ fn main() -> Result<(), CliError> {
         Some(Commands::Validate { ocafile, directory }) => {
             let paths = load_ocafiles_all(ocafile.as_ref(), directory.as_ref())?;
 
-            let facade = get_oca_facade(local_repository_path);
-            let mut graph = DependencyGraph::from_paths(directory.as_ref().unwrap(), paths).unwrap();
-            let (oks, errs) = validate::validate_directory(&facade, &mut graph)?;
+            let (facade, storage) = get_oca_facade(local_repository_path);
+            let mut graph =
+                MutableGraph::new(directory.as_ref().unwrap(), paths);
+            let (oks, errs) = validate::validate_directory(&storage, &mut graph)?;
             for err in errs {
                 println!("{}", err)
             }
@@ -486,17 +489,19 @@ fn main() -> Result<(), CliError> {
                         eprintln!("{err}");
                         process::exit(1);
                     });
-                let facade = get_oca_facade(local_repository_path);
+                let (facade, storage) = get_oca_facade(local_repository_path);
                 // let mut graph = DependencyGraph::from_paths(all_oca_files).unwrap();
 
                 let to_show = visit_current_dir(&directory)?
                     .into_iter()
                     // Files without refn are ignored
                     .filter_map(|of| parse_node(directory, &of).ok().map(|v| v.0));
-                tui::draw(directory.clone(), to_show, all_oca_files, facade).unwrap_or_else(|err| {
-                    eprintln!("{err}");
-                    process::exit(1);
-                });
+                tui::draw(directory.clone(), to_show, all_oca_files, facade, storage).unwrap_or_else(
+                    |err| {
+                        eprintln!("{err}");
+                        process::exit(1);
+                    },
+                );
                 Ok(())
             } else {
                 eprintln!("No file or directory provided");

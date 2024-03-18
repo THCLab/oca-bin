@@ -1,30 +1,97 @@
-use oca_rs::Facade;
-use ratatui::{buffer::Buffer, layout::Rect, style::{Color, Modifier, Style}, text::Span, widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, StatefulWidget, Widget}};
+use std::{sync::{Arc, Mutex}, thread};
+
+use oca_rs::{data_storage::SledDataStorage, Facade};
+use ratatui::{
+    buffer::Buffer,
+    layout::Rect,
+    style::{Color, Modifier, Style},
+    text::Span,
+    widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, StatefulWidget, Widget},
+};
+use reqwest::Client;
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
-use crate::{dependency_graph::DependencyGraph, error::CliError, validate};
+use crate::{dependency_graph::{DependencyGraph, MutableGraph}, error::CliError, validate::{self, validate_directory}};
 
 use super::{app::AppError, bundle_list::Indexer};
 
-pub struct ErrorsWindow<'a> {
-	pub state: TreeState<String>,
-	pub items: Vec<TreeItem<'a, String>>,
-	errors: Vec<CliError>,
-	busy: bool,
+struct ErrorList {
+    list: Vec<CliError>,
+    pub busy: bool,
+    pub items: Vec<TreeItem<'static, String>>,
 }
 
-impl<'a> ErrorsWindow<'a> {
-	pub fn new() -> Self {
-		Self {errors: Vec::new(), busy: false, state: TreeState::default(), items: vec![] }
-	}
-	pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
-		// if self.busy {
-		// 	// let simple = throbber_widgets_tui::Throbber::default();
-		// 	// simple.render(area, buf);
-		// 	let errs_view = Paragraph::new("Validation in progress. It may take some time.".to_string());
-		// 	errs_view.render(area, buf);
-		// } else {
-        	let widget = Tree::new(self.items.clone())
+impl ErrorList {
+    fn new() -> Self {
+        Self {list: Vec::new(), busy: false, items: Vec::new()}
+    }
+    fn update(&mut self, new_list: Vec<CliError>) {
+        self.list = new_list;
+        self.busy=false;
+    }
+
+
+    fn items(&mut self) -> Vec<TreeItem<'static, String>> {
+        let i = Indexer::new();
+        let items: Vec<_> = self.list
+            .iter()
+            .map(|dep| match dep {
+                CliError::GrammarError(file, errors) => {
+                    let children = errors
+                        .into_iter()
+                        .map(|err| {
+                            let line = Span::styled(
+                                format!("! {}", err.to_string()),
+                                Style::default()
+                                    .fg(Color::Red)
+                                    .add_modifier(Modifier::ITALIC),
+                            );
+                            TreeItem::new_leaf(i.current(), line)
+                        })
+                        .collect();
+                    TreeItem::new(i.current(), file.to_str().unwrap().to_owned(), children).unwrap()
+                }
+                CliError::GraphError(e) => TreeItem::new_leaf(i.current(), e.to_string()),
+                e => TreeItem::new_leaf(i.current(), e.to_string()),
+            })
+            .collect();
+        self.items = items.clone();
+        items
+    }
+}
+
+// struct MutableErrorList(ErrorList<);
+
+pub struct ErrorsWindow {
+    pub state: TreeState<String>,
+    errors: Arc<Mutex<ErrorList>>,
+}
+
+impl ErrorsWindow {
+    pub fn new() -> Self {
+        Self {
+            errors: Arc::new(Mutex::new(ErrorList::new())),
+            // busy: false,
+            state: TreeState::default(),
+            // items: vec![],
+        }
+    }
+
+
+    fn busy(&self) -> bool {
+        let e = self.errors.lock().unwrap();
+        e.busy.clone()
+    }
+
+    pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
+        if self.busy() {
+        	let simple = throbber_widgets_tui::Throbber::default()
+            .label("Validation in progress. It may take some time.")
+            .style(ratatui::style::Style::default().fg(ratatui::style::Color::Yellow));
+        	Widget::render(simple, area, buf);
+        } else {
+        
+        let widget = Tree::new(self.items())
             .expect("all item identifiers are unique")
             .block(Block::bordered().title("Errors"))
             .experimental_scrollbar(Some(
@@ -42,46 +109,38 @@ impl<'a> ErrorsWindow<'a> {
             .highlight_symbol("> ");
 
         StatefulWidget::render(widget, area, buf, &mut self.state);
-		// }
-	}
+        }
+    }
 
-	fn update_errors(&mut self) {
-		let i = Indexer::new();
-		let items = self.errors.iter()
-            .map(|dep| {
-				match dep {
-						CliError::GrammarError(file, errors) => {
-							let children = errors.into_iter().map(|err| {
-								let line = Span::styled(
-								format!("! {}", err.to_string()),
-								Style::default()
-									.fg(Color::Red)
-									.add_modifier(Modifier::ITALIC),
-								);
-            					TreeItem::new_leaf(i.current(), line)
-							}).collect();
-							TreeItem::new(i.current(), file.to_str().unwrap().to_owned(), children).unwrap()
+    pub fn items(&self) -> Vec<TreeItem<'static, String>> {
+        let mut errs = self.errors.lock().unwrap();
+        errs.items()
+    } 
 
-						},
-						CliError::GraphError(e) => {
-							TreeItem::new_leaf(i.current(), e.to_string())
-						},
-						e => TreeItem::new_leaf(i.current(), e.to_string()),
-					}
-			})
-            .collect();
-		self.items = items;
+    
+    pub fn check(
+        &mut self,
+        storage: Arc<SledDataStorage>,
+        graph: MutableGraph,
+    ) -> Result<bool, AppError> {
+        {
+            let mut errors = self.errors.lock().unwrap();
+            errors.busy = true;
+        }
+        let err_list = self.errors.clone();
+        thread::spawn(move || {
+            let (_oks, errs) = validate_directory(&storage.clone(), &mut graph.clone()).unwrap();
+            update_errors(err_list.clone(), errs);
+        });
 
-	}
-
-	pub fn check(&mut self, facade: &Facade, graph: &mut DependencyGraph) -> Result<bool, AppError> {
-		self.busy = true;
-		
-        let (_oks, errs) = validate::validate_directory(&facade, graph).unwrap();
-		self.errors = errs;
-		self.update_errors();
-		self.busy = false;
-
-		Ok(true)
-	}
+        Ok(true)
+    }
 }
+
+
+fn update_errors(errs: Arc<Mutex<ErrorList>>, new_errors: Vec<CliError>) {
+        let mut errors = errs.lock().unwrap();
+        errors.update(new_errors);
+
+    }
+

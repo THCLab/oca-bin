@@ -1,9 +1,10 @@
 use std::{
     collections::HashMap,
     fs,
-    path::{Path, PathBuf},
+    path::{Path, PathBuf}, sync::{Arc, Mutex},
 };
 
+use oca_rs::facade::build::References;
 use petgraph::{algo::toposort, graph::NodeIndex, Graph};
 use regex::Regex;
 use said::SelfAddressingIdentifier;
@@ -18,9 +19,8 @@ pub enum GraphError {
     #[error("Unknown said for name {0}")]
     UnknownSaid(String),
     #[error(transparent)]
-    NodeParsingError(#[from] NodeParsingError)
+    NodeParsingError(#[from] NodeParsingError),
 }
-
 
 #[derive(Error, Debug)]
 pub enum NodeParsingError {
@@ -53,7 +53,7 @@ impl DependencyGraph {
         // should have connection with node of given refn.
         let mut edges_to_save = HashMap::new();
         let mut graph = DependencyGraph {
-            base_dir: base_dir.to_path_buf(), 
+            base_dir: base_dir.to_path_buf(),
             graph: Graph::<Node, ()>::new(),
         };
         file_paths
@@ -190,6 +190,43 @@ pub fn parse_node(base: &Path, file_path: &Path) -> Result<(Node, Vec<String>), 
             Ok((ref_node, DependencyGraph::find_refn(lines)))
         }
         None => Err(NodeParsingError::MissingRefn(file_path.to_owned())),
+    }
+}
+
+#[derive(Clone)]
+pub struct MutableGraph {
+    pub graph: Arc<Mutex<DependencyGraph>>,
+}
+
+impl MutableGraph {
+    pub fn new<I, P>(base_dir: &Path, file_paths: I) -> Self where P: AsRef<Path>,
+    I: IntoIterator<Item = P>, {
+        let g = DependencyGraph::from_paths(base_dir, file_paths).unwrap();
+        Self { graph: Arc::new(Mutex::new(g)) }
+
+    }
+
+    pub fn sort(&self) -> Result<Vec<Node>, GraphError> {
+        let g = self.graph.lock().unwrap();
+        g.sort()
+
+    }
+
+    pub fn oca_file_path(&self, refn: &str) -> Result<PathBuf, GraphError> {
+        let g = self.graph.lock().unwrap();
+        g.oca_file_path(refn)
+    }
+}
+
+impl References for MutableGraph {
+    fn find(&self, refn: &str) -> Option<String> {
+        let g = self.graph.lock().unwrap();
+        g.find(refn)
+    }
+
+    fn save(&mut self, refn: &str, value: String) {
+        let mut g = self.graph.lock().unwrap();
+        g.save(refn, value)
     }
 }
 

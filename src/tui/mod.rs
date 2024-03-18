@@ -5,7 +5,7 @@ use crossterm::{
     ExecutableCommand,
 };
 use oca_bundle::state::oca::OCABundle;
-use oca_rs::Facade;
+use oca_rs::{data_storage::SledDataStorage, Facade};
 use ratatui::prelude::*;
 use said::SelfAddressingIdentifier;
 use std::{io::stdout, path::PathBuf};
@@ -20,7 +20,13 @@ mod bundle_info;
 mod bundle_list;
 mod errors_window;
 
-pub fn draw<I>(base_dir: PathBuf, nodes_to_show: I, paths: Vec<PathBuf>, facade: Facade) -> Result<(), AppError>
+pub fn draw<I>(
+    base_dir: PathBuf,
+    nodes_to_show: I,
+    paths: Vec<PathBuf>,
+    facade: Facade,
+    storage: SledDataStorage,
+) -> Result<(), AppError>
 where
     I: IntoIterator<Item = Node>,
 {
@@ -29,7 +35,7 @@ where
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     terminal.clear()?;
 
-    let res = App::new(base_dir, nodes_to_show, facade, paths)?.run(terminal);
+    let res = App::new(base_dir, nodes_to_show, facade, paths, storage)?.run(terminal);
 
     if let Err(err) = res {
         println!("{err:?}");
