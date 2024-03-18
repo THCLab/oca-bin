@@ -1,17 +1,23 @@
-use std::{sync::{Arc, Mutex}, thread};
+use std::{
+    sync::{Arc, Mutex},
+    thread,
+};
 
-use oca_rs::{data_storage::SledDataStorage, Facade};
+use oca_rs::data_storage::SledDataStorage;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Modifier, Style},
-    text::Span,
-    widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, StatefulWidget, Widget},
+    text::{Span, Text},
+    widgets::{Block, Scrollbar, ScrollbarOrientation, StatefulWidget, Widget},
 };
-use reqwest::Client;
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
-use crate::{dependency_graph::{DependencyGraph, MutableGraph}, error::CliError, validate::{self, validate_directory}};
+use crate::{
+    dependency_graph::MutableGraph,
+    error::CliError,
+    validate::validate_directory,
+};
 
 use super::{app::AppError, bundle_list::Indexer};
 
@@ -23,17 +29,21 @@ struct ErrorList {
 
 impl ErrorList {
     fn new() -> Self {
-        Self {list: Vec::new(), busy: false, items: Vec::new()}
+        Self {
+            list: Vec::new(),
+            busy: false,
+            items: Vec::new(),
+        }
     }
     fn update(&mut self, new_list: Vec<CliError>) {
         self.list = new_list;
-        self.busy=false;
+        self.busy = false;
     }
-
 
     fn items(&mut self) -> Vec<TreeItem<'static, String>> {
         let i = Indexer::new();
-        let items: Vec<_> = self.list
+        let items: Vec<_> = self
+            .list
             .iter()
             .map(|dep| match dep {
                 CliError::GrammarError(file, errors) => {
@@ -46,13 +56,13 @@ impl ErrorList {
                                     .fg(Color::Red)
                                     .add_modifier(Modifier::ITALIC),
                             );
-                            TreeItem::new_leaf(i.current(), line)
+                            TreeItem::new_leaf(i.current(), Text::from(line))
                         })
                         .collect();
                     TreeItem::new(i.current(), file.to_str().unwrap().to_owned(), children).unwrap()
                 }
                 CliError::GraphError(e) => TreeItem::new_leaf(i.current(), e.to_string()),
-                e => TreeItem::new_leaf(i.current(), e.to_string()),
+                e => TreeItem::new_leaf(i.current(), Text::from(e.to_string())),
             })
             .collect();
         self.items = items.clone();
@@ -77,7 +87,6 @@ impl ErrorsWindow {
         }
     }
 
-
     fn busy(&self) -> bool {
         let e = self.errors.lock().unwrap();
         e.busy.clone()
@@ -85,39 +94,37 @@ impl ErrorsWindow {
 
     pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
         if self.busy() {
-        	let simple = throbber_widgets_tui::Throbber::default()
-            .label("Validation in progress. It may take some time.")
-            .style(ratatui::style::Style::default().fg(ratatui::style::Color::Yellow));
-        	Widget::render(simple, area, buf);
+            let simple = throbber_widgets_tui::Throbber::default()
+                .label("Validation in progress. It may take some time.")
+                .style(ratatui::style::Style::default().fg(ratatui::style::Color::Yellow));
+            Widget::render(simple, area, buf);
         } else {
-        
-        let widget = Tree::new(self.items())
-            .expect("all item identifiers are unique")
-            .block(Block::bordered().title("Errors"))
-            .experimental_scrollbar(Some(
-                Scrollbar::new(ScrollbarOrientation::VerticalRight)
-                    .begin_symbol(None)
-                    .track_symbol(None)
-                    .end_symbol(None),
-            ))
-            .highlight_style(
-                Style::new()
-                    .fg(Color::Black)
-                    .bg(Color::Red)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .highlight_symbol("> ");
+            let widget = Tree::new(self.items())
+                .expect("all item identifiers are unique")
+                .block(Block::bordered().title("Output"))
+                .experimental_scrollbar(Some(
+                    Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                        .begin_symbol(None)
+                        .track_symbol(None)
+                        .end_symbol(None),
+                ))
+                .highlight_style(
+                    Style::new()
+                        .fg(Color::Black)
+                        .bg(Color::Red)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .highlight_symbol("> ");
 
-        StatefulWidget::render(widget, area, buf, &mut self.state);
+            StatefulWidget::render(widget, area, buf, &mut self.state);
         }
     }
 
     pub fn items(&self) -> Vec<TreeItem<'static, String>> {
         let mut errs = self.errors.lock().unwrap();
         errs.items()
-    } 
+    }
 
-    
     pub fn check(
         &mut self,
         storage: Arc<SledDataStorage>,
@@ -137,10 +144,7 @@ impl ErrorsWindow {
     }
 }
 
-
 fn update_errors(errs: Arc<Mutex<ErrorList>>, new_errors: Vec<CliError>) {
-        let mut errors = errs.lock().unwrap();
-        errors.update(new_errors);
-
-    }
-
+    let mut errors = errs.lock().unwrap();
+    errors.update(new_errors);
+}

@@ -1,7 +1,8 @@
 use std::{
     collections::HashMap,
     fs,
-    path::{Path, PathBuf}, sync::{Arc, Mutex},
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
 };
 
 use oca_rs::facade::build::References;
@@ -199,17 +200,20 @@ pub struct MutableGraph {
 }
 
 impl MutableGraph {
-    pub fn new<I, P>(base_dir: &Path, file_paths: I) -> Self where P: AsRef<Path>,
-    I: IntoIterator<Item = P>, {
+    pub fn new<I, P>(base_dir: &Path, file_paths: I) -> Self
+    where
+        P: AsRef<Path>,
+        I: IntoIterator<Item = P>,
+    {
         let g = DependencyGraph::from_paths(base_dir, file_paths).unwrap();
-        Self { graph: Arc::new(Mutex::new(g)) }
-
+        Self {
+            graph: Arc::new(Mutex::new(g)),
+        }
     }
 
     pub fn sort(&self) -> Result<Vec<Node>, GraphError> {
         let g = self.graph.lock().unwrap();
         g.sort()
-
     }
 
     pub fn oca_file_path(&self, refn: &str) -> Result<PathBuf, GraphError> {

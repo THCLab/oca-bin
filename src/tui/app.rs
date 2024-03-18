@@ -92,9 +92,7 @@ impl<'a> App<'a> {
                 let items = self.errors.items();
                 let (state, items) = match self.active_window {
                     Window::Bundles => (&mut self.bundles.state, &self.bundles.items),
-                    Window::Errors => {
-                        (&mut self.errors.state, &items)
-                    },
+                    Window::Errors => (&mut self.errors.state, &items),
                 };
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => return Ok(false),
@@ -112,8 +110,7 @@ impl<'a> App<'a> {
                         current.map_or(0, |current| current.saturating_sub(10))
                     }),
                     KeyCode::Char('v') => {
-                        let mut graph =
-                            MutableGraph::new(&self.base_dir, &self.paths);
+                        let graph = MutableGraph::new(&self.base_dir, &self.paths);
                         self.errors.check(self.storage.clone(), graph)?
                     }
                     KeyCode::Tab => self.change_window(),

@@ -117,7 +117,10 @@ fn get_oca_facade(local_repository_path: PathBuf) -> (Facade, SledDataStorage) {
     let cache_storage_config = SQLiteConfig::build()
         .path(local_repository_path.join(OCA_INDEX_DIR))
         .unwrap();
-    (Facade::new(Box::new(db.clone()), Box::new(cache), cache_storage_config), db)
+    (
+        Facade::new(Box::new(db.clone()), Box::new(cache), cache_storage_config),
+        db,
+    )
 }
 
 /// Publish oca bundle pointed by SAID to configured repository
@@ -474,8 +477,7 @@ fn main() -> Result<(), CliError> {
             let paths = load_ocafiles_all(ocafile.as_ref(), directory.as_ref())?;
 
             let (facade, storage) = get_oca_facade(local_repository_path);
-            let mut graph =
-                MutableGraph::new(directory.as_ref().unwrap(), paths);
+            let mut graph = MutableGraph::new(directory.as_ref().unwrap(), paths);
             let (oks, errs) = validate::validate_directory(&storage, &mut graph)?;
             for err in errs {
                 println!("{}", err)
@@ -496,12 +498,11 @@ fn main() -> Result<(), CliError> {
                     .into_iter()
                     // Files without refn are ignored
                     .filter_map(|of| parse_node(directory, &of).ok().map(|v| v.0));
-                tui::draw(directory.clone(), to_show, all_oca_files, facade, storage).unwrap_or_else(
-                    |err| {
+                tui::draw(directory.clone(), to_show, all_oca_files, facade, storage)
+                    .unwrap_or_else(|err| {
                         eprintln!("{err}");
                         process::exit(1);
-                    },
-                );
+                    });
                 Ok(())
             } else {
                 eprintln!("No file or directory provided");
