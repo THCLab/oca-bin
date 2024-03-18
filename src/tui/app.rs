@@ -3,17 +3,20 @@ use std::{io, path::PathBuf, sync::Arc, time::Duration};
 pub use super::bundle_list::BundleListError;
 use anyhow::Result;
 use crossterm::event::{self, poll, Event, KeyCode, MouseEventKind};
-use oca_rs::{data_storage::SledDataStorage, facade::build::ValidationError, Facade};
-use ratatui::{prelude::*, widgets::*};
+use oca_rs::{data_storage::SledDataStorage, Facade};
+use ratatui::{
+    backend::Backend,
+    buffer::Buffer,
+    layout::{Constraint, Layout, Rect},
+    style::Stylize,
+    widgets::{Paragraph, Widget},
+    Terminal,
+};
 use thiserror::Error;
 
-use crate::{
-    dependency_graph::{DependencyGraph, MutableGraph, Node},
-    error::CliError,
-    validate,
-};
+use crate::dependency_graph::{DependencyGraph, MutableGraph, Node};
 
-use super::{bundle_list::BundleList, errors_window::ErrorsWindow};
+use super::{bundle_list::BundleList, output_window::errors_window::ErrorsWindow};
 
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -47,6 +50,7 @@ impl<'a> App<'a> {
         facade: Facade,
         paths: Vec<PathBuf>,
         storage: SledDataStorage,
+        size: usize,
         // graph: &'a mut DependencyGraph,
     ) -> Result<App<'a>, AppError> {
         let graph = DependencyGraph::from_paths(&base, &paths).unwrap();
@@ -55,7 +59,7 @@ impl<'a> App<'a> {
             BundleList::from_nodes(to_show, &facade, &graph).map(|bundles| App {
                 base_dir: base,
                 bundles,
-                errors: ErrorsWindow::new(),
+                errors: ErrorsWindow::new(size),
                 facade,
                 paths,
                 storage: s,
@@ -89,18 +93,19 @@ impl<'a> App<'a> {
     fn handle_input(&mut self) -> Result<bool, AppError> {
         match event::read()? {
             event::Event::Key(key) => {
-                let items = self.errors.items();
+                // let items = self.errors.items();
                 let (state, items) = match self.active_window {
                     Window::Bundles => (&mut self.bundles.state, &self.bundles.items),
-                    Window::Errors => (&mut self.errors.state, &items),
+                    // Window::Errors => (&mut self.errors.state, todo!()),
+                    Window::Errors => (&mut self.bundles.state, &self.bundles.items),
                 };
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => return Ok(false),
                     KeyCode::Char(' ') | KeyCode::Enter => state.toggle_selected(),
                     KeyCode::Left => state.key_left(),
                     KeyCode::Right => state.key_right(),
-                    KeyCode::Down => state.key_down(&items),
-                    KeyCode::Up => state.key_up(&items),
+                    KeyCode::Down => self.handle_key_down(),
+                    KeyCode::Up => self.handle_key_up(),
                     KeyCode::Home => state.select_first(&items),
                     KeyCode::End => state.select_last(&items),
                     KeyCode::PageDown => state.select_visible_relative(&items, |current| {
@@ -125,6 +130,34 @@ impl<'a> App<'a> {
             _ => false,
         };
         Ok(true)
+    }
+
+    fn handle_key_down(&mut self) -> bool {
+        match self.active_window {
+            Window::Bundles => {
+                let (state, items) = (&mut self.bundles.state, &self.bundles.items);
+                state.key_down(items);
+            }
+            Window::Errors => {
+                let state = &mut self.errors.state;
+                state.next()
+            }
+        };
+        true
+    }
+
+    fn handle_key_up(&mut self) -> bool {
+        match self.active_window {
+            Window::Bundles => {
+                let (state, items) = (&mut self.bundles.state, &self.bundles.items);
+                state.key_up(items);
+            }
+            Window::Errors => {
+                let state = &mut self.errors.state;
+                state.previous()
+            }
+        };
+        true
     }
 
     fn draw(&mut self, terminal: &mut Terminal<impl Backend>) -> Result<(), AppError> {

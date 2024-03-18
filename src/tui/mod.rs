@@ -18,7 +18,7 @@ pub mod app;
 // mod list;
 mod bundle_info;
 mod bundle_list;
-mod errors_window;
+mod output_window;
 
 pub fn draw<I>(
     base_dir: PathBuf,
@@ -34,8 +34,17 @@ where
     enable_raw_mode()?;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     terminal.clear()?;
+    let size = terminal.size().unwrap().width;
 
-    let res = App::new(base_dir, nodes_to_show, facade, paths, storage)?.run(terminal);
+    let res = App::new(
+        base_dir,
+        nodes_to_show,
+        facade,
+        paths,
+        storage,
+        size as usize,
+    )?
+    .run(terminal);
 
     if let Err(err) = res {
         println!("{err:?}");

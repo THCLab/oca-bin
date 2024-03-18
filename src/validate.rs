@@ -1,10 +1,6 @@
-
 use std::fs;
 
-use oca_rs::{
-    data_storage::SledDataStorage,
-    Facade,
-};
+use oca_rs::{data_storage::SledDataStorage, Facade};
 
 use crate::{
     dependency_graph::{MutableGraph, Node},
