@@ -5,18 +5,21 @@ use oca_rs::{data_storage::SledDataStorage, Facade};
 use crate::{
     dependency_graph::{MutableGraph, Node},
     error::CliError,
+    tui::bundle_info::BundleInfo,
 };
 
 pub fn validate_directory(
     facade: &SledDataStorage,
     graph: &mut MutableGraph,
+    selected_bundle: Option<&BundleInfo>,
 ) -> Result<(Vec<Node>, Vec<CliError>), CliError> {
-    let sorted_graph = graph.sort().unwrap();
-    info!("Sorted: {:?}", sorted_graph);
-    let (oks, errs): (Vec<_>, Vec<_>) = sorted_graph
+    let dependent_nodes = match selected_bundle {
+        Some(dir) => graph.get_dependent_nodes(&dir.refn)?,
+        None => graph.sort()?,
+    };
+    let (oks, errs): (Vec<_>, Vec<_>) = dependent_nodes
         .into_iter()
         .map(|node| {
-            // println!("Processing: {}", node.refn);
             let path = graph.oca_file_path(&node.refn)?;
             let unparsed_file = fs::read_to_string(path).map_err(CliError::ReadFileFailed)?;
             match Facade::validate_ocafile(facade, unparsed_file, graph) {

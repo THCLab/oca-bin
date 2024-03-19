@@ -8,7 +8,7 @@ pub enum Status {
     Unselected,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BundleInfo {
     pub oca_bundle: OCABundle,
     pub refn: String,

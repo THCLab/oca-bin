@@ -16,7 +16,7 @@ use self::app::AppError;
 
 pub mod app;
 // mod list;
-mod bundle_info;
+pub mod bundle_info;
 mod bundle_list;
 mod output_window;
 

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Mutex;
 
 use oca_ast::ast::{NestedAttrType, RefValue};
@@ -27,6 +28,7 @@ pub enum BundleListError {
 pub struct BundleList<'a> {
     pub state: TreeState<String>,
     pub items: Vec<TreeItem<'a, String>>,
+    nodes: HashMap<String, BundleInfo>,
 }
 
 pub struct Indexer(Mutex<u32>);
@@ -48,20 +50,56 @@ impl<'a> BundleList<'a> {
         facade: &Facade,
         graph: &DependencyGraph,
     ) -> Result<Self, BundleListError> {
-        let dependencies = to_show
-            .into_iter()
-            .map(|node| bundle_info_from_refn(&node.refn, graph, facade));
-        // if dependencies.all(|d| d.is_err()) {return Err(BundleListError::AllRefnUnknown);};
-
         let i = Indexer::new();
-        let deps = dependencies
-            .map(|dep| result_to_tree_item(dep, &i, facade, graph))
-            .collect();
-
-        Ok(Self {
+        let mut out = Self {
             state: TreeState::default(),
-            items: deps,
-        })
+            items: vec![],
+            nodes: HashMap::new(),
+        };
+
+        to_show
+            .into_iter()
+            .map(|node| bundle_info_from_refn(&node.refn, graph, facade))
+            .for_each(|dep| out.result_to_tree_item(dep, &i, facade, graph));
+
+        Ok(out)
+    }
+
+    fn result_to_tree_item(
+        &mut self,
+        ob: Result<BundleInfo, BundleListError>,
+        i: &Indexer,
+        facade: &Facade,
+        graph: &DependencyGraph,
+    ) {
+        match ob {
+            Ok(bundle) => {
+                let attributes = &bundle.oca_bundle.capture_base.attributes;
+                let tree_items = attributes
+                    .into_iter()
+                    .map(|(key, attr)| to_tree_item(key.to_owned(), &attr, i, facade, graph))
+                    .collect::<Vec<_>>();
+                let current_i = i.current();
+                self.items.push(
+                    TreeItem::new(current_i.clone(), bundle.refn.clone(), tree_items).unwrap(),
+                );
+                self.nodes.insert(current_i.clone(), bundle);
+            }
+            Err(err) => {
+                let line = Span::styled(
+                    format!("! {}", err),
+                    Style::default()
+                        .fg(Color::Red)
+                        .add_modifier(Modifier::ITALIC),
+                );
+                self.items.push(TreeItem::new_leaf(i.current(), line));
+            }
+        }
+    }
+
+    pub fn selected_oca_bundle(&self) -> Option<BundleInfo> {
+        let i = self.state.selected()[0].clone();
+        self.nodes.get(&i).map(|i| i).cloned()
     }
 
     pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
@@ -86,13 +124,13 @@ impl<'a> BundleList<'a> {
     }
 }
 
-pub fn bundle_info_from_refn(
+fn bundle_info_from_refn(
     refn: &str,
     graph: &DependencyGraph,
     facade: &Facade,
 ) -> Result<BundleInfo, BundleListError> {
-    let deps = graph.neighbors(&refn)?;
-    let oca_bundle = get_oca_bundle(&refn, facade);
+    let deps = graph.neighbors(refn)?;
+    let oca_bundle = get_oca_bundle(refn, facade);
     match oca_bundle {
         Some(oca_bundle) => Ok(BundleInfo {
             refn: refn.to_string(),
@@ -120,33 +158,6 @@ fn to_tree_item<'a>(
         }
         NestedAttrType::Array(arr_type) => handle_arr_type(key, arr_type, facade, graph, i),
         NestedAttrType::Null => todo!(),
-    }
-}
-
-fn result_to_tree_item<'a>(
-    ob: Result<BundleInfo, BundleListError>,
-    i: &Indexer,
-    facade: &Facade,
-    graph: &DependencyGraph,
-) -> TreeItem<'a, String> {
-    match ob {
-        Ok(bundle) => {
-            let attributes = bundle.oca_bundle.capture_base.attributes;
-            let attrs = attributes
-                .into_iter()
-                .map(|(key, attr)| to_tree_item(key, &attr, &i, facade, graph))
-                .collect::<Vec<_>>();
-            TreeItem::new(i.current(), bundle.refn, attrs).unwrap()
-        }
-        Err(err) => {
-            let line = Span::styled(
-                format!("! {}", err.to_string()),
-                Style::default()
-                    .fg(Color::Red)
-                    .add_modifier(Modifier::ITALIC),
-            );
-            TreeItem::new_leaf(i.current(), line)
-        }
     }
 }
 
@@ -192,7 +203,7 @@ fn handle_reference_type<'a>(
             let line = vec![
                 Span::styled(line, Style::default().fg(Color::Red)),
                 Span::styled(
-                    format!("      ! {}", e.to_string()),
+                    format!("      ! {}", e),
                     Style::default()
                         .fg(Color::Red)
                         .add_modifier(Modifier::ITALIC),

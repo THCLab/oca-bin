@@ -476,9 +476,9 @@ fn main() -> Result<(), CliError> {
         Some(Commands::Validate { ocafile, directory }) => {
             let paths = load_ocafiles_all(ocafile.as_ref(), directory.as_ref())?;
 
-            let (facade, storage) = get_oca_facade(local_repository_path);
+            let (_facade, storage) = get_oca_facade(local_repository_path);
             let mut graph = MutableGraph::new(directory.as_ref().unwrap(), paths);
-            let (oks, errs) = validate::validate_directory(&storage, &mut graph)?;
+            let (oks, errs) = validate::validate_directory(&storage, &mut graph, None)?;
             for err in errs {
                 println!("{}", err)
             }
@@ -494,7 +494,7 @@ fn main() -> Result<(), CliError> {
                 let (facade, storage) = get_oca_facade(local_repository_path);
                 // let mut graph = DependencyGraph::from_paths(all_oca_files).unwrap();
 
-                let to_show = visit_current_dir(&directory)?
+                let to_show = visit_current_dir(directory)?
                     .into_iter()
                     // Files without refn are ignored
                     .filter_map(|of| parse_node(directory, &of).ok().map(|v| v.0));

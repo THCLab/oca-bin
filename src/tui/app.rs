@@ -21,21 +21,18 @@ use super::{bundle_list::BundleList, output_window::errors_window::ErrorsWindow}
 #[derive(Error, Debug)]
 pub enum AppError {
     #[error(transparent)]
-    BundleListError(#[from] BundleListError),
+    BundleList(#[from] BundleListError),
     #[error(transparent)]
-    InputError(#[from] io::Error),
+    Input(#[from] io::Error),
     #[error("Validation error: {0}")]
-    ValidationError(String),
+    Validation(String),
 }
 pub struct App<'a> {
     bundles: BundleList<'a>,
     errors: ErrorsWindow,
-    facade: Facade,
     storage: Arc<SledDataStorage>,
-    // graph: &'a mut DependencyGraph,
+    graph: MutableGraph,
     active_window: Window,
-    paths: Vec<PathBuf>,
-    base_dir: PathBuf,
 }
 
 enum Window {
@@ -51,19 +48,16 @@ impl<'a> App<'a> {
         paths: Vec<PathBuf>,
         storage: SledDataStorage,
         size: usize,
-        // graph: &'a mut DependencyGraph,
     ) -> Result<App<'a>, AppError> {
         let graph = DependencyGraph::from_paths(&base, &paths).unwrap();
-        let s = Arc::new(storage);
+        let mut_graph = MutableGraph::new(&base, &paths);
         Ok(
             BundleList::from_nodes(to_show, &facade, &graph).map(|bundles| App {
-                base_dir: base,
                 bundles,
                 errors: ErrorsWindow::new(size),
-                facade,
-                paths,
-                storage: s,
+                storage: Arc::new(storage),
                 active_window: Window::Bundles,
+                graph: mut_graph,
             })?,
         )
     }
@@ -72,11 +66,10 @@ impl<'a> App<'a> {
 impl<'a> App<'a> {
     pub fn run(&mut self, mut terminal: Terminal<impl Backend>) -> Result<(), AppError> {
         loop {
-            if poll(Duration::from_millis(100))? {
-                if !self.handle_input()? {
-                    return Ok(());
-                }
+            if poll(Duration::from_millis(100))? && !self.handle_input()? {
+                return Ok(());
             }
+
             self.draw(&mut terminal)?;
         }
     }
@@ -93,7 +86,6 @@ impl<'a> App<'a> {
     fn handle_input(&mut self) -> Result<bool, AppError> {
         match event::read()? {
             event::Event::Key(key) => {
-                // let items = self.errors.items();
                 let (state, items) = match self.active_window {
                     Window::Bundles => (&mut self.bundles.state, &self.bundles.items),
                     // Window::Errors => (&mut self.errors.state, todo!()),
@@ -106,17 +98,19 @@ impl<'a> App<'a> {
                     KeyCode::Right => state.key_right(),
                     KeyCode::Down => self.handle_key_down(),
                     KeyCode::Up => self.handle_key_up(),
-                    KeyCode::Home => state.select_first(&items),
+                    KeyCode::Home => state.select_first(items),
                     KeyCode::End => state.select_last(&items),
-                    KeyCode::PageDown => state.select_visible_relative(&items, |current| {
+                    KeyCode::PageDown => state.select_visible_relative(items, |current| {
                         current.map_or(0, |current| current.saturating_add(10))
                     }),
-                    KeyCode::PageUp => state.select_visible_relative(&items, |current| {
+                    KeyCode::PageUp => state.select_visible_relative(items, |current| {
                         current.map_or(0, |current| current.saturating_sub(10))
                     }),
                     KeyCode::Char('v') => {
-                        let graph = MutableGraph::new(&self.base_dir, &self.paths);
-                        self.errors.check(self.storage.clone(), graph)?
+                        let selected = self.bundles.selected_oca_bundle();
+
+                        self.errors
+                            .check(self.storage.clone(), self.graph.clone(), selected)?
                     }
                     KeyCode::Tab => self.change_window(),
                     _ => false,

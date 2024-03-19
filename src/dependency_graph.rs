@@ -6,7 +6,9 @@ use std::{
 };
 
 use oca_rs::facade::build::References;
-use petgraph::{algo::toposort, graph::NodeIndex, Graph};
+use petgraph::{
+    algo::toposort, graph::NodeIndex, graphmap::DiGraphMap, visit::depth_first_search, Graph,
+};
 use regex::Regex;
 use said::SelfAddressingIdentifier;
 use thiserror::Error;
@@ -60,7 +62,7 @@ impl DependencyGraph {
         file_paths
             .into_iter()
             // Files without refn are ignored
-            .filter_map(|path| parse_node(&base_dir, path.as_ref()).ok())
+            .filter_map(|path| parse_node(base_dir, path.as_ref()).ok())
             .for_each(|(node, dependencies)| {
                 let index = graph.insert_node(node, &mut edges_to_save);
                 for dep in dependencies {
@@ -219,6 +221,29 @@ impl MutableGraph {
     pub fn oca_file_path(&self, refn: &str) -> Result<PathBuf, GraphError> {
         let g = self.graph.lock().unwrap();
         g.oca_file_path(refn)
+    }
+
+    pub fn get_dependent_nodes(&self, refn: &str) -> Result<Vec<Node>, GraphError> {
+        let g = self.graph.lock().unwrap();
+        let start_node = g.get_index(refn)?;
+        let mut h = DiGraphMap::new();
+        depth_first_search(&g.graph, Some(start_node), |event| {
+            use petgraph::visit::DfsEvent::*;
+            match event {
+                CrossForwardEdge(parent, child)
+                | BackEdge(parent, child)
+                | TreeEdge(parent, child) => {
+                    h.add_edge(parent, child, ());
+                }
+                Discover(_, _) | Finish(_, _) => {}
+            }
+        });
+        let sorted = toposort(&h, None).map_err(|_e| GraphError::Cycle)?;
+        Ok(sorted
+            .into_iter()
+            .rev()
+            .map(|i| g.graph[i].clone())
+            .collect())
     }
 }
 

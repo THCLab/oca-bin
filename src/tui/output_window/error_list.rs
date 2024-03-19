@@ -43,7 +43,7 @@ impl<'a> ErrorLine<'a> {
     pub fn new(er: &CliError, size: usize) -> Self {
         let line = match er {
             CliError::GrammarError(file, errors) => errors
-                .into_iter()
+                .iter()
                 .flat_map(|err| {
                     vec![
                         Span::styled(
@@ -57,7 +57,7 @@ impl<'a> ErrorLine<'a> {
                             Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
                         ),
                         Span::styled(
-                            format!(" {}", err.to_string()),
+                            format!(" {}", err),
                             Style::default()
                                 .fg(Color::Red)
                                 .add_modifier(Modifier::ITALIC),
@@ -88,7 +88,7 @@ impl<'a> Widget for ErrorLine<'a> {
 }
 
 impl<'a> ListableWidget for ErrorLine<'a> {
-    fn size(&self, scroll_direction: &tui_widget_list::ScrollAxis) -> usize {
+    fn size(&self, _scroll_direction: &tui_widget_list::ScrollAxis) -> usize {
         self.1
     }
 

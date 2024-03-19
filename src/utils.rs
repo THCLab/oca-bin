@@ -56,9 +56,9 @@ pub fn visit_current_dir(dir: &Path) -> Result<Vec<PathBuf>, CliError> {
     if !dir.is_dir() {
         return Err(CliError::NotDirectory(dir.to_owned()));
     };
-    let files = fs::read_dir(dir).map_err(|err| CliError::DirectoryReadFailed(err))?;
+    let files = fs::read_dir(dir).map_err(CliError::DirectoryReadFailed)?;
     for entry in files {
-        let entry = entry.map_err(|err| CliError::DirectoryReadFailed(err))?;
+        let entry = entry.map_err(CliError::DirectoryReadFailed)?;
         let path = entry.path();
         if path.is_dir() {
         } else if let Some(ext) = path.extension() {
