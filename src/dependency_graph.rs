@@ -149,7 +149,7 @@ impl DependencyGraph {
         index
     }
 
-    pub fn update_node(
+    pub fn update_said(
         &mut self,
         refn: &str,
         value: SelfAddressingIdentifier,
@@ -160,7 +160,14 @@ impl DependencyGraph {
         Ok(())
     }
 
-    fn find_refn(lines: Vec<&str>) -> Vec<String> {
+    pub fn update_refn(&mut self, refn: &str, new_refn: String) -> Result<(), GraphError> {
+        let i = self.get_index(refn)?;
+        let node = self.graph.node_weight_mut(i).unwrap();
+        node.refn = new_refn;
+        Ok(())
+    }
+
+    fn find_refn(lines: &[String]) -> Vec<String> {
         let re = Regex::new(r"refn:([^\s\]]+)").expect("Invalid regex");
         let mut refn = Vec::new();
 
@@ -176,13 +183,8 @@ impl DependencyGraph {
 }
 
 pub fn parse_node(base: &Path, file_path: &Path) -> Result<(Node, Vec<String>), NodeParsingError> {
-    let content = fs::read_to_string(file_path)
-        .map_err(|_e| NodeParsingError::FileParsing("Failed to read file".to_string()))?;
-    let lines: Vec<&str> = content.lines().collect();
-    let ref_name_line = lines
-        .first()
-        .ok_or(NodeParsingError::FileParsing("File is empty".to_string()))?;
-    match ref_name_line.split("name=").nth(1) {
+    let (name, lines) = parse_name(file_path)?;
+    match name {
         Some(name_part) => {
             let ref_name = name_part.trim_matches('"').to_string();
             let ref_node = Node {
@@ -190,10 +192,21 @@ pub fn parse_node(base: &Path, file_path: &Path) -> Result<(Node, Vec<String>), 
                 path: file_path.strip_prefix(base).unwrap().into(),
                 said: None,
             };
-            Ok((ref_node, DependencyGraph::find_refn(lines)))
+            Ok((ref_node, DependencyGraph::find_refn(&lines)))
         }
         None => Err(NodeParsingError::MissingRefn(file_path.to_owned())),
     }
+}
+
+pub fn parse_name(file_path: &Path) -> Result<(Option<String>, Vec<String>), NodeParsingError> {
+    let content = fs::read_to_string(file_path)
+        .map_err(|_e| NodeParsingError::FileParsing("Failed to read file".to_string()))?;
+    let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
+    let ref_name_line = lines
+        .first()
+        .ok_or(NodeParsingError::FileParsing("File is empty".to_string()))?;
+    let name = ref_name_line.split("name=").nth(1).map(|n| n.to_string());
+    Ok((name, lines))
 }
 
 #[derive(Clone)]
@@ -221,6 +234,11 @@ impl MutableGraph {
     pub fn oca_file_path(&self, refn: &str) -> Result<PathBuf, GraphError> {
         let g = self.graph.lock().unwrap();
         g.oca_file_path(refn)
+    }
+
+    pub fn update_refn(&self, refn: &str, new_refn: String) -> Result<(), GraphError> {
+        let mut g = self.graph.lock().unwrap();
+        g.update_refn(refn, new_refn)
     }
 
     pub fn get_dependent_nodes(&self, refn: &str) -> Result<Vec<Node>, GraphError> {
@@ -265,7 +283,7 @@ impl oca_rs::facade::build::References for DependencyGraph {
     }
 
     fn save(&mut self, refn: &str, value: String) {
-        self.update_node(refn, value.parse().unwrap()).unwrap();
+        self.update_said(refn, value.parse().unwrap()).unwrap();
     }
 }
 
