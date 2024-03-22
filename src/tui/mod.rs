@@ -10,7 +10,7 @@ use ratatui::prelude::*;
 use said::SelfAddressingIdentifier;
 use std::{io::stdout, path::PathBuf};
 
-use crate::dependency_graph::{DependencyGraph, Node};
+use crate::dependency_graph::Node;
 
 use self::app::AppError;
 

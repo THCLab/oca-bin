@@ -17,7 +17,6 @@ use crate::dependency_graph::parse_node;
 use crate::dependency_graph::DependencyGraph;
 use crate::dependency_graph::MutableGraph;
 use crate::presentation_command::{handle_generate, handle_validate, Format};
-use crate::tui::app::BundleListError;
 use crate::utils::{load_ocafiles_all, visit_current_dir};
 use said::SelfAddressingIdentifier;
 use serde::{Deserialize, Serialize};
@@ -220,7 +219,7 @@ fn main() -> Result<(), CliError> {
                     process::exit(1);
                 });
 
-            let (mut facade, s) = get_oca_facade(local_repository_path);
+            let (mut facade, _s) = get_oca_facade(local_repository_path);
             let graph = DependencyGraph::from_paths(directory.as_ref().unwrap(), paths).unwrap();
             let sorted_graph = graph.sort().unwrap();
             info!("Sorted: {:?}", sorted_graph);
@@ -478,7 +477,7 @@ fn main() -> Result<(), CliError> {
 
             let (_facade, storage) = get_oca_facade(local_repository_path);
             let mut graph = MutableGraph::new(directory.as_ref().unwrap(), paths);
-            let (oks, errs) = validate::validate_directory(&storage, &mut graph, None)?;
+            let (_oks, errs) = validate::validate_directory(&storage, &mut graph, None)?;
             for err in errs {
                 println!("{}", err)
             }
