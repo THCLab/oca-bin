@@ -59,12 +59,13 @@ enum Commands {
         #[arg(short, long, group = "build")]
         directory: Option<PathBuf>,
     },
+    /// Validate oca objects out of ocafile
     #[clap(group = clap::ArgGroup::new("build").required(true).args(&["ocafile", "directory"]))]
     Validate {
-        /// Specify ocafile to build from
+        /// Specify ocafile to validate from
         #[arg(short = 'f', long, group = "build")]
         ocafile: Option<PathBuf>,
-        /// Build oca objects from directory (recursive)
+        /// Validate oca objects from directory (recursive)
         #[arg(short, long, group = "build")]
         directory: Option<PathBuf>,
     },
@@ -103,6 +104,7 @@ enum Commands {
         #[command(subcommand)]
         command: PresentationCommand,
     },
+    /// Launches a terminal user interface application to browse OCA objects
     Tui {
         /// Browse oca objects from directory (recursive)
         #[arg(short, long)]
