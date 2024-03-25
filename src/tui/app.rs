@@ -109,6 +109,11 @@ impl<'a> App<'a> {
                     KeyCode::Char('v') => {
                         let selected = self.bundles.selected_oca_bundle();
 
+                        // Save selected path.
+                        if let Ok(path) = self.graph.oca_file_path(&selected.as_ref().unwrap().refn)
+                        {
+                            self.errors.currently_validated(path.to_owned());
+                        };
                         self.errors
                             .check(self.storage.clone(), self.graph.clone(), selected)?
                     }
@@ -173,11 +178,11 @@ impl<'a> Widget for &mut App<'a> {
         // Create two chunks with equal horizontal screen space. One for the list and dependencies and the other for
         // the changes block.
         let vertical = Layout::vertical([Constraint::Percentage(70), Constraint::Min(0)]);
-        let [list_area, changes_area] = vertical.areas(rest_area);
+        let [list_area, output_area] = vertical.areas(rest_area);
 
         self.render_title(header_area, buf);
         self.bundles.render(list_area, buf);
-        self.errors.render(changes_area, buf);
+        self.errors.render(output_area, buf);
         self.render_footer(footer_area, buf);
     }
 }

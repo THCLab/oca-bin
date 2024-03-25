@@ -1,4 +1,5 @@
 use std::{
+    path::PathBuf,
     sync::{Arc, Mutex},
     thread,
 };
@@ -7,7 +8,9 @@ use oca_rs::data_storage::SledDataStorage;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    widgets::{Block, StatefulWidget, Widget},
+    style::{Color, Style},
+    text::Span,
+    widgets::{Block, Paragraph, StatefulWidget, Widget},
 };
 use tui_widget_list::{List, ListState};
 
@@ -23,16 +26,20 @@ use super::error_list::{ErrorLine, SimpleErrorsList};
 pub struct ErrorsWindow {
     pub state: ListState,
     errors: Arc<Mutex<SimpleErrorsList>>,
+    currently_validated: Option<PathBuf>,
 }
 
 impl ErrorsWindow {
     pub fn new(size: usize) -> Self {
         Self {
             errors: Arc::new(Mutex::new(SimpleErrorsList::new(size))),
-            // busy: false,
             state: ListState::default(),
-            // items: vec![],
+            currently_validated: None,
         }
+    }
+
+    pub fn currently_validated(&mut self, path: PathBuf) {
+        self.currently_validated = Some(path)
     }
 
     fn busy(&self) -> bool {
@@ -44,12 +51,30 @@ impl ErrorsWindow {
         if self.busy() {
             let simple = throbber_widgets_tui::Throbber::default()
                 .label("Validation in progress. It may take some time.")
-                .style(ratatui::style::Style::default().fg(ratatui::style::Color::Yellow));
+                .style(ratatui::style::Style::default().fg(Color::Yellow));
             Widget::render(simple, area, buf);
         } else {
             let errors = self.items();
-            let widget = List::new(errors).block(Block::bordered().title("Output"));
-            widget.render(area, buf, &mut self.state)
+            let block = Block::bordered().title("Output");
+            if errors.is_empty() {
+                let widget = if let Some(validated) = self
+                    .currently_validated
+                    .as_ref()
+                    .and_then(|val| val.to_str())
+                {
+                    let span = Span::styled(
+                        format!("Validation successful for file: {}", validated),
+                        Style::default().fg(Color::Green),
+                    );
+                    Paragraph::new(span).block(block)
+                } else {
+                    Paragraph::new("").block(block)
+                };
+                widget.render(area, buf)
+            } else {
+                let widget = List::new(errors).block(Block::bordered().title("Output"));
+                widget.render(area, buf, &mut self.state)
+            }
         }
     }
 
