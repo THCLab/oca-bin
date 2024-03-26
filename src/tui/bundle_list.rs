@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use oca_ast::ast::{NestedAttrType, RefValue};
 use oca_rs::Facade;
@@ -12,7 +12,7 @@ use ratatui::widgets::{Block, Scrollbar, ScrollbarOrientation, StatefulWidget};
 use thiserror::Error;
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
-use crate::dependency_graph::{DependencyGraph, GraphError, Node};
+use crate::dependency_graph::{DependencyGraph, GraphError, MutableGraph, Node};
 
 use super::bundle_info::{BundleInfo, Status};
 use super::{get_oca_bundle, get_oca_bundle_by_said};
@@ -25,47 +25,23 @@ pub enum BundleListError {
     GraphError(#[from] GraphError),
 }
 
-pub struct BundleList<'a> {
+pub struct BundleList {
     pub state: TreeState<String>,
-    pub items: Vec<TreeItem<'a, String>>,
+    pub items: Arc<Mutex<Items>>
+    
+}
+
+pub struct Items {
+    pub items: Vec<TreeItem<'static, String>>,
     nodes: HashMap<String, BundleInfo>,
 }
 
-pub struct Indexer(Mutex<u32>);
-impl Indexer {
+impl Items {
     pub fn new() -> Self {
-        Self(Mutex::new(0))
+        Items { items: vec![], nodes: HashMap::new() }
     }
 
-    pub fn current(&self) -> String {
-        let mut s = self.0.lock().unwrap();
-        *s += 1;
-        s.to_string()
-    }
-}
-
-impl<'a> BundleList<'a> {
-    pub fn from_nodes<I: IntoIterator<Item = Node>>(
-        to_show: I,
-        facade: &Facade,
-        graph: &DependencyGraph,
-    ) -> Result<Self, BundleListError> {
-        let i = Indexer::new();
-        let mut out = Self {
-            state: TreeState::default(),
-            items: vec![],
-            nodes: HashMap::new(),
-        };
-
-        to_show
-            .into_iter()
-            .map(|node| bundle_info_from_refn(&node.refn, graph, facade))
-            .for_each(|dep| out.result_to_tree_item(dep, &i, facade, graph));
-
-        Ok(out)
-    }
-
-    fn result_to_tree_item(
+    pub fn result_to_tree_item(
         &mut self,
         ob: Result<BundleInfo, BundleListError>,
         i: &Indexer,
@@ -97,13 +73,76 @@ impl<'a> BundleList<'a> {
         }
     }
 
+    pub fn update_nodes<I: IntoIterator<Item = Node>>(&mut self, to_show: I, facade: &Facade, graph: &DependencyGraph) {
+        let i = Indexer::new();
+        to_show
+            .into_iter()
+            .map(|node| bundle_info_from_refn(&node.refn, graph, facade))
+            .for_each(|dep| self.result_to_tree_item(dep, &i, facade, graph));
+
+    }
+
+    pub fn bundle_info(&self, k: &str) -> Option<BundleInfo> {
+        self.nodes.get(k).map(|b| b.clone())
+    }
+
+
+}
+
+
+pub fn rebuild_items<I: IntoIterator<Item = Node> + Clone>(items: Arc<Mutex<Items>>, to_show: I,
+        facade: Arc<Mutex<Facade>>,
+        graph: MutableGraph) {
+        let mut items = items.lock().unwrap();
+        let facade = facade.lock().unwrap();
+        let graph = graph.graph.lock().unwrap();
+        items.nodes = HashMap::new();
+        items.items = vec![];
+        items.update_nodes(to_show, &facade, &graph);
+}
+
+pub struct Indexer(Mutex<u32>);
+impl Indexer {
+    pub fn new() -> Self {
+        Self(Mutex::new(0))
+    }
+
+    pub fn current(&self) -> String {
+        let mut s = self.0.lock().unwrap();
+        *s += 1;
+        s.to_string()
+    }
+}
+
+impl BundleList {
+    pub fn from_nodes<I: IntoIterator<Item = Node>>(
+        to_show: I,
+        facade: &Facade,
+        graph: &DependencyGraph,
+    ) -> Result<Self, BundleListError> {
+        let mut items = Items::new();
+        items.update_nodes(to_show, facade, graph);
+        Ok(Self {
+            state: TreeState::default(),
+            items: Arc::new(Mutex::new(items)),
+        })
+    }
+
+   
+    pub fn items(&self) -> Vec<TreeItem<'static, String>> {
+        let items = self.items.lock().unwrap();
+        items.items.clone()
+    }    
+
+
     pub fn selected_oca_bundle(&self) -> Option<BundleInfo> {
         let i = self.state.selected()[0].clone();
-        self.nodes.get(&i).map(|i| i).cloned()
+        let items = self.items.lock().unwrap();
+        items.bundle_info(&i)
     }
 
     pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
-        let widget = Tree::new(self.items.clone())
+        let widget = Tree::new(self.items())
             .expect("all item identifiers are unique")
             .block(Block::bordered().title("OCA Bundles"))
             .experimental_scrollbar(Some(

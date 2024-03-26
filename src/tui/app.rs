@@ -1,4 +1,4 @@
-use std::{io, path::PathBuf, sync::Arc, time::Duration};
+use std::{io, path::PathBuf, sync::{Arc, Mutex}, thread, time::Duration};
 
 pub use super::bundle_list::BundleListError;
 use anyhow::Result;
@@ -14,9 +14,9 @@ use ratatui::{
 };
 use thiserror::Error;
 
-use crate::dependency_graph::{DependencyGraph, MutableGraph, Node};
+use crate::{dependency_graph::{DependencyGraph, MutableGraph, Node}, validate::build};
 
-use super::{bundle_list::BundleList, output_window::errors_window::ErrorsWindow};
+use super::{bundle_list::{rebuild_items, BundleList}, output_window::errors_window::{update_errors, ErrorsWindow}};
 
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -27,12 +27,14 @@ pub enum AppError {
     #[error("Validation error: {0}")]
     Validation(String),
 }
-pub struct App<'a> {
-    bundles: BundleList<'a>,
+pub struct App {
+    bundles: BundleList,
     errors: ErrorsWindow,
     storage: Arc<SledDataStorage>,
+    facade: Arc<Mutex<Facade>>,
     graph: MutableGraph,
     active_window: Window,
+    to_show: Vec<Node>,
 }
 
 enum Window {
@@ -40,30 +42,34 @@ enum Window {
     Bundles,
 }
 
-impl<'a> App<'a> {
-    pub fn new<I: IntoIterator<Item = Node>>(
+impl<'a> App {
+    pub fn new<I: IntoIterator<Item = Node> + Clone>(
         base: PathBuf,
         to_show: I,
         facade: Facade,
         paths: Vec<PathBuf>,
         storage: SledDataStorage,
         size: usize,
-    ) -> Result<App<'a>, AppError> {
+    ) -> Result<App, AppError> {
         let graph = DependencyGraph::from_paths(&base, &paths).unwrap();
         let mut_graph = MutableGraph::new(&base, &paths);
+        let to_show_list = to_show.clone().into_iter().collect();
+        let list = BundleList::from_nodes(to_show, &facade, &graph)?;
         Ok(
-            BundleList::from_nodes(to_show, &facade, &graph).map(|bundles| App {
-                bundles,
+            App {
+                bundles: list,
                 errors: ErrorsWindow::new(size),
                 storage: Arc::new(storage),
                 active_window: Window::Bundles,
                 graph: mut_graph,
-            })?,
+                facade: Arc::new(Mutex::new(facade)),
+                to_show: to_show_list,
+            }
         )
     }
 }
 
-impl<'a> App<'a> {
+impl App {
     pub fn run(&mut self, mut terminal: Terminal<impl Backend>) -> Result<(), AppError> {
         loop {
             if poll(Duration::from_millis(100))? && !self.handle_input()? {
@@ -86,10 +92,11 @@ impl<'a> App<'a> {
     fn handle_input(&mut self) -> Result<bool, AppError> {
         match event::read()? {
             event::Event::Key(key) => {
-                let (state, items) = match self.active_window {
-                    Window::Bundles => (&mut self.bundles.state, &self.bundles.items),
+                let items = self.bundles.items();
+                let state = match self.active_window {
+                    Window::Bundles => &mut self.bundles.state,
                     // Window::Errors => (&mut self.errors.state, todo!()),
-                    Window::Errors => (&mut self.bundles.state, &self.bundles.items),
+                    Window::Errors => &mut self.bundles.state,
                 };
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => return Ok(false),
@@ -98,12 +105,12 @@ impl<'a> App<'a> {
                     KeyCode::Right => state.key_right(),
                     KeyCode::Down => self.handle_key_down(),
                     KeyCode::Up => self.handle_key_up(),
-                    KeyCode::Home => state.select_first(items),
+                    KeyCode::Home => state.select_first(&items),
                     KeyCode::End => state.select_last(&items),
-                    KeyCode::PageDown => state.select_visible_relative(items, |current| {
+                    KeyCode::PageDown => state.select_visible_relative(&items, |current| {
                         current.map_or(0, |current| current.saturating_add(10))
                     }),
-                    KeyCode::PageUp => state.select_visible_relative(items, |current| {
+                    KeyCode::PageUp => state.select_visible_relative(&items, |current| {
                         current.map_or(0, |current| current.saturating_sub(10))
                     }),
                     KeyCode::Char('v') => {
@@ -116,6 +123,10 @@ impl<'a> App<'a> {
                         };
                         self.errors
                             .check(self.storage.clone(), self.graph.clone(), selected)?
+                    },
+                    KeyCode::Char('b') => {
+                        self.handle_build(self.facade.clone(), self.graph.clone())?;
+                        true
                     }
                     KeyCode::Tab => self.change_window(),
                     _ => false,
@@ -131,11 +142,38 @@ impl<'a> App<'a> {
         Ok(true)
     }
 
+    pub fn handle_build(
+        &mut self,
+        facade: Arc<Mutex<Facade>>,
+        graph: MutableGraph,
+    ) -> Result<bool, AppError> {
+        self.errors.mark_build();
+        let errs = self.errors.error_list_mut();
+        let to_show = self.to_show.clone();
+        let list = self.bundles.items.clone();
+
+        thread::spawn(move || {
+            let res = build(facade.clone(), &graph);
+            match res {
+                Ok(_) => {
+                    update_errors(errs,vec![]);
+                    rebuild_items(list, to_show, facade, graph)
+                },
+                Err(res) => {
+                    update_errors(errs, vec![res]);
+                },
+            };
+        });
+
+        Ok(true)
+    }
+
     fn handle_key_down(&mut self) -> bool {
+        let items = self.bundles.items();
         match self.active_window {
             Window::Bundles => {
-                let (state, items) = (&mut self.bundles.state, &self.bundles.items);
-                state.key_down(items);
+                let state = &mut self.bundles.state;
+                state.key_down(&items);
             }
             Window::Errors => {
                 let state = &mut self.errors.state;
@@ -146,10 +184,11 @@ impl<'a> App<'a> {
     }
 
     fn handle_key_up(&mut self) -> bool {
+        let items = self.bundles.items();
         match self.active_window {
             Window::Bundles => {
-                let (state, items) = (&mut self.bundles.state, &self.bundles.items);
-                state.key_up(items);
+                let state = &mut self.bundles.state;
+                state.key_up(&items);
             }
             Window::Errors => {
                 let state = &mut self.errors.state;
@@ -165,7 +204,7 @@ impl<'a> App<'a> {
     }
 }
 
-impl<'a> Widget for &mut App<'a> {
+impl Widget for &mut App {
     fn render(self, area: Rect, buf: &mut Buffer) {
         // Create a space for header, todo list and the footer.
         let vertical = Layout::vertical([
@@ -187,7 +226,7 @@ impl<'a> Widget for &mut App<'a> {
     }
 }
 
-impl<'a> App<'a> {
+impl App {
     fn render_title(&self, area: Rect, buf: &mut Buffer) {
         Paragraph::new("OCA Tool")
             .bold()

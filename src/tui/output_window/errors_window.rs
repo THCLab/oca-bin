@@ -4,7 +4,7 @@ use std::{
     thread,
 };
 
-use oca_rs::data_storage::SledDataStorage;
+use oca_rs::{data_storage::SledDataStorage, facade::build::ValidationError, Facade};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -18,10 +18,11 @@ use crate::{
     dependency_graph::MutableGraph,
     error::CliError,
     tui::{app::AppError, bundle_info::BundleInfo},
-    validate::validate_directory,
+    validate::{build, validate_directory},
 };
 
-use super::error_list::{ErrorLine, SimpleErrorsList};
+use super::error_list::{Busy, ErrorLine, SimpleErrorsList};
+
 
 pub struct ErrorsWindow {
     pub state: ListState,
@@ -42,19 +43,33 @@ impl ErrorsWindow {
         self.currently_validated = Some(path)
     }
 
-    fn busy(&self) -> bool {
+    fn busy(&self) -> Busy {
         let e = self.errors.lock().unwrap();
-        e.busy
+        e.busy.clone()
+    }
+
+    pub fn update(&self, errors: Vec<CliError>) -> Result<(), CliError> {
+        let mut errs = self.errors.lock().unwrap();
+        errs.update(errors);
+        Ok(())
     }
 
     pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
-        if self.busy() {
-            let simple = throbber_widgets_tui::Throbber::default()
-                .label("Validation in progress. It may take some time.")
-                .style(ratatui::style::Style::default().fg(Color::Yellow));
-            Widget::render(simple, area, buf);
-        } else {
-            let errors = self.items();
+        match self.busy() {
+            Busy::Validation => {
+                let simple = throbber_widgets_tui::Throbber::default()
+                    .label("Validation in progress. It may take some time.")
+                    .style(ratatui::style::Style::default().fg(Color::Yellow));
+                Widget::render(simple, area, buf);
+            },
+            Busy::Building => {
+                let simple = throbber_widgets_tui::Throbber::default()
+                    .label("Building in progress. It may take some time.")
+                    .style(ratatui::style::Style::default().fg(Color::Yellow));
+                Widget::render(simple, area, buf);
+            },
+            Busy::NoTask => {
+                let errors = self.items();
             let block = Block::bordered().title("Output");
             if errors.is_empty() {
                 let widget = if let Some(validated) = self
@@ -75,6 +90,7 @@ impl ErrorsWindow {
                 let widget = List::new(errors).block(Block::bordered().title("Output"));
                 widget.render(area, buf, &mut self.state)
             }
+            },
         }
     }
 
@@ -92,7 +108,7 @@ impl ErrorsWindow {
     ) -> Result<bool, AppError> {
         {
             let mut errors = self.errors.lock().unwrap();
-            errors.busy = true;
+            errors.busy = Busy::Validation;
         }
         let err_list = self.errors.clone();
         thread::spawn(move || {
@@ -104,9 +120,18 @@ impl ErrorsWindow {
 
         Ok(true)
     }
+
+    pub fn mark_build(&self) {
+        let mut errors = self.errors.lock().unwrap();
+        errors.busy = Busy::Building;
+    }
+
+    pub fn error_list_mut(&self) -> Arc<Mutex<SimpleErrorsList>> {
+        self.errors.clone()
+    }
 }
 
-fn update_errors(errs: Arc<Mutex<SimpleErrorsList>>, new_errors: Vec<CliError>) {
+pub fn update_errors(errs: Arc<Mutex<SimpleErrorsList>>, new_errors: Vec<CliError>) {
     let mut errors = errs.lock().unwrap();
     errors.update(new_errors);
 }

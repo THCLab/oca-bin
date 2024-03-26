@@ -28,7 +28,7 @@ pub fn draw<I>(
     storage: SledDataStorage,
 ) -> Result<(), AppError>
 where
-    I: IntoIterator<Item = Node>,
+    I: IntoIterator<Item = Node> + Clone,
 {
     stdout().execute(EnterAlternateScreen)?;
     enable_raw_mode()?;

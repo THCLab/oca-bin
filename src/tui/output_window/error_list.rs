@@ -10,9 +10,17 @@ use tui_widget_list::ListableWidget;
 
 use crate::error::CliError;
 
+#[derive(Default, Clone)]
+pub(crate) enum Busy {
+    Validation,
+    Building,
+    #[default]
+    NoTask
+}
+
 pub struct SimpleErrorsList {
     items: Vec<CliError>,
-    pub busy: bool,
+    pub busy: Busy,
     size: usize,
 }
 
@@ -20,13 +28,13 @@ impl SimpleErrorsList {
     pub fn new(size: usize) -> Self {
         Self {
             items: vec![],
-            busy: false,
+            busy: Busy::NoTask,
             size,
         }
     }
     pub fn update(&mut self, new_list: Vec<CliError>) {
         self.items = new_list;
-        self.busy = false;
+        self.busy = Busy::NoTask;
     }
 
     pub fn items<'a>(&self) -> Vec<ErrorLine<'a>> {
