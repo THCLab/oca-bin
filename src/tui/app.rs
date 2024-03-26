@@ -115,14 +115,17 @@ impl App {
                     }),
                     KeyCode::Char('v') => {
                         let selected = self.bundles.selected_oca_bundle();
-
-                        // Save selected path.
-                        if let Ok(path) = self.graph.oca_file_path(&selected.as_ref().unwrap().refn)
-                        {
-                            self.errors.currently_validated(path.to_owned());
+                        if let Some(selection) = selected {
+                            // Save selected path.
+                            if let Ok(path) = self.graph.oca_file_path(&selection.refn)
+                            {
+                                self.errors.set_currently_validated(path.to_owned());
+                            };
+                            self.errors
+                                .check(self.storage.clone(), self.graph.clone(), Some(selection))?;
                         };
-                        self.errors
-                            .check(self.storage.clone(), self.graph.clone(), selected)?
+                        true
+                        
                     },
                     KeyCode::Char('b') => {
                         self.handle_build(self.facade.clone(), self.graph.clone())?;

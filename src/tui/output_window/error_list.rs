@@ -18,10 +18,18 @@ pub(crate) enum Busy {
     NoTask
 }
 
+#[derive(Clone)]
+pub enum LastAction {
+    Building,
+    Validating,
+    NoAction,
+}
+
 pub struct SimpleErrorsList {
     items: Vec<CliError>,
     pub busy: Busy,
     size: usize,
+    pub last_action: LastAction,
 }
 
 impl SimpleErrorsList {
@@ -30,10 +38,16 @@ impl SimpleErrorsList {
             items: vec![],
             busy: Busy::NoTask,
             size,
+            last_action: LastAction::NoAction,
         }
     }
     pub fn update(&mut self, new_list: Vec<CliError>) {
         self.items = new_list;
+        match self.busy {
+            Busy::Validation => self.validation_copmleted(),
+            Busy::Building => self.build_copmleted(),
+            Busy::NoTask => self.last_action = LastAction::NoAction,
+        }
         self.busy = Busy::NoTask;
     }
 
@@ -43,6 +57,16 @@ impl SimpleErrorsList {
             .map(|c| ErrorLine::new(c, self.size))
             .collect_vec()
     }
+
+
+    pub fn validation_copmleted(&mut self) {
+        self.last_action = LastAction::Validating
+    }
+
+    pub fn build_copmleted(&mut self) {
+        self.last_action = LastAction::Building
+    }
+
 }
 
 pub struct ErrorLine<'a>(Line<'a>, usize, Style);

@@ -136,9 +136,8 @@ impl BundleList {
 
 
     pub fn selected_oca_bundle(&self) -> Option<BundleInfo> {
-        let i = self.state.selected()[0].clone();
         let items = self.items.lock().unwrap();
-        items.bundle_info(&i)
+        self.state.selected().get(0).and_then(|i| items.bundle_info(i))
     }
 
     pub fn render(&mut self, area: Rect, buf: &mut Buffer) {

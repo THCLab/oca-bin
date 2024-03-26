@@ -21,7 +21,7 @@ use crate::{
     validate::{build, validate_directory},
 };
 
-use super::error_list::{Busy, ErrorLine, SimpleErrorsList};
+use super::error_list::{Busy, ErrorLine, LastAction, SimpleErrorsList};
 
 
 pub struct ErrorsWindow {
@@ -39,7 +39,7 @@ impl ErrorsWindow {
         }
     }
 
-    pub fn currently_validated(&mut self, path: PathBuf) {
+    pub fn set_currently_validated(&mut self, path: PathBuf) {
         self.currently_validated = Some(path)
     }
 
@@ -48,11 +48,16 @@ impl ErrorsWindow {
         e.busy.clone()
     }
 
-    pub fn update(&self, errors: Vec<CliError>) -> Result<(), CliError> {
-        let mut errs = self.errors.lock().unwrap();
-        errs.update(errors);
-        Ok(())
+    fn last_action(&self) -> LastAction {
+        let e = self.errors.lock().unwrap();
+        e.last_action.clone()
     }
+
+    // pub fn update(&self, errors: Vec<CliError>) -> Result<(), CliError> {
+    //     let mut errs = self.errors.lock().unwrap();
+    //     errs.update(errors);
+    //     Ok(())
+    // }
 
     pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
         match self.busy() {
@@ -69,28 +74,32 @@ impl ErrorsWindow {
                 Widget::render(simple, area, buf);
             },
             Busy::NoTask => {
-                let errors = self.items();
-            let block = Block::bordered().title("Output");
-            if errors.is_empty() {
-                let widget = if let Some(validated) = self
-                    .currently_validated
-                    .as_ref()
-                    .and_then(|val| val.to_str())
-                {
-                    let span = Span::styled(
-                        format!("Validation successful for file: {}", validated),
-                        Style::default().fg(Color::Green),
-                    );
-                    Paragraph::new(span).block(block)
-                } else {
-                    Paragraph::new("").block(block)
-                };
-                widget.render(area, buf)
-            } else {
-                let widget = List::new(errors).block(Block::bordered().title("Output"));
-                widget.render(area, buf, &mut self.state)
+               match &self.last_action() {
+                    LastAction::Building => self.render_action_result("Build successful", area, buf),
+                    LastAction::Validating => {
+                        let validated = self.currently_validated.as_ref().unwrap().to_str().unwrap();
+                        self.render_action_result(&format!("Validation successful for file: {}", &validated), area, buf);
+                    },
+                    LastAction::NoAction => Paragraph::new("").block(Block::bordered().title("Output")).render(area, buf),
+                }
             }
-            },
+        }
+    }
+
+    fn render_action_result(&mut self, success_comment: &str, area: Rect, buf: &mut Buffer) {
+        let block = Block::bordered().title("Output");
+        let errors = self.items();
+        if errors.is_empty() {
+            let widget = {let span = Span::styled(
+                    success_comment,
+                    Style::default().fg(Color::Green),
+                );
+                Paragraph::new(span).block(block)
+            } ;
+            widget.render(area, buf)
+        } else {
+            let widget = List::new(errors).block(Block::bordered().title("Output"));
+            widget.render(area, buf, &mut self.state)
         }
     }
 
