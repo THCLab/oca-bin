@@ -10,6 +10,11 @@ use tui_widget_list::ListableWidget;
 
 use crate::error::CliError;
 
+pub enum Message {
+    Error(CliError),
+    Info(String),
+}
+
 #[derive(Default, Clone)]
 pub(crate) enum Busy {
     Validation,
@@ -25,14 +30,14 @@ pub enum LastAction {
     NoAction,
 }
 
-pub struct SimpleErrorsList {
-    items: Vec<CliError>,
+pub struct MessageList {
+    items: Vec<Message>,
     pub busy: Busy,
     size: usize,
     pub last_action: LastAction,
 }
 
-impl SimpleErrorsList {
+impl MessageList {
     pub fn new(size: usize) -> Self {
         Self {
             items: vec![],
@@ -42,39 +47,40 @@ impl SimpleErrorsList {
         }
     }
     pub fn update(&mut self, new_list: Vec<CliError>) {
-        self.items = new_list;
+        let errs = new_list.into_iter().map(Message::Error).collect();
+        self.items = errs;
         match self.busy {
-            Busy::Validation => self.validation_copmleted(),
-            Busy::Building => self.build_copmleted(),
+            Busy::Validation => self.validation_completed(),
+            Busy::Building => self.build_completed(),
             Busy::NoTask => self.last_action = LastAction::NoAction,
         }
         self.busy = Busy::NoTask;
     }
 
-    pub fn items<'a>(&self) -> Vec<ErrorLine<'a>> {
+    pub fn items<'a>(&'a self) -> Vec<MessageLine<'a>> {
         self.items
             .iter()
-            .map(|c| ErrorLine::new(c, self.size))
+            .map(|c| MessageLine::new(c, self.size))
             .collect_vec()
     }
 
 
-    pub fn validation_copmleted(&mut self) {
+    pub fn validation_completed(&mut self) {
         self.last_action = LastAction::Validating
     }
 
-    pub fn build_copmleted(&mut self) {
+    pub fn build_completed(&mut self) {
         self.last_action = LastAction::Building
     }
 
 }
 
-pub struct ErrorLine<'a>(Line<'a>, usize, Style);
+pub struct MessageLine<'a>(Line<'a>, usize, Style);
 
-impl<'a> ErrorLine<'a> {
-    pub fn new(er: &CliError, size: usize) -> Self {
+impl<'a> MessageLine<'a> {
+    pub fn new(er: &'a Message, size: usize) -> Self {
         let line = match er {
-            CliError::GrammarError(file, errors) => errors
+            Message::Error(CliError::GrammarError(file, errors)) => errors
                 .iter()
                 .flat_map(|err| {
                     vec![
@@ -97,7 +103,8 @@ impl<'a> ErrorLine<'a> {
                     ]
                 })
                 .collect::<Vec<_>>(),
-            e => vec![Span::styled(e.to_string(), Style::default())],
+            Message::Error(e) => vec![Span::styled(e.to_string(), Style::default())],
+            Message::Info(info) => vec![Span::styled(info,  Style::default().fg(Color::Green))],
         };
         let height = line.iter().map(|l| l.content.len()).sum::<usize>() as f32 / size as f32;
         Self(
@@ -108,7 +115,7 @@ impl<'a> ErrorLine<'a> {
     }
 }
 
-impl<'a> Widget for ErrorLine<'a> {
+impl<'a> Widget for MessageLine<'a> {
     fn render(self, area: Rect, buf: &mut Buffer)
     where
         Self: Sized,
@@ -119,7 +126,7 @@ impl<'a> Widget for ErrorLine<'a> {
     }
 }
 
-impl<'a> ListableWidget for ErrorLine<'a> {
+impl<'a> ListableWidget for MessageLine<'a> {
     fn size(&self, _scroll_direction: &tui_widget_list::ScrollAxis) -> usize {
         self.1
     }

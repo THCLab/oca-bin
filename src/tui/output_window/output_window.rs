@@ -4,7 +4,7 @@ use std::{
     thread,
 };
 
-use oca_rs::{data_storage::SledDataStorage, facade::build::ValidationError, Facade};
+use oca_rs::data_storage::SledDataStorage;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -18,22 +18,22 @@ use crate::{
     dependency_graph::MutableGraph,
     error::CliError,
     tui::{app::AppError, bundle_info::BundleInfo},
-    validate::{build, validate_directory},
+    validate::validate_directory,
 };
 
-use super::error_list::{Busy, ErrorLine, LastAction, SimpleErrorsList};
+use super::message_list::{Busy, MessageLine, LastAction, MessageList};
 
 
-pub struct ErrorsWindow {
+pub struct OutputWindow {
     pub state: ListState,
-    errors: Arc<Mutex<SimpleErrorsList>>,
+    errors: Arc<Mutex<MessageList>>,
     currently_validated: Option<PathBuf>,
 }
 
-impl ErrorsWindow {
+impl OutputWindow {
     pub fn new(size: usize) -> Self {
         Self {
-            errors: Arc::new(Mutex::new(SimpleErrorsList::new(size))),
+            errors: Arc::new(Mutex::new(MessageList::new(size))),
             state: ListState::default(),
             currently_validated: None,
         }
@@ -52,12 +52,6 @@ impl ErrorsWindow {
         let e = self.errors.lock().unwrap();
         e.last_action.clone()
     }
-
-    // pub fn update(&self, errors: Vec<CliError>) -> Result<(), CliError> {
-    //     let mut errs = self.errors.lock().unwrap();
-    //     errs.update(errors);
-    //     Ok(())
-    // }
 
     pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
         match self.busy() {
@@ -88,7 +82,9 @@ impl ErrorsWindow {
 
     fn render_action_result(&mut self, success_comment: &str, area: Rect, buf: &mut Buffer) {
         let block = Block::bordered().title("Output");
-        let errors = self.items();
+        let errors = self.errors.lock().unwrap();
+        // errs.items()
+        let errors = errors.items();
         if errors.is_empty() {
             let widget = {let span = Span::styled(
                     success_comment,
@@ -101,12 +97,6 @@ impl ErrorsWindow {
             let widget = List::new(errors).block(Block::bordered().title("Output"));
             widget.render(area, buf, &mut self.state)
         }
-    }
-
-    // pub fn items(&self) -> Vec<ListItem<'static>> {
-    pub fn items<'a>(&self) -> Vec<ErrorLine<'a>> {
-        let errs = self.errors.lock().unwrap();
-        errs.items()
     }
 
     pub fn check(
@@ -135,12 +125,12 @@ impl ErrorsWindow {
         errors.busy = Busy::Building;
     }
 
-    pub fn error_list_mut(&self) -> Arc<Mutex<SimpleErrorsList>> {
+    pub fn error_list_mut(&self) -> Arc<Mutex<MessageList>> {
         self.errors.clone()
     }
 }
 
-pub fn update_errors(errs: Arc<Mutex<SimpleErrorsList>>, new_errors: Vec<CliError>) {
+pub fn update_errors(errs: Arc<Mutex<MessageList>>, new_errors: Vec<CliError>) {
     let mut errors = errs.lock().unwrap();
     errors.update(new_errors);
 }

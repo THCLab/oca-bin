@@ -16,7 +16,7 @@ use thiserror::Error;
 
 use crate::{dependency_graph::{DependencyGraph, MutableGraph, Node}, validate::build};
 
-use super::{bundle_list::{rebuild_items, BundleList}, output_window::errors_window::{update_errors, ErrorsWindow}};
+use super::{bundle_list::{rebuild_items, BundleList}, output_window::output_window::{update_errors, OutputWindow}};
 
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -29,7 +29,7 @@ pub enum AppError {
 }
 pub struct App {
     bundles: BundleList,
-    errors: ErrorsWindow,
+    errors: OutputWindow,
     storage: Arc<SledDataStorage>,
     facade: Arc<Mutex<Facade>>,
     graph: MutableGraph,
@@ -58,7 +58,7 @@ impl<'a> App {
         Ok(
             App {
                 bundles: list,
-                errors: ErrorsWindow::new(size),
+                errors: OutputWindow::new(size),
                 storage: Arc::new(storage),
                 active_window: Window::Bundles,
                 graph: mut_graph,

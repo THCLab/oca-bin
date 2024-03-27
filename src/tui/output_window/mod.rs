@@ -1,2 +1,2 @@
-mod error_list;
-pub mod errors_window;
+mod message_list;
+pub mod output_window;
