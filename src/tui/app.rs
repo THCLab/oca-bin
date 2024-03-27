@@ -1,4 +1,10 @@
-use std::{io, path::PathBuf, sync::{Arc, Mutex}, thread, time::Duration};
+use std::{
+    io,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
 
 pub use super::bundle_list::BundleListError;
 use anyhow::Result;
@@ -14,9 +20,15 @@ use ratatui::{
 };
 use thiserror::Error;
 
-use crate::{dependency_graph::{DependencyGraph, MutableGraph, Node}, validate::build};
+use crate::{
+    dependency_graph::{DependencyGraph, MutableGraph, Node},
+    validate::build,
+};
 
-use super::{bundle_list::{rebuild_items, BundleList}, output_window::output_window::{update_errors, OutputWindow}};
+use super::{
+    bundle_list::{rebuild_items, BundleList},
+    output_window::output_window::{update_errors, OutputWindow},
+};
 
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -55,17 +67,15 @@ impl<'a> App {
         let mut_graph = MutableGraph::new(&base, &paths);
         let to_show_list = to_show.clone().into_iter().collect();
         let list = BundleList::from_nodes(to_show, &facade, &graph)?;
-        Ok(
-            App {
-                bundles: list,
-                output: OutputWindow::new(size),
-                storage: Arc::new(storage),
-                active_window: Window::Bundles,
-                graph: mut_graph,
-                facade: Arc::new(Mutex::new(facade)),
-                to_show: to_show_list,
-            }
-        )
+        Ok(App {
+            bundles: list,
+            output: OutputWindow::new(size),
+            storage: Arc::new(storage),
+            active_window: Window::Bundles,
+            graph: mut_graph,
+            facade: Arc::new(Mutex::new(facade)),
+            to_show: to_show_list,
+        })
     }
 }
 
@@ -117,16 +127,17 @@ impl App {
                         let selected = self.bundles.selected_oca_bundle();
                         if let Some(selection) = selected {
                             // Save selected path.
-                            if let Ok(path) = self.graph.oca_file_path(&selection.refn)
-                            {
+                            if let Ok(path) = self.graph.oca_file_path(&selection.refn) {
                                 self.output.set_currently_validated(path.to_owned());
                             };
-                            self.output
-                                .check(self.storage.clone(), self.graph.clone(), Some(selection))?;
+                            self.output.check(
+                                self.storage.clone(),
+                                self.graph.clone(),
+                                Some(selection),
+                            )?;
                         };
                         true
-                        
-                    },
+                    }
                     KeyCode::Char('b') => {
                         self.handle_build(self.facade.clone(), self.graph.clone())?;
                         true
@@ -159,12 +170,12 @@ impl App {
             let res = build(facade.clone(), &graph, errs.clone());
             match res {
                 Ok(_) => {
-                    update_errors(errs,vec![]);
+                    update_errors(errs, vec![]);
                     rebuild_items(list, to_show, facade, graph)
-                },
+                }
                 Err(res) => {
                     update_errors(errs, vec![res]);
-                },
+                }
             };
         });
 

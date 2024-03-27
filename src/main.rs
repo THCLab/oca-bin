@@ -224,16 +224,17 @@ fn main() -> Result<(), CliError> {
             let (mut facade, _s) = get_oca_facade(local_repository_path);
             let graph = DependencyGraph::from_paths(directory.as_ref().unwrap(), paths).unwrap();
             let sorted_graph = graph.sort().unwrap();
+
             info!("Sorted: {:?}", sorted_graph);
             for node in sorted_graph {
                 info!("Processing: {}", node.refn);
                 match graph.oca_file_path(&node.refn) {
                     Ok(path) => {
                         let unparsed_file =
-                            fs::read_to_string(path).map_err(CliError::ReadFileFailed)?;
+                            fs::read_to_string(&path).map_err(CliError::ReadFileFailed)?;
                         let oca_bundle = facade
                             .build_from_ocafile(unparsed_file)
-                            .map_err(CliError::OcaBundleError)?;
+                            .map_err(|e| CliError::BuildingError(path, e))?;
                         let refs = facade.fetch_all_refs().unwrap();
                         let schema_name = refs
                             .iter()

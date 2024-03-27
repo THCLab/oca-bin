@@ -23,7 +23,6 @@ use crate::{
 
 use super::message_list::{Busy, LastAction, Message, MessageList};
 
-
 pub struct OutputWindow {
     pub state: ListState,
     errors: Arc<Mutex<MessageList>>,
@@ -60,44 +59,42 @@ impl OutputWindow {
                     .label("Validation in progress. It may take some time.")
                     .style(ratatui::style::Style::default().fg(Color::Yellow));
                 Widget::render(simple, area, buf);
-            },
+            }
             Busy::Building => {
-                let layout = Layout::vertical([
-                    Constraint::Length(2),
-                    Constraint::Fill(2),
-                ]);
+                let layout = Layout::vertical([Constraint::Length(2), Constraint::Fill(2)]);
                 let [building_title, output_area] = layout.areas(area);
                 let simple = throbber_widgets_tui::Throbber::default()
                     .label("Building in progress. It may take some time.")
                     .style(ratatui::style::Style::default().fg(Color::Yellow));
                 Widget::render(simple, building_title, buf);
                 self.render_building_process(output_area, buf);
-            },
-            Busy::NoTask => {
-               match &self.last_action() {
-                    LastAction::Building => self.render_action_result("Build successful", area, buf),
-                    LastAction::Validating => {
-                        let validated = self.currently_validated.as_ref().unwrap().to_str().unwrap();
-                        self.render_action_result(&format!("Validation successful for file: {}", &validated), area, buf);
-                    },
-                    LastAction::NoAction => Paragraph::new("").block(Block::bordered().title("Output")).render(area, buf),
-                }
             }
+            Busy::NoTask => match &self.last_action() {
+                LastAction::Building => self.render_action_result("Build successful", area, buf),
+                LastAction::Validating => {
+                    let validated = self.currently_validated.as_ref().unwrap().to_str().unwrap();
+                    self.render_action_result(
+                        &format!("Validation successful for file: {}", &validated),
+                        area,
+                        buf,
+                    );
+                }
+                LastAction::NoAction => Paragraph::new("")
+                    .block(Block::bordered().title("Output"))
+                    .render(area, buf),
+            },
         }
     }
 
     fn render_action_result(&mut self, success_comment: &str, area: Rect, buf: &mut Buffer) {
         let block = Block::bordered().title("Output");
         let errors = self.errors.lock().unwrap();
-        // errs.items()
         let errors = errors.items();
         if errors.is_empty() {
-            let widget = {let span = Span::styled(
-                    success_comment,
-                    Style::default().fg(Color::Green),
-                );
+            let widget = {
+                let span = Span::styled(success_comment, Style::default().fg(Color::Green));
                 Paragraph::new(span).block(block)
-            } ;
+            };
             widget.render(area, buf)
         } else {
             let widget = List::new(errors).block(Block::bordered().title("Output"));
@@ -112,7 +109,6 @@ impl OutputWindow {
         let widget = List::new(errors).block(Block::bordered().title("Output"));
         widget.render(area, buf, &mut self.state)
     }
-
 
     pub fn check(
         &mut self,
@@ -151,7 +147,7 @@ pub fn update_errors(errs: Arc<Mutex<MessageList>>, new_errors: Vec<CliError>) {
     errors.update(messages);
 }
 
-pub fn push_message(errs: Arc<Mutex<MessageList>>, message: Message) {
+pub fn _push_message(errs: Arc<Mutex<MessageList>>, message: Message) {
     let mut messages_list = errs.lock().unwrap();
     messages_list.append(message);
 }

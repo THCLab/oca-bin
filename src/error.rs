@@ -15,8 +15,6 @@ pub enum CliError {
     WriteFileFailed(std::io::Error),
     #[error("Error reading file: {0}")]
     ReadFileFailed(std::io::Error),
-    #[error("Oca errors: {0:?}")]
-    OcaBundleError(Vec<oca_rs::facade::build::Error>),
     #[error("Oca bundle ast errors: {0:?}")]
     OcaBundleAstError(Vec<String>),
     #[error("Invalid said: {0}")]
@@ -39,6 +37,8 @@ pub enum CliError {
     AllRefnUnknown(PathBuf),
     #[error("Validation error: file: {0}, reason: {1:?}")]
     GrammarError(PathBuf, Vec<ValidationError>),
+    #[error("Validation error: file: {0}, reason: {1:?}")]
+    BuildingError(PathBuf, Vec<oca_rs::facade::build::Error>),
     #[error(transparent)]
     GraphError(#[from] GraphError),
 }

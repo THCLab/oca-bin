@@ -20,7 +20,7 @@ pub(crate) enum Busy {
     Validation,
     Building,
     #[default]
-    NoTask
+    NoTask,
 }
 
 #[derive(Clone)]
@@ -67,7 +67,6 @@ impl MessageList {
             .collect_vec()
     }
 
-
     pub fn validation_completed(&mut self) {
         self.last_action = LastAction::Validating
     }
@@ -75,7 +74,6 @@ impl MessageList {
     pub fn build_completed(&mut self) {
         self.last_action = LastAction::Building
     }
-
 }
 
 pub struct MessageLine<'a>(Line<'a>, usize, Style);
@@ -88,7 +86,7 @@ impl<'a> MessageLine<'a> {
                 .flat_map(|err| {
                     vec![
                         Span::styled(
-                            format!("! Error in file "),
+                            format!("! Validation error in file "),
                             Style::default()
                                 .fg(Color::Red)
                                 .add_modifier(Modifier::ITALIC),
@@ -106,8 +104,36 @@ impl<'a> MessageLine<'a> {
                     ]
                 })
                 .collect::<Vec<_>>(),
+            Message::Error(CliError::BuildingError(file, errors)) => errors
+                .iter()
+                .flat_map(|err| match err {
+                    oca_rs::facade::build::Error::ValidationError(ve) => {
+                        ve.iter().map(move |atomic_error| {
+                            vec![
+                                Span::styled(
+                                    format!("! Building error in file "),
+                                    Style::default()
+                                        .fg(Color::Red)
+                                        .add_modifier(Modifier::ITALIC),
+                                ),
+                                Span::styled(
+                                    format!("{}:", file.to_str().unwrap()),
+                                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                                ),
+                                Span::styled(
+                                    format!(" {}\n", atomic_error),
+                                    Style::default()
+                                        .fg(Color::Red)
+                                        .add_modifier(Modifier::ITALIC),
+                                ),
+                            ]
+                        })
+                    }
+                })
+                .flatten()
+                .collect(),
             Message::Error(e) => vec![Span::styled(e.to_string(), Style::default())],
-            Message::Info(info) => vec![Span::styled(info,  Style::default().fg(Color::Green))],
+            Message::Info(info) => vec![Span::styled(info, Style::default().fg(Color::Green))],
         };
         let height = line.iter().map(|l| l.content.len()).sum::<usize>() as f32 / size as f32;
         Self(

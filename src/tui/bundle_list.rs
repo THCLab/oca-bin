@@ -27,8 +27,7 @@ pub enum BundleListError {
 
 pub struct BundleList {
     pub state: TreeState<String>,
-    pub items: Arc<Mutex<Items>>
-    
+    pub items: Arc<Mutex<Items>>,
 }
 
 pub struct Items {
@@ -38,7 +37,10 @@ pub struct Items {
 
 impl Items {
     pub fn new() -> Self {
-        Items { items: vec![], nodes: HashMap::new() }
+        Items {
+            items: vec![],
+            nodes: HashMap::new(),
+        }
     }
 
     pub fn result_to_tree_item(
@@ -73,32 +75,36 @@ impl Items {
         }
     }
 
-    pub fn update_nodes<I: IntoIterator<Item = Node>>(&mut self, to_show: I, facade: &Facade, graph: &DependencyGraph) {
+    pub fn update_nodes<I: IntoIterator<Item = Node>>(
+        &mut self,
+        to_show: I,
+        facade: &Facade,
+        graph: &DependencyGraph,
+    ) {
         let i = Indexer::new();
         to_show
             .into_iter()
             .map(|node| bundle_info_from_refn(&node.refn, graph, facade))
             .for_each(|dep| self.result_to_tree_item(dep, &i, facade, graph));
-
     }
 
     pub fn bundle_info(&self, k: &str) -> Option<BundleInfo> {
         self.nodes.get(k).map(|b| b.clone())
     }
-
-
 }
 
-
-pub fn rebuild_items<I: IntoIterator<Item = Node> + Clone>(items: Arc<Mutex<Items>>, to_show: I,
-        facade: Arc<Mutex<Facade>>,
-        graph: MutableGraph) {
-        let mut items = items.lock().unwrap();
-        let facade = facade.lock().unwrap();
-        let graph = graph.graph.lock().unwrap();
-        items.nodes = HashMap::new();
-        items.items = vec![];
-        items.update_nodes(to_show, &facade, &graph);
+pub fn rebuild_items<I: IntoIterator<Item = Node> + Clone>(
+    items: Arc<Mutex<Items>>,
+    to_show: I,
+    facade: Arc<Mutex<Facade>>,
+    graph: MutableGraph,
+) {
+    let mut items = items.lock().unwrap();
+    let facade = facade.lock().unwrap();
+    let graph = graph.graph.lock().unwrap();
+    items.nodes = HashMap::new();
+    items.items = vec![];
+    items.update_nodes(to_show, &facade, &graph);
 }
 
 pub struct Indexer(Mutex<u32>);
@@ -128,16 +134,17 @@ impl BundleList {
         })
     }
 
-   
     pub fn items(&self) -> Vec<TreeItem<'static, String>> {
         let items = self.items.lock().unwrap();
         items.items.clone()
-    }    
-
+    }
 
     pub fn selected_oca_bundle(&self) -> Option<BundleInfo> {
         let items = self.items.lock().unwrap();
-        self.state.selected().get(0).and_then(|i| items.bundle_info(i))
+        self.state
+            .selected()
+            .get(0)
+            .and_then(|i| items.bundle_info(i))
     }
 
     pub fn render(&mut self, area: Rect, buf: &mut Buffer) {

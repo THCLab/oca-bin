@@ -1,11 +1,17 @@
-use std::{fs, sync::{Arc, Mutex}};
+use std::{
+    fs,
+    sync::{Arc, Mutex},
+};
 
 use oca_rs::{data_storage::SledDataStorage, Facade};
 
 use crate::{
     dependency_graph::{parse_name, MutableGraph, Node},
     error::CliError,
-    tui::{bundle_info::BundleInfo, output_window::message_list::{Message, MessageList}},
+    tui::{
+        bundle_info::BundleInfo,
+        output_window::message_list::{Message, MessageList},
+    },
 };
 
 pub fn validate_directory(
@@ -40,7 +46,11 @@ pub fn validate_directory(
     Ok((oks, errs))
 }
 
-pub fn build(facade: Arc<Mutex<Facade>>, graph: &MutableGraph, infos: Arc<Mutex<MessageList>>) -> Result<(), CliError> {
+pub fn build(
+    facade: Arc<Mutex<Facade>>,
+    graph: &MutableGraph,
+    infos: Arc<Mutex<MessageList>>,
+) -> Result<(), CliError> {
     let sorted_graph = graph.sort().unwrap();
     info!("Sorted: {:?}", sorted_graph);
     for node in sorted_graph {
@@ -48,10 +58,10 @@ pub fn build(facade: Arc<Mutex<Facade>>, graph: &MutableGraph, infos: Arc<Mutex<
         match graph.oca_file_path(&node.refn) {
             Ok(path) => {
                 let mut f = facade.lock().unwrap();
-                let unparsed_file = fs::read_to_string(path).map_err(CliError::ReadFileFailed)?;
+                let unparsed_file = fs::read_to_string(&path).map_err(CliError::ReadFileFailed)?;
                 let oca_bundle = f
                     .build_from_ocafile(unparsed_file)
-                    .map_err(CliError::OcaBundleError)?;
+                    .map_err(|e| CliError::BuildingError(path, e))?;
                 let refs = f.fetch_all_refs().unwrap();
                 let schema_name = refs
                     .iter()
