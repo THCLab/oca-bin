@@ -6,6 +6,7 @@ use error::CliError;
 use oca_presentation::presentation::Presentation;
 use oca_rs::data_storage::SledDataStorage;
 use presentation_command::PresentationCommand;
+use std::collections::HashSet;
 use std::{env, fs, fs::File, io::Write, path::PathBuf, process, str::FromStr};
 
 use clap::Parser as ClapParser;
@@ -278,15 +279,23 @@ fn main() -> Result<(), CliError> {
                         repository_url,
                         &remote_repo_url,
                     );
+
+                    let mut seen_said = HashSet::new();
+
                     // Publish dependencies if available
                     for bundle in bundles.dependencies {
-                        info!("Publishing dependency: {}", bundle.said.clone().unwrap());
-                        publish_oca_file_for(
-                            &facade,
-                            bundle.said.clone().unwrap(),
-                            repository_url,
-                            &remote_repo_url,
-                        );
+                        let said_opt = bundle.said.clone();
+                        if let Some(said) = said_opt {
+                            if seen_said.insert(said.clone()) {
+                                info!("Publishing dependency: {}", bundle.said.clone().unwrap());
+                                publish_oca_file_for(
+                                    &facade,
+                                    bundle.said.clone().unwrap(),
+                                    repository_url,
+                                    &remote_repo_url,
+                                );
+                            }
+                        }
                     }
                     Ok(())
                 }
