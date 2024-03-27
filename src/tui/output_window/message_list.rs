@@ -2,7 +2,7 @@ use itertools::Itertools;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Modifier, Style},
+    style::{Color, Modifier, Style, Stylize},
     text::{Line, Span, Text},
     widgets::{Paragraph, Widget, Wrap},
 };
@@ -31,7 +31,7 @@ pub enum LastAction {
 }
 
 pub struct MessageList {
-    items: Vec<Message>,
+    pub items: Vec<Message>,
     pub busy: Busy,
     size: usize,
     pub last_action: LastAction,
@@ -47,7 +47,9 @@ impl MessageList {
         }
     }
     pub fn update(&mut self, new_list: Vec<Message>) {
-        self.items = new_list;
+        for msg in new_list {
+            self.items.push(msg)
+        };
         match self.busy {
             Busy::Validation => self.validation_completed(),
             Busy::Building => self.build_completed(),
@@ -161,7 +163,7 @@ impl<'a> ListableWidget for MessageLine<'a> {
     }
 
     fn highlight(mut self) -> Self {
-        let style = Style::default().bg(Color::White);
+        let style = Style::default().bold();
         self.2 = style;
         self
     }

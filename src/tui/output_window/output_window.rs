@@ -97,7 +97,9 @@ impl OutputWindow {
             };
             widget.render(area, buf)
         } else {
+            let index = errors.len() - 1;
             let widget = List::new(errors).block(Block::bordered().title("Output"));
+            self.state.select(Some(index));
             widget.render(area, buf, &mut self.state)
         }
     }
@@ -106,7 +108,9 @@ impl OutputWindow {
         let errors = self.errors.lock().unwrap();
         let errors = errors.items();
 
+        let index = errors.len() - 1;
         let widget = List::new(errors).block(Block::bordered().title("Output"));
+        self.state.select(Some(index));
         widget.render(area, buf, &mut self.state)
     }
 
@@ -119,6 +123,7 @@ impl OutputWindow {
         {
             let mut errors = self.errors.lock().unwrap();
             errors.busy = Busy::Validation;
+            errors.items = vec![];
         }
         let err_list = self.errors.clone();
         thread::spawn(move || {
@@ -134,6 +139,7 @@ impl OutputWindow {
     pub fn mark_build(&self) {
         let mut errors = self.errors.lock().unwrap();
         errors.busy = Busy::Building;
+        errors.items = vec![];
     }
 
     pub fn error_list_mut(&self) -> Arc<Mutex<MessageList>> {
