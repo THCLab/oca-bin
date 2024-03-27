@@ -46,15 +46,18 @@ impl MessageList {
             last_action: LastAction::NoAction,
         }
     }
-    pub fn update(&mut self, new_list: Vec<CliError>) {
-        let errs = new_list.into_iter().map(Message::Error).collect();
-        self.items = errs;
+    pub fn update(&mut self, new_list: Vec<Message>) {
+        self.items = new_list;
         match self.busy {
             Busy::Validation => self.validation_completed(),
             Busy::Building => self.build_completed(),
             Busy::NoTask => self.last_action = LastAction::NoAction,
         }
         self.busy = Busy::NoTask;
+    }
+
+    pub fn append(&mut self, new_list: Message) {
+        self.items.push(new_list);
     }
 
     pub fn items<'a>(&'a self) -> Vec<MessageLine<'a>> {

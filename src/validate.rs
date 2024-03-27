@@ -5,7 +5,7 @@ use oca_rs::{data_storage::SledDataStorage, Facade};
 use crate::{
     dependency_graph::{parse_name, MutableGraph, Node},
     error::CliError,
-    tui::bundle_info::BundleInfo,
+    tui::{bundle_info::BundleInfo, output_window::message_list::{Message, MessageList}},
 };
 
 pub fn validate_directory(
@@ -40,7 +40,7 @@ pub fn validate_directory(
     Ok((oks, errs))
 }
 
-pub fn build(facade: Arc<Mutex<Facade>>, graph: &MutableGraph) -> Result<(), CliError> {
+pub fn build(facade: Arc<Mutex<Facade>>, graph: &MutableGraph, infos: Arc<Mutex<MessageList>>) -> Result<(), CliError> {
     let sorted_graph = graph.sort().unwrap();
     info!("Sorted: {:?}", sorted_graph);
     for node in sorted_graph {
@@ -49,25 +49,27 @@ pub fn build(facade: Arc<Mutex<Facade>>, graph: &MutableGraph) -> Result<(), Cli
             Ok(path) => {
                 let mut f = facade.lock().unwrap();
                 let unparsed_file = fs::read_to_string(path).map_err(CliError::ReadFileFailed)?;
-                f
+                let oca_bundle = f
                     .build_from_ocafile(unparsed_file)
                     .map_err(CliError::OcaBundleError)?;
-                // let refs = facade.fetch_all_refs().unwrap();
-                // let schema_name = refs
-                //     .iter()
-                //     .find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
-                // if let Some((refs, _)) = schema_name {
-                //     info!(
-                //         "OCA bundle created in local repository with SAID: {} and name: {}",
-                //         oca_bundle.said.unwrap(),
-                //         refs
-                //     );
-                // } else {
-                //     info!(
-                //         "OCA bundle created in local repository with SAID: {:?}",
-                //         oca_bundle.said.unwrap()
-                //     );
-                // };
+                let refs = f.fetch_all_refs().unwrap();
+                let schema_name = refs
+                    .iter()
+                    .find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
+                let msg = if let Some((refs, _)) = schema_name {
+                    format!(
+                        "OCA bundle created in local repository with SAID: {} and name: {}",
+                        oca_bundle.said.unwrap(),
+                        refs
+                    )
+                } else {
+                    format!(
+                        "OCA bundle created in local repository with SAID: {:?}",
+                        oca_bundle.said.unwrap()
+                    )
+                };
+                let mut i = infos.lock().unwrap();
+                i.append(Message::Info(msg))
             }
             _ => {
                 println!("RefN not found in graph: {}", node.refn);

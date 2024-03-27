@@ -7,7 +7,7 @@ use std::{
 use oca_rs::data_storage::SledDataStorage;
 use ratatui::{
     buffer::Buffer,
-    layout::Rect,
+    layout::{Constraint, Layout, Rect},
     style::{Color, Style},
     text::Span,
     widgets::{Block, Paragraph, StatefulWidget, Widget},
@@ -21,7 +21,7 @@ use crate::{
     validate::validate_directory,
 };
 
-use super::message_list::{Busy, MessageLine, LastAction, MessageList};
+use super::message_list::{Busy, LastAction, Message, MessageList};
 
 
 pub struct OutputWindow {
@@ -62,10 +62,16 @@ impl OutputWindow {
                 Widget::render(simple, area, buf);
             },
             Busy::Building => {
+                let layout = Layout::vertical([
+                    Constraint::Length(2),
+                    Constraint::Fill(2),
+                ]);
+                let [building_title, output_area] = layout.areas(area);
                 let simple = throbber_widgets_tui::Throbber::default()
                     .label("Building in progress. It may take some time.")
                     .style(ratatui::style::Style::default().fg(Color::Yellow));
-                Widget::render(simple, area, buf);
+                Widget::render(simple, building_title, buf);
+                self.render_building_process(output_area, buf);
             },
             Busy::NoTask => {
                match &self.last_action() {
@@ -98,6 +104,15 @@ impl OutputWindow {
             widget.render(area, buf, &mut self.state)
         }
     }
+
+    fn render_building_process(&mut self, area: Rect, buf: &mut Buffer) {
+        let errors = self.errors.lock().unwrap();
+        let errors = errors.items();
+
+        let widget = List::new(errors).block(Block::bordered().title("Output"));
+        widget.render(area, buf, &mut self.state)
+    }
+
 
     pub fn check(
         &mut self,
@@ -132,5 +147,11 @@ impl OutputWindow {
 
 pub fn update_errors(errs: Arc<Mutex<MessageList>>, new_errors: Vec<CliError>) {
     let mut errors = errs.lock().unwrap();
-    errors.update(new_errors);
+    let messages = new_errors.into_iter().map(Message::Error).collect();
+    errors.update(messages);
+}
+
+pub fn push_message(errs: Arc<Mutex<MessageList>>, message: Message) {
+    let mut messages_list = errs.lock().unwrap();
+    messages_list.append(message);
 }

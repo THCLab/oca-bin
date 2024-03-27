@@ -17,8 +17,8 @@ use self::app::AppError;
 pub mod app;
 // mod list;
 pub mod bundle_info;
-mod bundle_list;
-mod output_window;
+pub mod bundle_list;
+pub mod output_window;
 
 pub fn draw<I>(
     base_dir: PathBuf,

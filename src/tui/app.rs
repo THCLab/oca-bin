@@ -29,7 +29,7 @@ pub enum AppError {
 }
 pub struct App {
     bundles: BundleList,
-    errors: OutputWindow,
+    output: OutputWindow,
     storage: Arc<SledDataStorage>,
     facade: Arc<Mutex<Facade>>,
     graph: MutableGraph,
@@ -58,7 +58,7 @@ impl<'a> App {
         Ok(
             App {
                 bundles: list,
-                errors: OutputWindow::new(size),
+                output: OutputWindow::new(size),
                 storage: Arc::new(storage),
                 active_window: Window::Bundles,
                 graph: mut_graph,
@@ -119,9 +119,9 @@ impl App {
                             // Save selected path.
                             if let Ok(path) = self.graph.oca_file_path(&selection.refn)
                             {
-                                self.errors.set_currently_validated(path.to_owned());
+                                self.output.set_currently_validated(path.to_owned());
                             };
-                            self.errors
+                            self.output
                                 .check(self.storage.clone(), self.graph.clone(), Some(selection))?;
                         };
                         true
@@ -150,13 +150,13 @@ impl App {
         facade: Arc<Mutex<Facade>>,
         graph: MutableGraph,
     ) -> Result<bool, AppError> {
-        self.errors.mark_build();
-        let errs = self.errors.error_list_mut();
+        self.output.mark_build();
+        let errs = self.output.error_list_mut();
         let to_show = self.to_show.clone();
         let list = self.bundles.items.clone();
 
         thread::spawn(move || {
-            let res = build(facade.clone(), &graph);
+            let res = build(facade.clone(), &graph, errs.clone());
             match res {
                 Ok(_) => {
                     update_errors(errs,vec![]);
@@ -179,7 +179,7 @@ impl App {
                 state.key_down(&items);
             }
             Window::Errors => {
-                let state = &mut self.errors.state;
+                let state = &mut self.output.state;
                 state.next()
             }
         };
@@ -194,7 +194,7 @@ impl App {
                 state.key_up(&items);
             }
             Window::Errors => {
-                let state = &mut self.errors.state;
+                let state = &mut self.output.state;
                 state.previous()
             }
         };
@@ -224,7 +224,7 @@ impl Widget for &mut App {
 
         self.render_title(header_area, buf);
         self.bundles.render(list_area, buf);
-        self.errors.render(output_area, buf);
+        self.output.render(output_area, buf);
         self.render_footer(footer_area, buf);
     }
 }
