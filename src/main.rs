@@ -271,6 +271,7 @@ fn main() -> Result<(), CliError> {
                     let with_dependencies = true;
                     let bundles = facade.get_oca_bundle(said, with_dependencies).unwrap();
                     // Publish main object
+                    info!("Publishing main object: {}", bundles.bundle.said.clone().unwrap());
                     publish_oca_file_for(
                         &facade,
                         bundles.bundle.said.clone().unwrap(),
@@ -279,6 +280,7 @@ fn main() -> Result<(), CliError> {
                     );
                     // Publish dependencies if available
                     for bundle in bundles.dependencies {
+                        info!("Publishing dependency: {}", bundle.said.clone().unwrap());
                         publish_oca_file_for(
                             &facade,
                             bundle.said.clone().unwrap(),
