@@ -1372,6 +1372,8 @@ dependencies = [
 [[package]]
 name = "oca-presentation"
 version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "734ff3beac9a8d80e79babef06216fe5b11f572112ee592ed4dc22ae02237c2e"
 dependencies = [
  "indexmap 2.2.5",
  "isolang",
