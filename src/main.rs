@@ -76,6 +76,8 @@ enum Commands {
         repository_url: Option<String>,
         #[arg(short, long)]
         said: String,
+        #[arg(short, long)]
+        timeout: Option<u64>
     },
     /// Sign specific object to claim ownership
     Sign {
@@ -134,12 +136,17 @@ fn get_oca_facade(local_repository_path: PathBuf) -> (Facade, SledDataStorage) {
 fn publish_oca_file_for(
     facade: &Facade,
     said: SelfAddressingIdentifier,
+    timeout: &Option<u64>,
     repository_url: &Option<String>,
     remote_repo_url: &Option<String>,
 ) {
+    let timeout = timeout.unwrap_or(30);
     match facade.get_oca_bundle_ocafile(said, false) {
         Ok(ocafile) => {
-            let client = reqwest::blocking::Client::new();
+            let client = reqwest::blocking::Client::builder()
+                .timeout(std::time::Duration::from_secs(timeout))
+                .build()
+                .expect("Failed to create reqwest client");
             let api_url = if let Some(repository_url) = repository_url {
                 info!("Override default repository with: {}", repository_url);
                 format!("{}{}", repository_url, "/oca-bundles")
@@ -264,6 +271,7 @@ fn main() -> Result<(), CliError> {
         Some(Commands::Publish {
             repository_url,
             said,
+            timeout
         }) => {
             info!("Publish OCA bundle to repository");
             let (facade, _) = get_oca_facade(local_repository_path);
@@ -276,6 +284,7 @@ fn main() -> Result<(), CliError> {
                     publish_oca_file_for(
                         &facade,
                         bundles.bundle.said.clone().unwrap(),
+                        timeout,
                         repository_url,
                         &remote_repo_url,
                     );
@@ -291,6 +300,7 @@ fn main() -> Result<(), CliError> {
                                 publish_oca_file_for(
                                     &facade,
                                     bundle.said.clone().unwrap(),
+                                    timeout,
                                     repository_url,
                                     &remote_repo_url,
                                 );
