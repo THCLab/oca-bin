@@ -1,15 +1,11 @@
 use std::{
-    io,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-    thread,
-    time::Duration,
+    io, path::PathBuf, sync::{Arc, Mutex}, thread, time::Duration
 };
 
 pub use super::bundle_list::BundleListError;
 use anyhow::Result;
 use crossterm::event::{self, poll, Event, KeyCode, MouseEventKind};
-use oca_rs::{data_storage::SledDataStorage, Facade};
+use oca_rs::Facade;
 use ratatui::{
     backend::Backend,
     buffer::Buffer,
@@ -21,8 +17,7 @@ use ratatui::{
 use thiserror::Error;
 
 use crate::{
-    dependency_graph::{DependencyGraph, MutableGraph, Node},
-    validate::build,
+    dependency_graph::{DependencyGraph, MutableGraph, Node}, validate::build
 };
 
 use super::{
@@ -42,11 +37,10 @@ pub enum AppError {
 pub struct App {
     bundles: BundleList,
     output: OutputWindow,
-    storage: Arc<SledDataStorage>,
     facade: Arc<Mutex<Facade>>,
     graph: MutableGraph,
     active_window: Window,
-    to_show: Vec<Node>,
+    base: PathBuf,
 }
 
 enum Window {
@@ -60,21 +54,18 @@ impl<'a> App {
         to_show: I,
         facade: Facade,
         paths: Vec<PathBuf>,
-        storage: SledDataStorage,
         size: usize,
     ) -> Result<App, AppError> {
         let graph = DependencyGraph::from_paths(&base, &paths).unwrap();
         let mut_graph = MutableGraph::new(&base, &paths);
-        let to_show_list = to_show.clone().into_iter().collect();
         let list = BundleList::from_nodes(to_show, &facade, &graph)?;
         Ok(App {
             bundles: list,
             output: OutputWindow::new(size),
-            storage: Arc::new(storage),
             active_window: Window::Bundles,
             graph: mut_graph,
             facade: Arc::new(Mutex::new(facade)),
-            to_show: to_show_list,
+            base
         })
     }
 }
@@ -131,7 +122,7 @@ impl App {
                                 self.output.set_currently_validated(path.to_owned());
                             };
                             self.output.check(
-                                self.storage.clone(),
+                                self.facade.clone(),
                                 self.graph.clone(),
                                 Some(selection),
                             )?;
@@ -159,22 +150,22 @@ impl App {
     pub fn handle_build(
         &mut self,
         facade: Arc<Mutex<Facade>>,
-        graph: MutableGraph,
+        mut graph: MutableGraph,
     ) -> Result<bool, AppError> {
         self.output.mark_build();
         let errs = self.output.error_list_mut();
-        let to_show = self.to_show.clone();
         let list = self.bundles.items.clone();
+        let to_show_dir = Arc::new(self.base.clone());
 
         thread::spawn(move || {
-            let res = build(facade.clone(), &graph, errs.clone());
+            let res = build(facade.clone(), &mut graph, errs.clone());
             match res {
                 Ok(_) => {
-                    update_errors(errs, vec![]);
-                    rebuild_items(list, to_show, facade, graph)
+                    update_errors(errs.clone(), vec![]);
+                    rebuild_items(list, &to_show_dir, facade, graph);
                 }
                 Err(res) => {
-                    update_errors(errs, vec![res]);
+                    update_errors(errs, res);
                 }
             };
         });

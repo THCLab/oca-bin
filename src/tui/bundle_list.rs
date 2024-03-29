@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use oca_ast::ast::{NestedAttrType, RefValue};
@@ -12,7 +13,8 @@ use ratatui::widgets::{Block, Scrollbar, ScrollbarOrientation, StatefulWidget};
 use thiserror::Error;
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
-use crate::dependency_graph::{DependencyGraph, GraphError, MutableGraph, Node};
+use crate::dependency_graph::{parse_node, DependencyGraph, GraphError, MutableGraph, Node};
+use crate::utils::visit_current_dir;
 
 use super::bundle_info::{BundleInfo, Status};
 use super::{get_oca_bundle, get_oca_bundle_by_said};
@@ -93,9 +95,9 @@ impl Items {
     }
 }
 
-pub fn rebuild_items<I: IntoIterator<Item = Node> + Clone>(
+pub fn rebuild_items(
     items: Arc<Mutex<Items>>,
-    to_show: I,
+    to_show_dir: &Path,
     facade: Arc<Mutex<Facade>>,
     graph: MutableGraph,
 ) {
@@ -104,7 +106,11 @@ pub fn rebuild_items<I: IntoIterator<Item = Node> + Clone>(
     let graph = graph.graph.lock().unwrap();
     items.nodes = HashMap::new();
     items.items = vec![];
-    items.update_nodes(to_show, &facade, &graph);
+    let to_show_list = visit_current_dir(to_show_dir).unwrap()
+        .into_iter()
+        // Files without refn are ignored
+        .filter_map(|of| parse_node(&to_show_dir, &of).ok().map(|v| v.0));
+    items.update_nodes(to_show_list, &facade, &graph);
 }
 
 pub struct Indexer(Mutex<u32>);

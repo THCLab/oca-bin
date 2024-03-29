@@ -49,7 +49,7 @@ impl MessageList {
     pub fn update(&mut self, new_list: Vec<Message>) {
         for msg in new_list {
             self.items.push(msg)
-        };
+        }
         match self.busy {
             Busy::Validation => self.validation_completed(),
             Busy::Building => self.build_completed(),

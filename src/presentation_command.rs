@@ -266,7 +266,7 @@ mod tests {
     fn test_handle_references() {
         let tmp_dir = tempdir::TempDir::new("db").unwrap();
 
-        let (mut facade, storage) = get_oca_facade(tmp_dir.path().to_path_buf());
+        let mut facade = get_oca_facade(tmp_dir.path().to_path_buf());
 
         let oca_file0 = r#"ADD ATTRIBUTE name=Text number=Numeric"#.to_string();
 
@@ -337,7 +337,7 @@ mod tests {
     fn test_handle_array() {
         let tmp_dir = tempdir::TempDir::new("db").unwrap();
 
-        let (mut facade, _) = get_oca_facade(tmp_dir.path().to_path_buf());
+        let mut facade = get_oca_facade(tmp_dir.path().to_path_buf());
 
         // Array of values
         let oca_file0 = "ADD ATTRIBUTE list=Array[Numeric] name=Text".to_string();
@@ -441,7 +441,7 @@ mod tests {
     fn test_languages() {
         let tmp_dir = tempdir::TempDir::new("db").unwrap();
 
-        let (mut facade, _) = get_oca_facade(tmp_dir.path().to_path_buf());
+        let mut facade = get_oca_facade(tmp_dir.path().to_path_buf());
 
         let oca_file = r#"ADD ATTRIBUTE name=Text age=Numeric radio=Text
 ADD LABEL eo ATTRS name="Nomo" age="aĝo" radio="radio"
@@ -470,7 +470,7 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
     fn test_interaction() {
         let tmp_dir = tempdir::TempDir::new("db").unwrap();
 
-        let (mut facade, _) = get_oca_facade(tmp_dir.path().to_path_buf());
+        let mut facade = get_oca_facade(tmp_dir.path().to_path_buf());
 
         let oca_file = r#"ADD ATTRIBUTE radio=Text dt=DateTime img=Binary"#;
 
@@ -495,7 +495,7 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
     fn test_complex_interaction() {
         let tmp_dir = tempdir::TempDir::new("db").unwrap();
 
-        let (mut facade, _) = get_oca_facade(tmp_dir.path().to_path_buf());
+        let mut facade = get_oca_facade(tmp_dir.path().to_path_buf());
 
         let oca_file = r#"ADD ATTRIBUTE radio=Text dt=DateTime img=Binary"#;
 

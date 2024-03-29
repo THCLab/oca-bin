@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use oca_rs::{data_storage::SledDataStorage, Facade};
+use oca_rs::Facade;
 
 use crate::{
     dependency_graph::{parse_name, MutableGraph, Node},
@@ -15,7 +15,7 @@ use crate::{
 };
 
 pub fn validate_directory(
-    facade: &SledDataStorage,
+    facade: Arc<Mutex<Facade>>,
     graph: &mut MutableGraph,
     selected_bundle: Option<&BundleInfo>,
 ) -> Result<(Vec<Node>, Vec<CliError>), CliError> {
@@ -35,7 +35,8 @@ pub fn validate_directory(
                     graph.update_refn(&node.refn, name)?
                 }
             }
-            match Facade::validate_ocafile(facade, unparsed_file, graph) {
+            let facade = facade.lock().unwrap();
+            match facade.validate_ocafile_with_external_references(unparsed_file, graph) {
                 Ok(_) => Ok(node),
                 Err(e) => Err(CliError::GrammarError(node.path.clone(), e)),
             }
@@ -48,43 +49,79 @@ pub fn validate_directory(
 
 pub fn build(
     facade: Arc<Mutex<Facade>>,
-    graph: &MutableGraph,
+    graph: &mut MutableGraph,
     infos: Arc<Mutex<MessageList>>,
-) -> Result<(), CliError> {
+) -> Result<(), Vec<CliError>> {
     let sorted_graph = graph.sort().unwrap();
-    info!("Sorted: {:?}", sorted_graph);
-    for node in sorted_graph {
-        info!("\nProcessing: {}", node.refn);
-        match graph.oca_file_path(&node.refn) {
-            Ok(path) => {
-                let mut f = facade.lock().unwrap();
-                let unparsed_file = fs::read_to_string(&path).map_err(CliError::ReadFileFailed)?;
-                let oca_bundle = f
-                    .build_from_ocafile(unparsed_file)
-                    .map_err(|e| CliError::BuildingError(path, e))?;
-                let refs = f.fetch_all_refs().unwrap();
-                let schema_name = refs
-                    .iter()
-                    .find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
-                let msg = if let Some((refs, _)) = schema_name {
-                    format!(
-                        "OCA bundle created in local repository with SAID: {} and name: {}",
-                        oca_bundle.said.unwrap(),
-                        refs
-                    )
-                } else {
-                    format!(
-                        "OCA bundle created in local repository with SAID: {:?}",
-                        oca_bundle.said.unwrap()
-                    )
-                };
-                let mut i = infos.lock().unwrap();
-                i.append(Message::Info(msg))
+    // Validate nodes before updating local oca database.
+    // Warning. This updates names in `refn` -> `said` mapping.
+    let (oks, errs): (Vec<_>, _) = sorted_graph
+        .iter()
+        .map(|node| {
+            let path = graph.oca_file_path(&node.refn).unwrap();
+            let unparsed_file = fs::read_to_string(&path)
+                .map_err(CliError::ReadFileFailed)
+                .unwrap();
+            let (name, _) = parse_name(&path).unwrap();
+            if let Some(name) = name {
+                if name.ne(&node.refn) {
+                    // Name changed. Update refn in graph
+                    graph.update_refn(&node.refn, name).unwrap();
+                }
             }
-            _ => {
-                println!("RefN not found in graph: {}", node.refn);
-            }
-        }
+            let mut f = facade.lock().unwrap();
+            f.validate_ocafile(unparsed_file)
+                .map(|ok| (path.clone(), ok))
+                .map_err(|b| (path.clone(), b))
+        })
+        .partition(Result::is_ok);
+
+    if !errs.is_empty() {
+        let output = errs
+            .into_iter()
+            .map(|e| {
+                let (path, e) = e.unwrap_err();
+                CliError::GrammarError(path.clone(), e)
+            })
+            .collect();
+        return Err(output);
     }
-    Ok(())
+
+    // If no validation errors, update local oca database.
+    let (_building_oks, building_errs): (Vec<_>, Vec<_>) = oks
+        .into_iter()
+        .map(|oca_build| {
+            let (path, oca_build) = oca_build.as_ref().clone().unwrap();
+            let mut f = facade.lock().unwrap();
+            match f.build(oca_build) {
+                Ok(oca_bundle) => {
+                    let refs = f.fetch_all_refs().unwrap();
+                    let schema_name = refs
+                        .iter()
+                        .find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
+                    let msg = if let Some((refs, _)) = schema_name {
+                        format!(
+                            "OCA bundle created in local repository with SAID: {} and name: {}",
+                            oca_bundle.said.unwrap(),
+                            refs
+                        )
+                    } else {
+                        format!(
+                            "OCA bundle created in local repository with SAID: {}",
+                            oca_bundle.said.unwrap()
+                        )
+                    };
+                    let mut i = infos.lock().unwrap();
+                    i.append(Message::Info(msg));
+                    Ok(())
+                }
+                Err(e) => Err(CliError::BuildingError(path.clone(), e)),
+            }
+        })
+        .partition(Result::is_ok);
+    if building_errs.is_empty() {
+        Ok(())
+    } else {
+        Err(building_errs.into_iter().map(Result::unwrap_err).collect())
+    }
 }

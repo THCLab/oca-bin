@@ -5,7 +5,7 @@ use crossterm::{
     ExecutableCommand,
 };
 use oca_bundle::state::oca::OCABundle;
-use oca_rs::{data_storage::SledDataStorage, Facade};
+use oca_rs::Facade;
 use ratatui::prelude::*;
 use said::SelfAddressingIdentifier;
 use std::{io::stdout, path::PathBuf};
@@ -25,7 +25,6 @@ pub fn draw<I>(
     nodes_to_show: I,
     paths: Vec<PathBuf>,
     facade: Facade,
-    storage: SledDataStorage,
 ) -> Result<(), AppError>
 where
     I: IntoIterator<Item = Node> + Clone,
@@ -41,7 +40,6 @@ where
         nodes_to_show,
         facade,
         paths,
-        storage,
         size as usize,
     )?
     .run(terminal);

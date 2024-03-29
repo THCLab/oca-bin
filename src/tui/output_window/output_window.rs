@@ -4,7 +4,7 @@ use std::{
     thread,
 };
 
-use oca_rs::data_storage::SledDataStorage;
+use oca_rs::Facade;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
@@ -116,7 +116,7 @@ impl OutputWindow {
 
     pub fn check(
         &mut self,
-        storage: Arc<SledDataStorage>,
+        facade: Arc<Mutex<Facade>>,
         graph: MutableGraph,
         bundle_info: Option<BundleInfo>,
     ) -> Result<bool, AppError> {
@@ -128,7 +128,7 @@ impl OutputWindow {
         let err_list = self.errors.clone();
         thread::spawn(move || {
             let (_oks, errs) =
-                validate_directory(&storage.clone(), &mut graph.clone(), bundle_info.as_ref())
+                validate_directory(facade.clone(), &mut graph.clone(), bundle_info.as_ref())
                     .unwrap();
             update_errors(err_list.clone(), errs);
         });
