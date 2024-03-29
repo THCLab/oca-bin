@@ -10,22 +10,16 @@ use crate::error::CliError;
 pub fn load_ocafiles_all(
     file_path: Option<&PathBuf>,
     dir_path: Option<&PathBuf>,
-) -> Result<Vec<PathBuf>, CliError> {
-    if let Some(directory) = dir_path {
-        info!(
-            "Building OCA bundle from directory {}",
-            directory.to_str().unwrap()
-        );
-        visit_dirs_recursive(directory)
-    } else if let Some(file) = file_path {
-        info!(
-            "Building OCA bundle from oca file {}",
-            file.to_str().unwrap()
-        );
-        Ok(vec![PathBuf::from(file)])
-    } else {
-        panic!("No file or directory provided");
-    }
+) -> Result<(Vec<PathBuf>, PathBuf), CliError> {
+    Ok(match (file_path, dir_path) {
+        (None, None) => panic!("No file or directory provided"),
+        (None, Some(dir)) => (visit_dirs_recursive(&dir)?, dir.clone()),
+        (Some(oca_file), None) => (
+            vec![oca_file.clone()],
+            oca_file.parent().unwrap().to_path_buf(),
+        ),
+        (Some(oca_file), Some(dir)) => (vec![oca_file.clone()], dir.clone()),
+    })
 }
 
 pub fn visit_dirs_recursive(dir: &Path) -> Result<Vec<PathBuf>, CliError> {

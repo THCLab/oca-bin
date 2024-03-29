@@ -221,14 +221,10 @@ fn main() -> Result<(), CliError> {
             Ok(())
         }
         Some(Commands::Build { ocafile, directory }) => {
-            let paths =
-                load_ocafiles_all(ocafile.as_ref(), directory.as_ref()).unwrap_or_else(|err| {
-                    eprintln!("{err}");
-                    process::exit(1);
-                });
-
+            let (paths, base_dir) = load_ocafiles_all(ocafile.as_ref(), directory.as_ref())?;
+            
             let mut facade = get_oca_facade(local_repository_path);
-            let graph = DependencyGraph::from_paths(directory.as_ref().unwrap(), paths).unwrap();
+            let graph = DependencyGraph::from_paths(&base_dir, paths).unwrap();
             let sorted_graph = graph.sort().unwrap();
 
             info!("Sorted: {:?}", sorted_graph);
@@ -498,11 +494,11 @@ fn main() -> Result<(), CliError> {
             }
         }
         Some(Commands::Validate { ocafile, directory }) => {
-            let paths = load_ocafiles_all(ocafile.as_ref(), directory.as_ref())?;
+            let (paths, base_dir) = load_ocafiles_all(ocafile.as_ref(), directory.as_ref())?;
 
             let facade = get_oca_facade(local_repository_path);
             let facade = Arc::new(Mutex::new(facade));
-            let mut graph = MutableGraph::new(directory.as_ref().unwrap(), paths);
+            let mut graph = MutableGraph::new(&base_dir, paths);
             let (_oks, errs) = validate::validate_directory(facade, &mut graph, None)?;
             for err in errs {
                 println!("{}", err)
@@ -511,7 +507,7 @@ fn main() -> Result<(), CliError> {
         }
         Some(Commands::Tui { dir }) => {
             if let Some(directory) = dir.as_ref() {
-                let all_oca_files =
+                let (all_oca_files, _base_dir) =
                     load_ocafiles_all(None, Some(directory)).unwrap_or_else(|err| {
                         eprintln!("{err}");
                         process::exit(1);
