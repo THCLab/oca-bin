@@ -6,7 +6,7 @@ use std::{
 use oca_rs::Facade;
 
 use crate::{
-    dependency_graph::{parse_name, MutableGraph, Node},
+    dependency_graph::{parse_name, MutableGraph},
     error::CliError,
     tui::{
         bundle_info::BundleInfo,
@@ -18,12 +18,12 @@ pub fn validate_directory(
     facade: Arc<Mutex<Facade>>,
     graph: &mut MutableGraph,
     selected_bundle: Option<&BundleInfo>,
-) -> Result<(Vec<Node>, Vec<CliError>), CliError> {
+) -> Result<Vec<CliError>, CliError> {
     let dependent_nodes = match selected_bundle {
         Some(dir) => graph.get_dependent_nodes(&dir.refn)?,
         None => graph.sort()?,
     };
-    let (oks, errs): (Vec<_>, Vec<_>) = dependent_nodes
+    let errs = dependent_nodes
         .into_iter()
         .map(|node| {
             let path = graph.oca_file_path(&node.refn)?;
@@ -41,10 +41,10 @@ pub fn validate_directory(
                 Err(e) => Err(CliError::GrammarError(node.path.clone(), e)),
             }
         })
-        .partition(Result::is_ok);
-    let oks = oks.into_iter().map(|n| n.unwrap()).collect();
-    let errs = errs.into_iter().map(|e| e.unwrap_err()).collect();
-    Ok((oks, errs))
+        .filter_map(|e| if let Err(e) = e { Some(e) } else { None })
+        .collect::<Vec<_>>();
+
+    Ok(errs)
 }
 
 pub fn build(

@@ -499,7 +499,7 @@ fn main() -> Result<(), CliError> {
             let facade = get_oca_facade(local_repository_path);
             let facade = Arc::new(Mutex::new(facade));
             let mut graph = MutableGraph::new(&base_dir, paths);
-            let (_oks, errs) = validate::validate_directory(facade, &mut graph, None)?;
+            let errs = validate::validate_directory(facade, &mut graph, None)?;
             for err in errs {
                 println!("{}", err)
             }

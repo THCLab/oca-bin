@@ -142,9 +142,8 @@ impl OutputWindow {
         let err_list = self.errors.clone();
         let path = self.current_path();
         thread::spawn(move || {
-            let (_oks, errs) =
-                validate_directory(facade.clone(), &mut graph.clone(), bundle_info.as_ref())
-                    .unwrap();
+            let errs = validate_directory(facade.clone(), &mut graph.clone(), bundle_info.as_ref())
+                .unwrap();
             update_errors(err_list.clone(), errs, &path);
         });
 
