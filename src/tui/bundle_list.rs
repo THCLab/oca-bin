@@ -57,7 +57,7 @@ impl Items {
                 let attributes = &bundle.oca_bundle.capture_base.attributes;
                 let tree_items = attributes
                     .into_iter()
-                    .map(|(key, attr)| to_tree_item(key.to_owned(), &attr, i, facade, graph))
+                    .map(|(key, attr)| to_tree_item(key.to_owned(), attr, i, facade, graph))
                     .collect::<Vec<_>>();
                 let current_i = i.current();
                 self.items.push(
@@ -91,7 +91,7 @@ impl Items {
     }
 
     pub fn bundle_info(&self, k: &str) -> Option<BundleInfo> {
-        self.nodes.get(k).map(|b| b.clone())
+        self.nodes.get(k).cloned()
     }
 }
 
@@ -106,10 +106,11 @@ pub fn rebuild_items(
     let graph = graph.graph.lock().unwrap();
     items.nodes = HashMap::new();
     items.items = vec![];
-    let to_show_list = visit_current_dir(to_show_dir).unwrap()
+    let to_show_list = visit_current_dir(to_show_dir)
+        .unwrap()
         .into_iter()
         // Files without refn are ignored
-        .filter_map(|of| parse_node(&to_show_dir, &of).ok().map(|v| v.0));
+        .filter_map(|of| parse_node(to_show_dir, &of).ok().map(|v| v.0));
     items.update_nodes(to_show_list, &facade, &graph);
 }
 
@@ -149,7 +150,7 @@ impl BundleList {
         let items = self.items.lock().unwrap();
         self.state
             .selected()
-            .get(0)
+            .first()
             .and_then(|i| items.bundle_info(i))
     }
 

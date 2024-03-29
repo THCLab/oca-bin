@@ -64,7 +64,7 @@ impl MessageList {
         self.items.push(new_list);
     }
 
-    pub fn items<'a>(&'a self) -> Vec<MessageLine<'a>> {
+    pub fn items(&self) -> Vec<MessageLine<'_>> {
         self.items
             .iter()
             .map(|c| MessageLine::new(c, self.size))
@@ -76,7 +76,10 @@ impl MessageList {
     }
 
     pub fn build_completed(&mut self, path: &Path) {
-        self.items.push(Message::Info(format!("Build successful for: {}", path.to_str().unwrap())));
+        self.items.push(Message::Info(format!(
+            "Build successful for: {}",
+            path.to_str().unwrap()
+        )));
         self.last_action = LastAction::Building
     }
 }
@@ -91,7 +94,7 @@ impl<'a> MessageLine<'a> {
                 .flat_map(|err| {
                     vec![
                         Span::styled(
-                            format!("! Validation error in file "),
+                            "! Validation error in file ".to_string(),
                             Style::default()
                                 .fg(Color::Red)
                                 .add_modifier(Modifier::ITALIC),
@@ -116,7 +119,7 @@ impl<'a> MessageLine<'a> {
                         ve.iter().map(move |atomic_error| {
                             vec![
                                 Span::styled(
-                                    format!("! Building error in file "),
+                                    "! Building error in file ".to_string(),
                                     Style::default()
                                         .fg(Color::Red)
                                         .add_modifier(Modifier::ITALIC),

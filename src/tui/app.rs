@@ -1,5 +1,9 @@
 use std::{
-    io, path::PathBuf, sync::{Arc, Mutex}, thread, time::Duration
+    io,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
 };
 
 pub use super::bundle_list::BundleListError;
@@ -17,11 +21,14 @@ use ratatui::{
 use thiserror::Error;
 
 use crate::{
-    dependency_graph::{DependencyGraph, MutableGraph, Node}, validate::build
+    dependency_graph::{DependencyGraph, MutableGraph, Node},
+    validate::build,
 };
 
 use super::{
-    bundle_info::BundleInfo, bundle_list::{rebuild_items, BundleList}, output_window::output_window::{update_errors, OutputWindow}
+    bundle_info::BundleInfo,
+    bundle_list::{rebuild_items, BundleList},
+    output_window::{update_errors, OutputWindow},
 };
 
 #[derive(Error, Debug)]
@@ -47,7 +54,7 @@ enum Window {
     Bundles,
 }
 
-impl<'a> App {
+impl App {
     pub fn new<I: IntoIterator<Item = Node> + Clone>(
         base: PathBuf,
         to_show: I,
@@ -64,7 +71,7 @@ impl<'a> App {
             active_window: Window::Bundles,
             graph: mut_graph,
             facade: Arc::new(Mutex::new(facade)),
-            base
+            base,
         })
     }
 }
@@ -100,9 +107,7 @@ impl App {
                 };
                 match key.code {
                     KeyCode::Char('q') => return Ok(false),
-                    KeyCode::Esc => {
-                        self.bundles.state.select(vec![])
-                    },
+                    KeyCode::Esc => self.bundles.state.select(vec![]),
                     KeyCode::Char(' ') | KeyCode::Enter => state.toggle_selected(),
                     KeyCode::Left => state.key_left(),
                     KeyCode::Right => state.key_right(),
@@ -124,13 +129,10 @@ impl App {
                                 self.output.set_currently_validated(Some(path.to_owned()));
                             };
                         } else {
-                                self.output.set_currently_validated(None);
+                            self.output.set_currently_validated(None);
                         };
-                        self.output.check(
-                                self.facade.clone(),
-                                self.graph.clone(),
-                                selected,
-                            )?;
+                        self.output
+                            .check(self.facade.clone(), self.graph.clone(), selected)?;
                         true
                     }
                     KeyCode::Char('b') => {
@@ -173,7 +175,12 @@ impl App {
         let to_show_dir = Arc::new(self.base.clone());
 
         thread::spawn(move || {
-            let res = build(selected_bundle.as_ref(), facade.clone(), &mut graph, errs.clone());
+            let res = build(
+                selected_bundle.as_ref(),
+                facade.clone(),
+                &mut graph,
+                errs.clone(),
+            );
             match res {
                 Ok(_) => {
                     update_errors(errs.clone(), vec![], &current_path);

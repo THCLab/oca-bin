@@ -122,7 +122,7 @@ fn get_oca_facade(local_repository_path: PathBuf) -> Facade {
     let cache_storage_config = SQLiteConfig::build()
         .path(local_repository_path.join(OCA_INDEX_DIR))
         .unwrap();
-        Facade::new(Box::new(db.clone()), Box::new(cache), cache_storage_config)
+    Facade::new(Box::new(db.clone()), Box::new(cache), cache_storage_config)
 }
 
 /// Publish oca bundle pointed by SAID to configured repository
@@ -222,7 +222,7 @@ fn main() -> Result<(), CliError> {
         }
         Some(Commands::Build { ocafile, directory }) => {
             let (paths, base_dir) = load_ocafiles_all(ocafile.as_ref(), directory.as_ref())?;
-            
+
             let mut facade = get_oca_facade(local_repository_path);
             let graph = DependencyGraph::from_paths(&base_dir, paths).unwrap();
             let sorted_graph = graph.sort().unwrap();
@@ -507,8 +507,8 @@ fn main() -> Result<(), CliError> {
         }
         Some(Commands::Tui { dir }) => {
             if let Some(directory) = dir.as_ref() {
-                let (all_oca_files, _base_dir) =
-                    load_ocafiles_all(None, Some(directory)).unwrap_or_else(|err| {
+                let (all_oca_files, _base_dir) = load_ocafiles_all(None, Some(directory))
+                    .unwrap_or_else(|err| {
                         eprintln!("{err}");
                         process::exit(1);
                     });
@@ -518,11 +518,12 @@ fn main() -> Result<(), CliError> {
                     .into_iter()
                     // Files without refn are ignored
                     .filter_map(|of| parse_node(directory, &of).ok().map(|v| v.0));
-                tui::draw(directory.clone(), to_show, all_oca_files, facade)
-                    .unwrap_or_else(|err| {
+                tui::draw(directory.clone(), to_show, all_oca_files, facade).unwrap_or_else(
+                    |err| {
                         eprintln!("{err}");
                         process::exit(1);
-                    });
+                    },
+                );
                 Ok(())
             } else {
                 eprintln!("No file or directory provided");

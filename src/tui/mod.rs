@@ -35,14 +35,7 @@ where
     terminal.clear()?;
     let size = terminal.size().unwrap().width;
 
-    let res = App::new(
-        base_dir,
-        nodes_to_show,
-        facade,
-        paths,
-        size as usize,
-    )?
-    .run(terminal);
+    let res = App::new(base_dir, nodes_to_show, facade, paths, size as usize)?.run(terminal);
 
     if let Err(err) = res {
         println!("{err:?}");

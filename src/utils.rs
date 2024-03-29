@@ -13,7 +13,7 @@ pub fn load_ocafiles_all(
 ) -> Result<(Vec<PathBuf>, PathBuf), CliError> {
     Ok(match (file_path, dir_path) {
         (None, None) => panic!("No file or directory provided"),
-        (None, Some(dir)) => (visit_dirs_recursive(&dir)?, dir.clone()),
+        (None, Some(dir)) => (visit_dirs_recursive(dir)?, dir.clone()),
         (Some(oca_file), None) => (
             vec![oca_file.clone()],
             oca_file.parent().unwrap().to_path_buf(),

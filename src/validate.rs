@@ -95,7 +95,7 @@ pub fn build(
     let (_building_oks, building_errs): (Vec<_>, Vec<_>) = oks
         .into_iter()
         .map(|oca_build| {
-            let (path, oca_build) = oca_build.as_ref().clone().unwrap();
+            let (path, oca_build) = oca_build.as_ref().unwrap();
             let mut f = facade.lock().unwrap();
             match f.build(oca_build) {
                 Ok(oca_bundle) => {
