@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use itertools::Itertools;
 use ratatui::{
     buffer::Buffer,
@@ -46,13 +48,13 @@ impl MessageList {
             last_action: LastAction::NoAction,
         }
     }
-    pub fn update(&mut self, new_list: Vec<Message>) {
+    pub fn update(&mut self, new_list: Vec<Message>, source_path: &Path) {
         for msg in new_list {
             self.items.push(msg)
         }
         match self.busy {
             Busy::Validation => self.validation_completed(),
-            Busy::Building => self.build_completed(),
+            Busy::Building => self.build_completed(source_path),
             Busy::NoTask => self.last_action = LastAction::NoAction,
         }
         self.busy = Busy::NoTask;
@@ -73,7 +75,8 @@ impl MessageList {
         self.last_action = LastAction::Validating
     }
 
-    pub fn build_completed(&mut self) {
+    pub fn build_completed(&mut self, path: &Path) {
+        self.items.push(Message::Info(format!("Build successful for: {}", path.to_str().unwrap())));
         self.last_action = LastAction::Building
     }
 }

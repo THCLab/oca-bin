@@ -1,5 +1,5 @@
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
     thread,
 };
@@ -27,19 +27,29 @@ pub struct OutputWindow {
     pub state: ListState,
     errors: Arc<Mutex<MessageList>>,
     currently_validated: Option<PathBuf>,
+    base_dir: PathBuf,
 }
 
 impl OutputWindow {
-    pub fn new(size: usize) -> Self {
+    pub fn new(size: usize, base_dir: PathBuf) -> Self {
         Self {
             errors: Arc::new(Mutex::new(MessageList::new(size))),
             state: ListState::default(),
             currently_validated: None,
+            base_dir
         }
     }
 
-    pub fn set_currently_validated(&mut self, path: PathBuf) {
-        self.currently_validated = Some(path)
+    pub fn set_currently_validated(&mut self, path: Option<PathBuf>) {
+        self.currently_validated = path
+    }
+
+    pub fn current_path(&self) -> PathBuf {
+        if let Some(ref path) = self.currently_validated {
+            path.clone()
+        } else {
+            self.base_dir.clone()
+        }
     }
 
     fn busy(&self) -> Busy {
@@ -70,11 +80,13 @@ impl OutputWindow {
                 self.render_building_process(output_area, buf);
             }
             Busy::NoTask => match &self.last_action() {
-                LastAction::Building => self.render_action_result("Build successful", area, buf),
+                LastAction::Building => { 
+                    self.render_building_process(area, buf)
+                    
+                },
                 LastAction::Validating => {
-                    let validated = self.currently_validated.as_ref().unwrap().to_str().unwrap();
                     self.render_action_result(
-                        &format!("Validation successful for file: {}", &validated),
+                        &format!("Validation successful for: {}", &self.current_path().to_str().unwrap()),
                         area,
                         buf,
                     );
@@ -126,11 +138,12 @@ impl OutputWindow {
             errors.items = vec![];
         }
         let err_list = self.errors.clone();
+        let path = self.current_path();
         thread::spawn(move || {
             let (_oks, errs) =
                 validate_directory(facade.clone(), &mut graph.clone(), bundle_info.as_ref())
                     .unwrap();
-            update_errors(err_list.clone(), errs);
+            update_errors(err_list.clone(), errs, &path);
         });
 
         Ok(true)
@@ -147,10 +160,10 @@ impl OutputWindow {
     }
 }
 
-pub fn update_errors(errs: Arc<Mutex<MessageList>>, new_errors: Vec<CliError>) {
+pub fn update_errors(errs: Arc<Mutex<MessageList>>, new_errors: Vec<CliError>, source_path: &Path) {
     let mut errors = errs.lock().unwrap();
     let messages = new_errors.into_iter().map(Message::Error).collect();
-    errors.update(messages);
+    errors.update(messages, source_path);
 }
 
 pub fn _push_message(errs: Arc<Mutex<MessageList>>, message: Message) {

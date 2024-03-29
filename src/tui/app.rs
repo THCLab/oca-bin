@@ -21,8 +21,7 @@ use crate::{
 };
 
 use super::{
-    bundle_list::{rebuild_items, BundleList},
-    output_window::output_window::{update_errors, OutputWindow},
+    bundle_info::BundleInfo, bundle_list::{rebuild_items, BundleList}, output_window::output_window::{update_errors, OutputWindow}
 };
 
 #[derive(Error, Debug)]
@@ -61,7 +60,7 @@ impl<'a> App {
         let list = BundleList::from_nodes(to_show, &facade, &graph)?;
         Ok(App {
             bundles: list,
-            output: OutputWindow::new(size),
+            output: OutputWindow::new(size, base.clone()),
             active_window: Window::Bundles,
             graph: mut_graph,
             facade: Arc::new(Mutex::new(facade)),
@@ -100,7 +99,10 @@ impl App {
                     Window::Errors => &mut self.bundles.state,
                 };
                 match key.code {
-                    KeyCode::Char('q') | KeyCode::Esc => return Ok(false),
+                    KeyCode::Char('q') => return Ok(false),
+                    KeyCode::Esc => {
+                        self.bundles.state.select(vec![])
+                    },
                     KeyCode::Char(' ') | KeyCode::Enter => state.toggle_selected(),
                     KeyCode::Left => state.key_left(),
                     KeyCode::Right => state.key_right(),
@@ -116,21 +118,32 @@ impl App {
                     }),
                     KeyCode::Char('v') => {
                         let selected = self.bundles.selected_oca_bundle();
-                        if let Some(selection) = selected {
+                        if let Some(ref selection) = selected {
                             // Save selected path.
                             if let Ok(path) = self.graph.oca_file_path(&selection.refn) {
-                                self.output.set_currently_validated(path.to_owned());
+                                self.output.set_currently_validated(Some(path.to_owned()));
                             };
-                            self.output.check(
+                        } else {
+                                self.output.set_currently_validated(None);
+                        };
+                        self.output.check(
                                 self.facade.clone(),
                                 self.graph.clone(),
-                                Some(selection),
+                                selected,
                             )?;
-                        };
                         true
                     }
                     KeyCode::Char('b') => {
-                        self.handle_build(self.facade.clone(), self.graph.clone())?;
+                        let selected = self.bundles.selected_oca_bundle();
+                        if let Some(ref selection) = selected {
+                            // Save selected path.
+                            if let Ok(path) = self.graph.oca_file_path(&selection.refn) {
+                                self.output.set_currently_validated(Some(path.to_owned()));
+                            };
+                        } else {
+                            self.output.set_currently_validated(None)
+                        }
+                        self.handle_build(selected, self.facade.clone(), self.graph.clone())?;
                         true
                     }
                     KeyCode::Tab => self.change_window(),
@@ -149,23 +162,25 @@ impl App {
 
     pub fn handle_build(
         &mut self,
+        selected_bundle: Option<BundleInfo>,
         facade: Arc<Mutex<Facade>>,
         mut graph: MutableGraph,
     ) -> Result<bool, AppError> {
         self.output.mark_build();
+        let current_path = self.output.current_path();
         let errs = self.output.error_list_mut();
         let list = self.bundles.items.clone();
         let to_show_dir = Arc::new(self.base.clone());
 
         thread::spawn(move || {
-            let res = build(facade.clone(), &mut graph, errs.clone());
+            let res = build(selected_bundle.as_ref(), facade.clone(), &mut graph, errs.clone());
             match res {
                 Ok(_) => {
-                    update_errors(errs.clone(), vec![]);
+                    update_errors(errs.clone(), vec![], &current_path);
                     rebuild_items(list, &to_show_dir, facade, graph);
                 }
                 Err(res) => {
-                    update_errors(errs, res);
+                    update_errors(errs, res, &current_path);
                 }
             };
         });

@@ -48,14 +48,18 @@ pub fn validate_directory(
 }
 
 pub fn build(
+    selected_bundle: Option<&BundleInfo>,
     facade: Arc<Mutex<Facade>>,
     graph: &mut MutableGraph,
     infos: Arc<Mutex<MessageList>>,
 ) -> Result<(), Vec<CliError>> {
-    let sorted_graph = graph.sort().unwrap();
+    let dependent_nodes = match selected_bundle {
+        Some(dir) => graph.get_dependent_nodes(&dir.refn).unwrap(),
+        None => graph.sort().unwrap(),
+    };
     // Validate nodes before updating local oca database.
     // Warning. This updates names in `refn` -> `said` mapping.
-    let (oks, errs): (Vec<_>, _) = sorted_graph
+    let (oks, errs): (Vec<_>, _) = dependent_nodes
         .iter()
         .map(|node| {
             let path = graph.oca_file_path(&node.refn).unwrap();
