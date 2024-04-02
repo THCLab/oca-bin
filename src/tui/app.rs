@@ -8,7 +8,10 @@ use std::{
 
 pub use super::bundle_list::BundleListError;
 use anyhow::Result;
-use crossterm::event::{self, poll, Event, KeyCode, MouseEventKind};
+use crossterm::{
+    event::{self, poll, Event, KeyCode, MouseEventKind},
+    terminal::{disable_raw_mode, LeaveAlternateScreen},
+};
 use oca_rs::Facade;
 use ratatui::{
     backend::Backend,
@@ -65,6 +68,9 @@ impl App {
         let graph = DependencyGraph::from_paths(&base, &paths).unwrap();
         let mut_graph = MutableGraph::new(&base, &paths);
         let list = BundleList::from_nodes(to_show, &facade, &graph)?;
+
+        App::setup_panic_hooks().unwrap();
+
         Ok(App {
             bundles: list,
             output: OutputWindow::new(size, base.clone()),
@@ -254,6 +260,22 @@ impl Widget for &mut App {
 }
 
 impl App {
+    fn setup_panic_hooks() -> Result<()> {
+        let original_hook = std::panic::take_hook();
+
+        let reset_terminal = || -> Result<()> {
+            disable_raw_mode()?;
+            crossterm::execute!(io::stdout(), LeaveAlternateScreen)?;
+            Ok(())
+        };
+
+        std::panic::set_hook(Box::new(move |panic| {
+            reset_terminal().unwrap();
+            original_hook(panic);
+        }));
+        Ok(())
+    }
+
     fn render_title(&self, area: Rect, buf: &mut Buffer) {
         Paragraph::new("OCA Tool")
             .bold()

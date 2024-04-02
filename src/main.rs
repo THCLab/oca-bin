@@ -78,7 +78,7 @@ enum Commands {
         #[arg(short, long)]
         said: String,
         #[arg(short, long)]
-        timeout: Option<u64>
+        timeout: Option<u64>,
     },
     /// Sign specific object to claim ownership
     Sign {
@@ -265,7 +265,7 @@ fn main() -> Result<(), CliError> {
         Some(Commands::Publish {
             repository_url,
             said,
-            timeout
+            timeout,
         }) => {
             info!("Publish OCA bundle to repository");
             let facade = get_oca_facade(local_repository_path);

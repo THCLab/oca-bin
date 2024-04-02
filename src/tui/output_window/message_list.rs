@@ -77,7 +77,7 @@ impl MessageList {
 
     pub fn build_completed(&mut self, path: &Path) {
         self.items.push(Message::Info(format!(
-            "Build successful for: {}",
+            "Build successfully for: {}",
             path.to_str().unwrap()
         )));
         self.last_action = LastAction::Building
