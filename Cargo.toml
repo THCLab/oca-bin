@@ -20,7 +20,6 @@ log = "0.4.20"
 oca-rs = { version = "0.4.3", features = ["local-references"] }
 oca-ast = { version = "0.4.3"}
 oca-bundle = { version = "0.4.3"}
-env_logger = "0.10.0"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
 reqwest = { version = "0.11", features = ["json", "blocking"] }
@@ -42,6 +41,10 @@ petgraph = "0.6.4"
 tui-tree-widget = "0.19.0"
 throbber-widgets-tui = "0.4.1"
 tui-widget-list = "=0.8.2"
+tracing-error = "0.2.0"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+lazy_static = "1.4.0"
+color-eyre = "0.6.3"
 
 [dev-dependencies]
 tempdir = "0.3.7"

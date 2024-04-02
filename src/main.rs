@@ -19,6 +19,7 @@ use crate::dependency_graph::parse_node;
 use crate::dependency_graph::DependencyGraph;
 use crate::dependency_graph::MutableGraph;
 use crate::presentation_command::{handle_generate, handle_validate, Format};
+use crate::tui::logging::initialize_logging;
 use crate::utils::{load_ocafiles_all, visit_current_dir};
 use said::SelfAddressingIdentifier;
 use serde::{Deserialize, Serialize};
@@ -170,7 +171,7 @@ fn publish_oca_file_for(
 }
 
 fn main() -> Result<(), CliError> {
-    env_logger::init();
+    initialize_logging().unwrap();
 
     let args = Args::parse();
 

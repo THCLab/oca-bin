@@ -19,6 +19,7 @@ pub mod app;
 pub mod bundle_info;
 pub mod bundle_list;
 pub mod output_window;
+pub(crate) mod logging;
 
 pub fn draw<I>(
     base_dir: PathBuf,
