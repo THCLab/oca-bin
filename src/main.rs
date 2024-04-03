@@ -532,7 +532,8 @@ fn main() -> Result<(), CliError> {
             }
         }
         None => {
-            todo!()
+            println!("No command provided");
+            Ok(())
         }
     }
 }
