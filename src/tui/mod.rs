@@ -15,7 +15,6 @@ use crate::dependency_graph::Node;
 use self::app::AppError;
 
 pub mod app;
-// mod list;
 pub mod bundle_info;
 pub mod bundle_list;
 pub mod output_window;
