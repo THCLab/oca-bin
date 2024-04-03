@@ -47,6 +47,7 @@ struct Args {
 }
 
 #[derive(Subcommand)]
+#[command(arg_required_else_help = true)]
 enum Commands {
     /// Initialize new local repository
     Init {},
@@ -532,7 +533,6 @@ fn main() -> Result<(), CliError> {
             }
         }
         None => {
-            println!("No command provided");
             Ok(())
         }
     }
