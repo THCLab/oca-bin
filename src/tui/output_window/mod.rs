@@ -122,7 +122,7 @@ impl OutputWindow {
         let errors = self.errors.lock().unwrap();
         let errors = errors.items();
 
-        let index = errors.len() - 1;
+        let index = errors.len().saturating_sub(1);
         let widget = List::new(errors).block(Block::bordered().title("Output"));
         self.state.select(Some(index));
         widget.render(area, buf, &mut self.state)

@@ -284,7 +284,7 @@ impl App {
     }
 
     fn render_footer(&self, area: Rect, buf: &mut Buffer) {
-        Paragraph::new("\nUse ↓↑ to move, space or enter to expand/collapse list element, Tab to change active window, `v` to validate, 'b' to build all OCA files in directory.")
+        Paragraph::new("\nUse ↓↑ to move, space or enter to expand/collapse list element, `v` to validate, 'b' to build selected OCA file.")
             .centered()
             .render(area, buf);
     }
