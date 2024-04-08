@@ -30,7 +30,8 @@ use crate::{
 
 use super::{
     bundle_info::BundleInfo,
-    bundle_list::{rebuild_items, BundleList},
+    bundle_list::BundleList,
+    item::rebuild_items,
     output_window::{update_errors, OutputWindow},
 };
 
@@ -61,13 +62,13 @@ impl App {
     pub fn new<I: IntoIterator<Item = Node> + Clone>(
         base: PathBuf,
         to_show: I,
-        facade: Facade,
+        facade: Arc<Mutex<Facade>>,
         paths: Vec<PathBuf>,
         size: usize,
     ) -> Result<App, AppError> {
-        let graph = DependencyGraph::from_paths(&base, &paths).unwrap();
+        let graph = Arc::new(DependencyGraph::from_paths(&base, &paths).unwrap());
         let mut_graph = MutableGraph::new(&base, &paths);
-        let list = BundleList::from_nodes(to_show, &facade, &graph)?;
+        let list = BundleList::from_nodes(to_show, facade.clone(), graph)?;
 
         App::setup_panic_hooks().unwrap();
 
@@ -76,7 +77,7 @@ impl App {
             output: OutputWindow::new(size, base.clone()),
             active_window: Window::Bundles,
             graph: mut_graph,
-            facade: Arc::new(Mutex::new(facade)),
+            facade: facade,
             base,
         })
     }
@@ -114,7 +115,11 @@ impl App {
                 match key.code {
                     KeyCode::Char('q') => return Ok(false),
                     KeyCode::Esc => self.bundles.state.select(vec![]),
-                    KeyCode::Char(' ') | KeyCode::Enter => state.toggle_selected(),
+                    KeyCode::Char(' ') => state.toggle_selected(),
+                    KeyCode::Enter => {
+                        self.bundles.select();
+                        true
+                    }
                     KeyCode::Left => state.key_left(),
                     KeyCode::Right => state.key_right(),
                     KeyCode::Down => self.handle_key_down(),
@@ -129,6 +134,8 @@ impl App {
                     }),
                     KeyCode::Char('v') => {
                         let selected = self.bundles.selected_oca_bundle();
+                        info!("Selected: {:?}", &selected.as_ref().unwrap().len());
+                        let selected = selected.and_then(|s| s.first().map(|e| e.to_owned()));
                         if let Some(ref selection) = selected {
                             // Save selected path.
                             if let Ok(path) = self.graph.oca_file_path(&selection.refn) {
@@ -143,6 +150,7 @@ impl App {
                     }
                     KeyCode::Char('b') => {
                         let selected = self.bundles.selected_oca_bundle();
+                        let selected = selected.and_then(|s| s.first().map(|e| e.to_owned()));
                         if let Some(ref selection) = selected {
                             // Save selected path.
                             if let Ok(path) = self.graph.oca_file_path(&selection.refn) {

@@ -514,7 +514,7 @@ fn main() -> Result<(), CliError> {
                         eprintln!("{err}");
                         process::exit(1);
                     });
-                let facade = get_oca_facade(local_repository_path);
+                let facade = Arc::new(Mutex::new(get_oca_facade(local_repository_path)));
 
                 let to_show = visit_current_dir(directory)?
                     .into_iter()
@@ -532,9 +532,7 @@ fn main() -> Result<(), CliError> {
                 process::exit(1);
             }
         }
-        None => {
-            Ok(())
-        }
+        None => Ok(()),
     }
 }
 
