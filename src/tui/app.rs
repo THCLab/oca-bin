@@ -9,7 +9,7 @@ use std::{
 pub use super::bundle_list::BundleListError;
 use anyhow::Result;
 use crossterm::{
-    event::{self, poll, Event, KeyCode, MouseEventKind},
+    event::{self, poll, Event, KeyCode, KeyModifiers, MouseEventKind},
     terminal::{disable_raw_mode, LeaveAlternateScreen},
 };
 use oca_rs::Facade;
@@ -114,11 +114,14 @@ impl App {
                 };
                 match key.code {
                     KeyCode::Char('q') => return Ok(false),
-                    KeyCode::Esc => self.bundles.state.select(vec![]),
+                    KeyCode::Esc => self.bundles.unselect_all(),
                     KeyCode::Char(' ') => state.toggle_selected(),
                     KeyCode::Enter => {
                         self.bundles.select();
                         true
+                    }
+                    KeyCode::Char('a') if key.modifiers.eq(&KeyModifiers::CONTROL) => {
+                        self.bundles.select_all()
                     }
                     KeyCode::Left => state.key_left(),
                     KeyCode::Right => state.key_right(),
@@ -300,7 +303,7 @@ impl App {
     }
 
     fn render_footer(&self, area: Rect, buf: &mut Buffer) {
-        Paragraph::new("\nUse ↓↑ to move, space or enter to expand/collapse list element, `v` to validate, 'b' to build selected OCA file.")
+        Paragraph::new("\nUse ↓↑ to move, space to expand/collapse list element, enter to select element, `v` to validate selected elements, 'b' to build selected OCA files.")
             .centered()
             .render(area, buf);
     }

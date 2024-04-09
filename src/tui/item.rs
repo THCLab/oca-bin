@@ -45,6 +45,36 @@ impl Items {
         }
     }
 
+    pub fn select_all(&mut self) -> Vec<String> {
+        self.nodes.iter_mut().for_each(|bi| {
+            if let Ok(bundle_info) = bi {
+                bundle_info.status = Status::Selected;
+            }
+        });
+        let all_indexes: Vec<_> = self.indexes.keys().cloned().collect();
+        for i in &all_indexes {
+            let tree_item = self.tree_elements.get(i).unwrap().clone();
+            let tree_item = tree_item.style(Style::default().bg(Color::Green).fg(Color::White));
+            self.tree_elements.insert(i.to_string(), tree_item);
+        }
+        self.currently_selected = all_indexes.clone();
+        all_indexes
+    }
+
+    pub fn unselect_all(&mut self) {
+        self.nodes.iter_mut().for_each(|bi| {
+            if let Ok(bundle_info) = bi {
+                bundle_info.status = Status::Unselected;
+            }
+        });
+        for i in self.indexes.keys() {
+            let tree_item = self.tree_elements.get(i).unwrap().clone();
+            let tree_item = tree_item.style(Style::default());
+            self.tree_elements.insert(i.to_string(), tree_item);
+        }
+        self.currently_selected = vec![];
+    }
+
     pub fn selected_bundles(&self) -> Option<Vec<BundleInfo>> {
         self.currently_selected
             .clone()
@@ -132,7 +162,7 @@ impl Items {
         });
     }
 
-    pub fn update_state(&mut self, i: &str, facade: Arc<Mutex<Facade>>, graph: &DependencyGraph) {
+    pub fn update_state(&mut self, i: &str) {
         info!("Updating index: {}", i);
         let said = self.indexes.get(i).map(|s| s.to_owned());
         info!("Updating said: {:?}", &said);

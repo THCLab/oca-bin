@@ -1,10 +1,11 @@
 use std::sync::{Arc, Mutex};
 
 use oca_rs::Facade;
-use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style};
-use ratatui::widgets::{Block, Scrollbar, ScrollbarOrientation, StatefulWidget};
+use ratatui::{
+    buffer::Buffer,
+    layout::Rect,
+    widgets::{Block, Scrollbar, ScrollbarOrientation, StatefulWidget},
+};
 
 use thiserror::Error;
 use tui_tree_widget::{Tree, TreeItem, TreeState};
@@ -25,8 +26,6 @@ pub enum BundleListError {
 pub struct BundleList {
     pub state: TreeState<String>,
     pub items: Arc<Mutex<Items>>,
-    facade: Arc<Mutex<Facade>>,
-    graph: Arc<DependencyGraph>,
 }
 
 pub struct Indexer(Mutex<u32>);
@@ -58,8 +57,6 @@ impl BundleList {
         let out = Self {
             state,
             items: items,
-            facade,
-            graph,
         };
         Ok(out)
     }
@@ -73,8 +70,20 @@ impl BundleList {
         let selected = self.state.selected();
         selected.into_iter().for_each(|i| {
             let mut items = self.items.lock().unwrap();
-            items.update_state(&i, self.facade.clone(), &self.graph);
+            items.update_state(&i);
         });
+    }
+
+    pub fn select_all(&mut self) -> bool {
+        let mut items = self.items.lock().unwrap();
+        let all = items.select_all();
+        self.state.select(all)
+    }
+
+    pub fn unselect_all(&mut self) -> bool {
+        let mut items = self.items.lock().unwrap();
+        items.unselect_all();
+        self.state.select(vec![])
     }
 
     pub fn selected_oca_bundle(&self) -> Option<Vec<BundleInfo>> {
@@ -92,12 +101,12 @@ impl BundleList {
                     .track_symbol(None)
                     .end_symbol(None),
             ))
-            .highlight_style(
-                Style::new()
-                    .fg(Color::Black)
-                    .bg(Color::LightGreen)
-                    .add_modifier(Modifier::BOLD),
-            )
+            // .highlight_style(
+            //     Style::new()
+            //         .fg(Color::Black)
+            //         .bg(Color::LightGreen)
+            //         .add_modifier(Modifier::BOLD),
+            // )
             .highlight_symbol("> ");
 
         StatefulWidget::render(widget, area, buf, &mut self.state);
