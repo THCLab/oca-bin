@@ -135,31 +135,39 @@ impl App {
                     KeyCode::Char('v') => {
                         let selected = self.bundles.selected_oca_bundle();
                         info!("Selected: {:?}", &selected.as_ref().unwrap().len());
-                        let selected = selected.and_then(|s| s.first().map(|e| e.to_owned()));
-                        if let Some(ref selection) = selected {
-                            // Save selected path.
-                            if let Ok(path) = self.graph.oca_file_path(&selection.refn) {
-                                self.output.set_currently_validated(Some(path.to_owned()));
-                            };
-                        } else {
-                            self.output.set_currently_validated(None);
+                        if let Some(selection) = selected {
+                            let paths = selection
+                                .clone()
+                                .iter()
+                                .map(|el| self.graph.oca_file_path(&el.refn).unwrap())
+                                .collect();
+                            self.output.set_currently_validated(paths);
+
+                            self.output.check(
+                                self.facade.clone(),
+                                self.graph.clone(),
+                                selection,
+                            )?;
                         };
-                        self.output
-                            .check(self.facade.clone(), self.graph.clone(), selected)?;
                         true
                     }
                     KeyCode::Char('b') => {
                         let selected = self.bundles.selected_oca_bundle();
-                        let selected = selected.and_then(|s| s.first().map(|e| e.to_owned()));
-                        if let Some(ref selection) = selected {
-                            // Save selected path.
-                            if let Ok(path) = self.graph.oca_file_path(&selection.refn) {
-                                self.output.set_currently_validated(Some(path.to_owned()));
-                            };
-                        } else {
-                            self.output.set_currently_validated(None)
+                        if let Some(selection) = selected {
+                            let paths = selection
+                                .clone()
+                                .iter()
+                                .map(|el| self.graph.oca_file_path(&el.refn).unwrap())
+                                .collect();
+                            self.output.set_currently_validated(paths);
+                            for bundle_info in selection {
+                                self.handle_build(
+                                    Some(bundle_info),
+                                    self.facade.clone(),
+                                    self.graph.clone(),
+                                )?;
+                            }
                         }
-                        self.handle_build(selected, self.facade.clone(), self.graph.clone())?;
                         true
                     }
                     KeyCode::Tab => self.change_window(),
@@ -197,11 +205,11 @@ impl App {
             );
             match res {
                 Ok(_) => {
-                    update_errors(errs.clone(), vec![], &current_path);
+                    update_errors(errs.clone(), vec![], &current_path.last().unwrap());
                     rebuild_items(list, &to_show_dir, facade, graph);
                 }
                 Err(res) => {
-                    update_errors(errs, res, &current_path);
+                    update_errors(errs, res, &current_path.last().unwrap());
                 }
             };
         });

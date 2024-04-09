@@ -31,6 +31,7 @@ pub struct Items {
     indexes: IndexMap<String, SelfAddressingIdentifier>,
     nodes: Vec<Result<BundleInfo, BundleListError>>,
     indexer: Indexer,
+    currently_selected: Vec<String>,
 }
 
 impl Items {
@@ -40,7 +41,16 @@ impl Items {
             nodes: Vec::new(),
             indexer: Indexer::new(),
             tree_elements: HashMap::new(),
+            currently_selected: Vec::new(),
         }
+    }
+
+    pub fn selected_bundles(&self) -> Option<Vec<BundleInfo>> {
+        self.currently_selected
+            .clone()
+            .iter()
+            .map(|i| self.bundle_info(i))
+            .collect()
     }
 
     pub fn items(&self) -> Vec<TreeItem<'static, String>> {
@@ -87,14 +97,9 @@ impl Items {
     }
 
     fn to_tree_items(&mut self, facade: Arc<Mutex<Facade>>, graph: &DependencyGraph) {
-        // let nodes = self.nodes.lock().unwrap();
         self.nodes.iter().for_each(|item| {
             match item {
                 Ok(bundle) => {
-                    let color = match bundle.status {
-                        Status::Selected => Color::Green,
-                        Status::Unselected => Color::Blue,
-                    };
                     let attributes = &bundle.oca_bundle.capture_base.attributes;
                     let tree_items = attributes
                         .into_iter()
@@ -102,10 +107,7 @@ impl Items {
                             to_tree_item(key.to_owned(), attr, &self.indexer, facade.clone(), graph)
                         })
                         .collect::<Vec<_>>();
-                    let line = Span::styled(
-                        bundle.refn.clone(),
-                        Style::default().fg(color).add_modifier(Modifier::ITALIC),
-                    );
+                    let line = Span::styled(bundle.refn.clone(), Style::default());
                     let index = self.indexer.current();
                     // let mut indexes = self.indexes.lock().unwrap();
                     let tree_item = TreeItem::new(index.clone(), line, tree_items).unwrap();
@@ -141,12 +143,15 @@ impl Items {
                 Ok(item) => {
                     if item.oca_bundle.said.eq(&said) {
                         item.change_state();
+                        match item.status {
+                            Status::Selected => self.currently_selected.push(i.to_string()),
+                            Status::Unselected => {
+                                self.currently_selected.retain(|el| el.ne(&i));
+                            }
+                        };
 
                         let style = match item.status {
-                            Status::Selected => Style::default()
-                                .bg(Color::Green)
-                                .fg(Color::White)
-                                .add_modifier(Modifier::ITALIC),
+                            Status::Selected => Style::default().bg(Color::Green).fg(Color::White),
                             Status::Unselected => Style::default(),
                         };
                         let tree_item = self.tree_elements.get(i).unwrap().clone();

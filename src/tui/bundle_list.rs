@@ -79,11 +79,7 @@ impl BundleList {
 
     pub fn selected_oca_bundle(&self) -> Option<Vec<BundleInfo>> {
         let items = self.items.lock().unwrap();
-        self.state
-            .selected()
-            .iter()
-            .map(|i| items.bundle_info(i))
-            .collect()
+        items.selected_bundles()
     }
 
     pub fn render(&mut self, area: Rect, buf: &mut Buffer) {

@@ -6,6 +6,7 @@ use std::{
     thread,
 };
 
+use itertools::Itertools;
 use oca_rs::Facade;
 use ratatui::{
     buffer::Buffer,
@@ -28,7 +29,7 @@ use message_list::{Busy, LastAction, Message, MessageList};
 pub struct OutputWindow {
     pub state: ListState,
     errors: Arc<Mutex<MessageList>>,
-    currently_validated: Option<PathBuf>,
+    currently_validated: Vec<PathBuf>,
     base_dir: PathBuf,
 }
 
@@ -37,20 +38,20 @@ impl OutputWindow {
         Self {
             errors: Arc::new(Mutex::new(MessageList::new(size))),
             state: ListState::default(),
-            currently_validated: None,
+            currently_validated: vec![],
             base_dir,
         }
     }
 
-    pub fn set_currently_validated(&mut self, path: Option<PathBuf>) {
-        self.currently_validated = path
+    pub fn set_currently_validated(&mut self, path: Vec<PathBuf>) {
+        self.currently_validated = path;
     }
 
-    pub fn current_path(&self) -> PathBuf {
-        if let Some(ref path) = self.currently_validated {
-            path.clone()
+    pub fn current_path(&self) -> Vec<PathBuf> {
+        if !self.currently_validated.is_empty() {
+            self.currently_validated.clone()
         } else {
-            self.base_dir.clone()
+            vec![self.base_dir.clone()]
         }
     }
 
@@ -87,7 +88,11 @@ impl OutputWindow {
                     self.render_action_result(
                         &format!(
                             "Validation successful for: {}",
-                            &self.current_path().to_str().unwrap()
+                            &self
+                                .current_path()
+                                .iter()
+                                .map(|p| p.to_str().unwrap())
+                                .join(", ")
                         ),
                         area,
                         buf,
@@ -132,7 +137,7 @@ impl OutputWindow {
         &mut self,
         facade: Arc<Mutex<Facade>>,
         graph: MutableGraph,
-        bundle_info: Option<BundleInfo>,
+        bundle_infos: Vec<BundleInfo>,
     ) -> Result<bool, AppError> {
         {
             let mut errors = self.errors.lock().unwrap();
@@ -142,11 +147,15 @@ impl OutputWindow {
         let err_list = self.errors.clone();
         let path = self.current_path();
         thread::spawn(move || {
-            let errs = validate_directory(facade.clone(), &mut graph.clone(), bundle_info.as_ref())
-                .unwrap();
-            update_errors(err_list.clone(), errs, &path);
+            let errs = bundle_infos
+                .iter()
+                .flat_map(|bundle_info| {
+                    validate_directory(facade.clone(), &mut graph.clone(), Some(&bundle_info))
+                        .unwrap()
+                })
+                .collect();
+            update_errors(err_list.clone(), errs, &path.last().unwrap());
         });
-
         Ok(true)
     }
 
