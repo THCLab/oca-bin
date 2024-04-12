@@ -20,11 +20,13 @@ use tui_widget_list::{List, ListState};
 use crate::{
     dependency_graph::MutableGraph,
     error::CliError,
-    tui::{app::AppError, bundle_info::BundleInfo},
+    tui::app::AppError,
     validate::validate_directory,
 };
 
 use message_list::{Busy, LastAction, Message, MessageList};
+
+use super::item::Element;
 
 pub struct OutputWindow {
     pub state: ListState,
@@ -137,7 +139,7 @@ impl OutputWindow {
         &mut self,
         facade: Arc<Mutex<Facade>>,
         graph: MutableGraph,
-        bundle_infos: Vec<BundleInfo>,
+        bundle_infos: Vec<Element>,
     ) -> Result<bool, AppError> {
         {
             let mut errors = self.errors.lock().unwrap();
@@ -149,9 +151,16 @@ impl OutputWindow {
         thread::spawn(move || {
             let errs = bundle_infos
                 .iter()
-                .flat_map(|bundle_info| {
-                    validate_directory(facade.clone(), &mut graph.clone(), Some(&bundle_info))
-                        .unwrap()
+                .flat_map(|bundle_info| match bundle_info {
+                    Element::Ok(oks_elements) => {
+                        let bundle_info = oks_elements.get();
+                        validate_directory(facade.clone(), &mut graph.clone(), Some(&bundle_info))
+                            .unwrap()
+                    }
+                    Element::Error(errs_elements) => {
+                        let err = errs_elements.get();
+                        vec![CliError::from(err.to_owned())]
+                    }
                 })
                 .collect();
             update_errors(err_list.clone(), errs, &path.last().unwrap());
@@ -161,6 +170,7 @@ impl OutputWindow {
 
     pub fn mark_build(&self) {
         let mut errors = self.errors.lock().unwrap();
+        info!("Building");
         errors.busy = Busy::Building;
         errors.items = vec![];
     }

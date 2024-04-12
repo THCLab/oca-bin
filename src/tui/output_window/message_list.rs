@@ -12,6 +12,7 @@ use tui_widget_list::ListableWidget;
 
 use crate::error::CliError;
 
+#[derive(Debug)]
 pub enum Message {
     Error(CliError),
     Info(String),
@@ -50,7 +51,7 @@ impl MessageList {
     }
     pub fn update(&mut self, new_list: Vec<Message>, source_path: &Path) {
         for msg in new_list {
-            self.items.push(msg)
+            self.items.push(msg);
         }
         match self.busy {
             Busy::Validation => self.validation_completed(),

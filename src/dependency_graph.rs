@@ -13,7 +13,7 @@ use regex::Regex;
 use said::SelfAddressingIdentifier;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum GraphError {
     #[error("Cycle detected")]
     Cycle,
@@ -25,7 +25,7 @@ pub enum GraphError {
     NodeParsingError(#[from] NodeParsingError),
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum NodeParsingError {
     #[error("File parsing error: {0}")]
     FileParsing(String),

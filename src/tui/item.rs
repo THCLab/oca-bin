@@ -1,10 +1,10 @@
 use std::{
     collections::HashMap,
-    path::Path,
+    fmt::Display,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 
-use indexmap::IndexMap;
 use itertools::Itertools;
 use oca_ast::ast::{NestedAttrType, RefValue};
 use oca_rs::Facade;
@@ -12,7 +12,6 @@ use ratatui::{
     style::{Color, Modifier, Style},
     text::{Line, Span},
 };
-use said::SelfAddressingIdentifier;
 use tui_tree_widget::TreeItem;
 
 use crate::{
@@ -26,10 +25,129 @@ use super::{
     get_oca_bundle, get_oca_bundle_by_said,
 };
 
+pub struct ListElement {
+    bundle: Element,
+    status: Status,
+}
+
+#[derive(Clone, Debug)]
+pub enum Element {
+    Ok(ElementOk),
+    Error(ElementError),
+}
+
+#[derive(Clone, Debug)]
+pub struct GenericElement<T> {
+    index: Option<String>,
+    pub err: T,
+    path: PathBuf,
+}
+
+pub type ElementError = GenericElement<BundleListError>;
+pub type ElementOk = GenericElement<BundleInfo>;
+
+impl<T: Display> GenericElement<T> {
+    pub fn new(t: T, path: PathBuf) -> Self {
+        Self {
+            index: None,
+            err: t,
+            path,
+        }
+    }
+
+    pub fn get(&self) -> &T {
+        &self.err
+    }
+
+    pub fn to_str(&self) -> String {
+        self.err.to_string()
+    }
+
+    pub fn update_idx(&mut self, index: String) {
+        self.index = Some(index)
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path.as_path()
+    }
+}
+
+impl Element {
+    pub fn path(&self) -> &Path {
+        match self {
+            Element::Ok(p) => p.path(),
+            Element::Error(e) => e.path(),
+        }
+    }
+}
+
+impl ListElement {
+    pub fn new_bundle_info(bi: BundleInfo, path: PathBuf) -> Self {
+        Self {
+            bundle: Element::Ok(ElementOk::new(bi, path)),
+            status: Status::Unselected,
+        }
+    }
+
+    pub fn new_error(bi: BundleListError, path: PathBuf) -> Self {
+        Self {
+            bundle: Element::Error(ElementError {
+                index: None,
+                err: bi,
+                path,
+            }),
+            status: Status::Unselected,
+        }
+    }
+
+    pub fn update_index(&mut self, index: String) {
+        match &mut self.bundle {
+            Element::Ok(ok) => ok.update_idx(index),
+            Element::Error(err) => err.update_idx(index),
+        }
+    }
+
+    pub fn index(&self) -> Option<String> {
+        match &self.bundle {
+            Element::Ok(ok) => ok.index.clone(),
+            Element::Error(err) => err.index.clone(),
+        }
+    }
+
+    pub fn change_state(&mut self) {
+        self.status = self.status.toggle()
+    }
+
+    fn list_item_from_refn(
+        refn: &str,
+        path: PathBuf,
+        graph: &DependencyGraph,
+        facade: Arc<Mutex<Facade>>,
+    ) -> Result<Self, GraphError> {
+        let oca_bundle = get_oca_bundle(refn, facade);
+        match oca_bundle {
+            Some(oca_bundle) => {
+                let deps = graph.neighbors(refn)?;
+                Ok(Self::new_bundle_info(
+                    BundleInfo {
+                        refn: refn.to_string(),
+                        dependencies: deps,
+                        oca_bundle,
+                    },
+                    path,
+                ))
+            }
+            None => Ok(Self::new_error(
+                GraphError::UnknownRefn(refn.to_string()).into(),
+                path,
+            )),
+        }
+    }
+}
+
 pub struct Items {
     tree_elements: HashMap<String, TreeItem<'static, String>>,
-    indexes: IndexMap<String, SelfAddressingIdentifier>,
-    nodes: Vec<Result<BundleInfo, BundleListError>>,
+    nodes: Vec<ListElement>,
     indexer: Indexer,
     currently_selected: Vec<String>,
 }
@@ -37,7 +155,6 @@ pub struct Items {
 impl Items {
     pub fn new() -> Self {
         Items {
-            indexes: IndexMap::new(),
             nodes: Vec::new(),
             indexer: Indexer::new(),
             tree_elements: HashMap::new(),
@@ -45,13 +162,15 @@ impl Items {
         }
     }
 
+    pub fn all_indexes(&self) -> Option<Vec<String>> {
+        self.nodes.iter().map(|n| n.index()).collect()
+    }
+
     pub fn select_all(&mut self) -> Vec<String> {
         self.nodes.iter_mut().for_each(|bi| {
-            if let Ok(bundle_info) = bi {
-                bundle_info.status = Status::Selected;
-            }
+            bi.status = Status::Selected;
         });
-        let all_indexes: Vec<_> = self.indexes.keys().cloned().collect();
+        let all_indexes: Vec<_> = self.all_indexes().unwrap();
         for i in &all_indexes {
             let tree_item = self.tree_elements.get(i).unwrap().clone();
             let tree_item = tree_item.style(Style::default().bg(Color::Green).fg(Color::White));
@@ -63,23 +182,21 @@ impl Items {
 
     pub fn unselect_all(&mut self) {
         self.nodes.iter_mut().for_each(|bi| {
-            if let Ok(bundle_info) = bi {
-                bundle_info.status = Status::Unselected;
-            }
+            bi.status = Status::Unselected;
         });
-        for i in self.indexes.keys() {
-            let tree_item = self.tree_elements.get(i).unwrap().clone();
+        for i in self.all_indexes().unwrap() {
+            let tree_item = self.tree_elements.get(&i).unwrap().clone();
             let tree_item = tree_item.style(Style::default());
             self.tree_elements.insert(i.to_string(), tree_item);
         }
         self.currently_selected = vec![];
     }
 
-    pub fn selected_bundles(&self) -> Option<Vec<BundleInfo>> {
+    pub fn selected_bundles(&self) -> Option<Vec<Element>> {
         self.currently_selected
             .clone()
             .iter()
-            .map(|i| self.bundle_info(i))
+            .map(|i| self.element(i))
             .collect()
     }
 
@@ -107,9 +224,7 @@ impl Items {
         facade: Arc<Mutex<Facade>>,
         graph: &DependencyGraph,
     ) {
-        // let mut nodes = self.nodes.lock().unwrap();
         self.nodes.clear();
-        self.indexes.clear();
         self.indexer = Indexer::new();
         self.build(to_show, facade, graph)
     }
@@ -121,15 +236,19 @@ impl Items {
         graph: &DependencyGraph,
     ) {
         to_show.into_iter().for_each(|node| {
-            self.nodes
-                .push(bundle_info_from_refn(&node.refn, graph, facade.clone()))
+            self.nodes.push(
+                ListElement::list_item_from_refn(&node.refn, node.path, graph, facade.clone())
+                    .unwrap(),
+            )
         });
     }
 
     fn to_tree_items(&mut self, facade: Arc<Mutex<Facade>>, graph: &DependencyGraph) {
-        self.nodes.iter().for_each(|item| {
-            match item {
-                Ok(bundle) => {
+        self.nodes
+            .iter_mut()
+            .for_each(|item| match &mut item.bundle {
+                Element::Ok(ref mut bundle_el) => {
+                    let bundle = bundle_el.get();
                     let attributes = &bundle.oca_bundle.capture_base.attributes;
                     let tree_items = attributes
                         .into_iter()
@@ -139,39 +258,33 @@ impl Items {
                         .collect::<Vec<_>>();
                     let line = Span::styled(bundle.refn.clone(), Style::default());
                     let index = self.indexer.current();
-                    // let mut indexes = self.indexes.lock().unwrap();
                     let tree_item = TreeItem::new(index.clone(), line, tree_items).unwrap();
                     self.tree_elements.insert(index.clone(), tree_item);
-                    self.indexes.insert(
-                        index.clone(),
-                        bundle.oca_bundle.said.as_ref().unwrap().clone(),
-                    );
+                    bundle_el.update_idx(index.clone());
                 }
-                Err(err) => {
+                Element::Error(ref mut err) => {
                     let line = Span::styled(
-                        format!("! {}", err),
+                        format!("! {:?}", err.to_str()),
                         Style::default()
                             .fg(Color::Red)
                             .add_modifier(Modifier::ITALIC),
                     );
                     let index = self.indexer.current();
+                    err.update_idx(index.clone());
                     let tree_item = TreeItem::new_leaf(index.clone(), line);
                     self.tree_elements.insert(index.clone(), tree_item);
                 }
-            }
-        });
+            });
     }
 
     pub fn update_state(&mut self, i: &str) {
         info!("Updating index: {}", i);
-        let said = self.indexes.get(i).map(|s| s.to_owned());
-        info!("Updating said: {:?}", &said);
         let _ = self
             .nodes
             .iter_mut()
-            .filter_map(|item| match item {
-                Ok(item) => {
-                    if item.oca_bundle.said.eq(&said) {
+            .filter_map(|item| {
+                item.index().and_then(|ind| {
+                    if ind.eq(i) {
                         item.change_state();
                         match item.status {
                             Status::Selected => self.currently_selected.push(i.to_string()),
@@ -191,43 +304,31 @@ impl Items {
                     } else {
                         None
                     }
-                }
-                Err(_er) => None,
+                })
             })
             .collect::<Vec<_>>();
     }
 
     pub fn bundle_info(&self, k: &str) -> Option<BundleInfo> {
-        // let indexes = self.indexes.lock().unwrap();
-        let said = self.indexes.get(k).map(|c| c.clone());
-        self.nodes.iter().find_map(|node| match node {
-            Ok(bi) => {
-                if bi.oca_bundle.said.eq(&said) {
-                    Some(bi.clone())
-                } else {
-                    None
-                }
+        self.nodes.iter().find_map(|node| match &node.bundle {
+            Element::Ok(bi) => {
+                let bundle = bi.get();
+                bi.index
+                    .clone()
+                    .and_then(|i| if i.eq(k) { Some(bundle.clone()) } else { None })
             }
-            Err(_) => None,
+            Element::Error(_) => None,
         })
     }
-}
 
-fn bundle_info_from_refn(
-    refn: &str,
-    graph: &DependencyGraph,
-    facade: Arc<Mutex<Facade>>,
-) -> Result<BundleInfo, BundleListError> {
-    let deps = graph.neighbors(refn)?;
-    let oca_bundle = get_oca_bundle(refn, facade);
-    match oca_bundle {
-        Some(oca_bundle) => Ok(BundleInfo {
-            refn: refn.to_string(),
-            dependencies: deps,
-            status: Status::Unselected,
-            oca_bundle,
-        }),
-        None => Err(GraphError::UnknownRefn(refn.to_string()).into()),
+    pub fn element(&self, k: &str) -> Option<Element> {
+        self.nodes
+            .iter()
+            .find(|node| match node.index() {
+                Some(i) if i.eq(k) => true,
+                _ => false,
+            })
+            .map(|el| el.bundle.clone())
     }
 }
 

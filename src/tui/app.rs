@@ -25,13 +25,13 @@ use thiserror::Error;
 
 use crate::{
     dependency_graph::{DependencyGraph, MutableGraph, Node},
+    error::CliError,
     validate::build,
 };
 
 use super::{
-    bundle_info::BundleInfo,
     bundle_list::BundleList,
-    item::rebuild_items,
+    item::{rebuild_items, Element},
     output_window::{update_errors, OutputWindow},
 };
 
@@ -115,8 +115,8 @@ impl App {
                 match key.code {
                     KeyCode::Char('q') => return Ok(false),
                     KeyCode::Esc => self.bundles.unselect_all(),
-                    KeyCode::Char(' ') => state.toggle_selected(),
-                    KeyCode::Enter => {
+                    KeyCode::Enter => state.toggle_selected(),
+                    KeyCode::Char(' ') => {
                         self.bundles.select();
                         true
                     }
@@ -142,7 +142,7 @@ impl App {
                             let paths = selection
                                 .clone()
                                 .iter()
-                                .map(|el| self.graph.oca_file_path(&el.refn).unwrap())
+                                .map(|el| el.path().to_path_buf())
                                 .collect();
                             self.output.set_currently_validated(paths);
 
@@ -160,16 +160,15 @@ impl App {
                             let paths = selection
                                 .clone()
                                 .iter()
-                                .map(|el| self.graph.oca_file_path(&el.refn).unwrap())
+                                .map(|el| el.path().to_path_buf())
                                 .collect();
                             self.output.set_currently_validated(paths);
-                            for bundle_info in selection {
                                 self.handle_build(
-                                    Some(bundle_info),
+                                    selection,
                                     self.facade.clone(),
                                     self.graph.clone(),
                                 )?;
-                            }
+                            
                         }
                         true
                     }
@@ -189,7 +188,7 @@ impl App {
 
     pub fn handle_build(
         &mut self,
-        selected_bundle: Option<BundleInfo>,
+        selected_bundle: Vec<Element>,
         facade: Arc<Mutex<Facade>>,
         mut graph: MutableGraph,
     ) -> Result<bool, AppError> {
@@ -200,20 +199,23 @@ impl App {
         let to_show_dir = Arc::new(self.base.clone());
 
         thread::spawn(move || {
-            let res = build(
-                selected_bundle.as_ref(),
-                facade.clone(),
-                &mut graph,
-                errs.clone(),
-            );
-            match res {
-                Ok(_) => {
+            let res: Vec<_> = selected_bundle.iter().flat_map(|el| {
+                match el {
+                    Element::Ok(oks) => {
+                        let bundle = oks.get();
+                        match build(Some(bundle), facade.clone(), &mut graph, errs.clone()) {
+                            Ok(_) => vec![],
+                            Err(errs) => errs,
+                        }
+                    }
+                    Element::Error(errs) => vec![CliError::from(errs.get().clone())],
+                }
+            }).collect();
+            if res.is_empty() {
                     update_errors(errs.clone(), vec![], &current_path.last().unwrap());
                     rebuild_items(list, &to_show_dir, facade, graph);
-                }
-                Err(res) => {
+                } else {
                     update_errors(errs, res, &current_path.last().unwrap());
-                }
             };
         });
 

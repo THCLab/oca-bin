@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use oca_bundle::state::oca::OCABundle;
 
 use crate::dependency_graph::Node;
@@ -22,12 +24,10 @@ pub struct BundleInfo {
     pub oca_bundle: OCABundle,
     pub refn: String,
     pub dependencies: Vec<Node>,
-    pub status: Status,
 }
 
-impl BundleInfo {
-    pub fn change_state(&mut self) {
-        info!("changing state: {}", &self.refn);
-        self.status = self.status.toggle()
+impl Display for BundleInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
     }
 }

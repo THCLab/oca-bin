@@ -3,7 +3,10 @@ use std::{io, path::PathBuf};
 use oca_rs::facade::build::ValidationError;
 use thiserror::Error;
 
-use crate::{dependency_graph::GraphError, presentation_command::PresentationError};
+use crate::{
+    dependency_graph::GraphError, presentation_command::PresentationError,
+    tui::bundle_list::BundleListError,
+};
 
 #[derive(Debug, Error)]
 pub enum CliError {
@@ -41,4 +44,13 @@ pub enum CliError {
     BuildingError(PathBuf, Vec<oca_rs::facade::build::Error>),
     #[error(transparent)]
     GraphError(#[from] GraphError),
+}
+
+impl From<BundleListError> for CliError {
+    fn from(value: BundleListError) -> Self {
+        match value {
+            BundleListError::AllRefnUnknown => CliError::AllRefnUnknown("".into()),
+            BundleListError::GraphError(g) => CliError::GraphError(g),
+        }
+    }
 }

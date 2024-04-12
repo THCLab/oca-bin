@@ -12,10 +12,10 @@ use tui_tree_widget::{Tree, TreeItem, TreeState};
 
 use crate::dependency_graph::{DependencyGraph, GraphError, Node};
 
-use super::bundle_info::BundleInfo;
 use super::item::Items;
+use super::item::Element;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum BundleListError {
     #[error("All references are unknown")]
     AllRefnUnknown,
@@ -86,7 +86,7 @@ impl BundleList {
         self.state.select(vec![])
     }
 
-    pub fn selected_oca_bundle(&self) -> Option<Vec<BundleInfo>> {
+    pub fn selected_oca_bundle(&self) -> Option<Vec<Element>> {
         let items = self.items.lock().unwrap();
         items.selected_bundles()
     }
