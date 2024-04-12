@@ -101,7 +101,7 @@ impl ListElement {
         }
     }
 
-    pub fn update_index(&mut self, index: String) {
+    pub fn _update_index(&mut self, index: String) {
         match &mut self.bundle {
             Element::Ok(ok) => ok.update_idx(index),
             Element::Error(err) => err.update_idx(index),
@@ -322,7 +322,7 @@ impl Items {
             .collect::<Vec<_>>();
     }
 
-    pub fn bundle_info(&self, k: &str) -> Option<BundleInfo> {
+    pub fn _bundle_info(&self, k: &str) -> Option<BundleInfo> {
         self.nodes.iter().find_map(|node| match &node.bundle {
             Element::Ok(bi) => {
                 let bundle = bi.get();

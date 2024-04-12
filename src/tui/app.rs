@@ -73,7 +73,7 @@ impl App {
 
         Ok(App {
             bundles: list,
-            output: OutputWindow::new(size, base.clone()),
+            output: OutputWindow::new(size),
             active_window: Window::Bundles,
             graph: mut_graph,
             facade: facade,
@@ -136,12 +136,15 @@ impl App {
                     }),
                     KeyCode::Char('v') => {
                         let selected = self.bundles.selected_oca_bundle();
-                        info!("Selected: {:?}", &selected.len());
                         let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
                         self.output.set_currently_validated(paths);
 
-                        self.output
-                            .check(self.facade.clone(), self.graph.clone(), selected, self.base.clone())?
+                        self.output.check(
+                            self.facade.clone(),
+                            self.graph.clone(),
+                            selected,
+                            self.base.clone(),
+                        )?
                     }
                     KeyCode::Char('b') => {
                         let selected = self.bundles.selected_oca_bundle();

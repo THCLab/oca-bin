@@ -1,7 +1,7 @@
 pub mod message_list;
 
 use std::{
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Arc, Mutex},
     thread,
 };
@@ -18,7 +18,9 @@ use ratatui::{
 use tui_widget_list::{List, ListState};
 
 use crate::{
-    dependency_graph::{parse_name, MutableGraph}, error::CliError, tui::app::AppError,
+    dependency_graph::{parse_name, MutableGraph},
+    error::CliError,
+    tui::app::AppError,
     validate::validate_directory,
 };
 
@@ -30,16 +32,14 @@ pub struct OutputWindow {
     pub state: ListState,
     errors: Arc<Mutex<MessageList>>,
     currently_validated: Vec<PathBuf>,
-    base_dir: PathBuf,
 }
 
 impl OutputWindow {
-    pub fn new(size: usize, base_dir: PathBuf) -> Self {
+    pub fn new(size: usize) -> Self {
         Self {
             errors: Arc::new(Mutex::new(MessageList::new(size))),
             state: ListState::default(),
             currently_validated: vec![],
-            base_dir,
         }
     }
 
@@ -48,11 +48,7 @@ impl OutputWindow {
     }
 
     pub fn current_path(&self) -> Vec<PathBuf> {
-        if !self.currently_validated.is_empty() {
-            self.currently_validated.clone()
-        } else {
-            vec![self.base_dir.clone()]
-        }
+        self.currently_validated.clone()
     }
 
     fn busy(&self) -> Busy {
@@ -85,18 +81,19 @@ impl OutputWindow {
             Busy::NoTask => match &self.last_action() {
                 LastAction::Building => self.render_building_process(area, buf),
                 LastAction::Validating => {
-                    self.render_action_result(
-                        &format!(
+                    let currently_validated = self.current_path();
+                    let comment = if currently_validated.is_empty() {
+                        "No element selected".to_string()
+                    } else {
+                        format!(
                             "Validation successful for: {}",
-                            &self
-                                .current_path()
+                            &currently_validated
                                 .iter()
                                 .map(|p| p.to_str().unwrap())
                                 .join(", ")
-                        ),
-                        area,
-                        buf,
-                    );
+                        )
+                    };
+                    self.render_action_result(&comment, area, buf);
                 }
                 LastAction::NoAction => Paragraph::new("")
                     .block(Block::bordered().title("Output"))
@@ -147,25 +144,21 @@ impl OutputWindow {
         }
         let err_list = self.errors.clone();
         let path = self.current_path();
-        
+
         thread::spawn(move || {
             let errs = bundle_infos
                 .iter()
                 .flat_map(|bundle_info| {
                     let name = match bundle_info {
-                    Element::Ok(oks_elements) => {
-                        Some(oks_elements.get().refn.clone())
-                        
-                    }
-                    Element::Error(errors) => {
-                        let mut path = base_path.clone();
-                        path.push(errors.path());
-                        info!("Building path: {:?}", &path);
-                        parse_name(path.as_path()).unwrap().0
-                    }
-                };
-                validate_directory(facade.clone(), &mut graph.clone(), name)
-                            .unwrap()
+                        Element::Ok(oks_elements) => Some(oks_elements.get().refn.clone()),
+                        Element::Error(errors) => {
+                            let mut path = base_path.clone();
+                            path.push(errors.path());
+                            info!("Building path: {:?}", &path);
+                            parse_name(path.as_path()).unwrap().0
+                        }
+                    };
+                    validate_directory(facade.clone(), &mut graph.clone(), name).unwrap()
                 })
                 .collect();
             update_errors(err_list.clone(), errs, &path);
@@ -175,7 +168,6 @@ impl OutputWindow {
 
     pub fn mark_build(&self) {
         let mut errors = self.errors.lock().unwrap();
-        info!("Building");
         errors.busy = Busy::Building;
         errors.items = vec![];
     }
@@ -185,7 +177,11 @@ impl OutputWindow {
     }
 }
 
-pub fn update_errors(errs: Arc<Mutex<MessageList>>, new_errors: Vec<CliError>, source_path: &[PathBuf]) {
+pub fn update_errors(
+    errs: Arc<Mutex<MessageList>>,
+    new_errors: Vec<CliError>,
+    source_path: &[PathBuf],
+) {
     let mut errors = errs.lock().unwrap();
     let messages = new_errors.into_iter().map(Message::Error).collect();
     errors.update(messages, source_path);

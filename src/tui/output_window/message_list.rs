@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use itertools::Itertools;
 use ratatui::{
@@ -85,12 +85,15 @@ impl MessageList {
 
     pub fn build_completed(&mut self, path: &[PathBuf]) {
         if !self.any_error() {
-            self.items.push(Message::Info(format!(
-                "Build successfully for: {}",
-                &path.iter()
-                    .map(|p| p.to_str().unwrap())
-                    .join(", ")
-            )));
+            let comment = if path.is_empty() {
+                "No element selected".to_string()
+            } else {
+                format!(
+                    "Validation successful for: {}",
+                    &path.iter().map(|p| p.to_str().unwrap()).join(", ")
+                )
+            };
+            self.items.push(Message::Info(comment));
         }
         self.last_action = LastAction::Building
     }
