@@ -12,8 +12,8 @@ use tui_tree_widget::{Tree, TreeItem, TreeState};
 
 use crate::dependency_graph::{DependencyGraph, GraphError, Node};
 
-use super::item::Items;
 use super::item::Element;
+use super::item::Items;
 
 #[derive(Error, Debug, Clone)]
 pub enum BundleListError {
@@ -86,7 +86,7 @@ impl BundleList {
         self.state.select(vec![])
     }
 
-    pub fn selected_oca_bundle(&self) -> Option<Vec<Element>> {
+    pub fn selected_oca_bundle(&self) -> Vec<Element> {
         let items = self.items.lock().unwrap();
         items.selected_bundles()
     }

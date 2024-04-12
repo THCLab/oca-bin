@@ -24,8 +24,7 @@ use ratatui::{
 use thiserror::Error;
 
 use crate::{
-    dependency_graph::{DependencyGraph, MutableGraph, Node},
-    error::CliError,
+    dependency_graph::{parse_name, DependencyGraph, MutableGraph, Node},
     validate::build,
 };
 
@@ -104,7 +103,7 @@ impl App {
     }
 
     fn handle_input(&mut self) -> Result<bool, AppError> {
-        match event::read()? {
+        Ok(match event::read()? {
             event::Event::Key(key) => {
                 let items = self.bundles.items();
                 let state = match self.active_window {
@@ -137,40 +136,18 @@ impl App {
                     }),
                     KeyCode::Char('v') => {
                         let selected = self.bundles.selected_oca_bundle();
-                        info!("Selected: {:?}", &selected.as_ref().unwrap().len());
-                        if let Some(selection) = selected {
-                            let paths = selection
-                                .clone()
-                                .iter()
-                                .map(|el| el.path().to_path_buf())
-                                .collect();
-                            self.output.set_currently_validated(paths);
+                        info!("Selected: {:?}", &selected.len());
+                        let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
+                        self.output.set_currently_validated(paths);
 
-                            self.output.check(
-                                self.facade.clone(),
-                                self.graph.clone(),
-                                selection,
-                            )?;
-                        };
-                        true
+                        self.output
+                            .check(self.facade.clone(), self.graph.clone(), selected, self.base.clone())?
                     }
                     KeyCode::Char('b') => {
                         let selected = self.bundles.selected_oca_bundle();
-                        if let Some(selection) = selected {
-                            let paths = selection
-                                .clone()
-                                .iter()
-                                .map(|el| el.path().to_path_buf())
-                                .collect();
-                            self.output.set_currently_validated(paths);
-                                self.handle_build(
-                                    selection,
-                                    self.facade.clone(),
-                                    self.graph.clone(),
-                                )?;
-                            
-                        }
-                        true
+                        let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
+                        self.output.set_currently_validated(paths);
+                        self.handle_build(selected, self.facade.clone(), self.graph.clone())?
                     }
                     KeyCode::Tab => self.change_window(),
                     _ => false,
@@ -182,8 +159,7 @@ impl App {
                 _ => false,
             },
             _ => false,
-        };
-        Ok(true)
+        })
     }
 
     pub fn handle_build(
@@ -197,25 +173,32 @@ impl App {
         let errs = self.output.error_list_mut();
         let list = self.bundles.items.clone();
         let to_show_dir = Arc::new(self.base.clone());
+        let base_path = self.base.clone();
 
         thread::spawn(move || {
-            let res: Vec<_> = selected_bundle.iter().flat_map(|el| {
-                match el {
-                    Element::Ok(oks) => {
-                        let bundle = oks.get();
-                        match build(Some(bundle), facade.clone(), &mut graph, errs.clone()) {
-                            Ok(_) => vec![],
-                            Err(errs) => errs,
+            let res: Vec<_> = selected_bundle
+                .iter()
+                .flat_map(|el| {
+                    let name = match el {
+                        Element::Ok(oks) => Some(oks.get().refn.clone()),
+                        Element::Error(errors) => {
+                            let mut path = base_path.clone();
+                            path.push(errors.path());
+                            info!("Building path: {:?}", &path);
+                            parse_name(path.as_path()).unwrap().0
                         }
+                    };
+                    match build(name, facade.clone(), &mut graph, errs.clone()) {
+                        Ok(_) => vec![],
+                        Err(errs) => errs,
                     }
-                    Element::Error(errs) => vec![CliError::from(errs.get().clone())],
-                }
-            }).collect();
+                })
+                .collect();
             if res.is_empty() {
-                    update_errors(errs.clone(), vec![], &current_path.last().unwrap());
-                    rebuild_items(list, &to_show_dir, facade, graph);
-                } else {
-                    update_errors(errs, res, &current_path.last().unwrap());
+                update_errors(errs.clone(), vec![], &current_path);
+                rebuild_items(list, &to_show_dir, facade, graph);
+            } else {
+                update_errors(errs, res, &current_path);
             };
         });
 
@@ -305,7 +288,7 @@ impl App {
     }
 
     fn render_footer(&self, area: Rect, buf: &mut Buffer) {
-        Paragraph::new("\nUse ↓↑ to move, space to expand/collapse list element, enter to select element, `v` to validate selected elements, 'b' to build selected OCA files.")
+        Paragraph::new("\nUse ↓↑ to move, ← → to expand/collapse list element, space to select element, `v` to validate selected elements, 'b' to build selected OCA files.")
             .centered()
             .render(area, buf);
     }

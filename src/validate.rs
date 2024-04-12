@@ -8,19 +8,16 @@ use oca_rs::Facade;
 use crate::{
     dependency_graph::{parse_name, MutableGraph},
     error::CliError,
-    tui::{
-        bundle_info::BundleInfo,
-        output_window::message_list::{Message, MessageList},
-    },
+    tui::output_window::message_list::{Message, MessageList},
 };
 
 pub fn validate_directory(
     facade: Arc<Mutex<Facade>>,
     graph: &mut MutableGraph,
-    selected_bundle: Option<&BundleInfo>,
+    selected_bundle: Option<String>,
 ) -> Result<Vec<CliError>, CliError> {
     let dependent_nodes = match selected_bundle {
-        Some(dir) => graph.get_dependent_nodes(&dir.refn)?,
+        Some(dir) => graph.get_dependent_nodes(&dir)?,
         None => graph.sort()?,
     };
     let errs = dependent_nodes
@@ -48,13 +45,13 @@ pub fn validate_directory(
 }
 
 pub fn build(
-    selected_bundle: Option<&BundleInfo>,
+    selected_bundle: Option<String>,
     facade: Arc<Mutex<Facade>>,
     graph: &mut MutableGraph,
     infos: Arc<Mutex<MessageList>>,
 ) -> Result<(), Vec<CliError>> {
     let dependent_nodes = match selected_bundle {
-        Some(dir) => graph.get_dependent_nodes(&dir.refn).unwrap(),
+        Some(dir) => graph.get_dependent_nodes(&dir).unwrap(),
         None => graph.sort().unwrap(),
     };
     // Validate nodes before updating local oca database.

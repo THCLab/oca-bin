@@ -25,6 +25,7 @@ use super::{
     get_oca_bundle, get_oca_bundle_by_said,
 };
 
+#[derive(Debug)]
 pub struct ListElement {
     bundle: Element,
     status: Status,
@@ -192,12 +193,13 @@ impl Items {
         self.currently_selected = vec![];
     }
 
-    pub fn selected_bundles(&self) -> Option<Vec<Element>> {
+    pub fn selected_bundles(&self) -> Vec<Element> {
         self.currently_selected
             .clone()
             .iter()
             .map(|i| self.element(i))
-            .collect()
+            .collect::<Option<_>>()
+            .unwrap_or_default()
     }
 
     pub fn items(&self) -> Vec<TreeItem<'static, String>> {
@@ -226,7 +228,11 @@ impl Items {
     ) {
         self.nodes.clear();
         self.indexer = Indexer::new();
-        self.build(to_show, facade, graph)
+        info!("Should be clean: {:?}", &self.nodes);
+        self.build(to_show, facade.clone(), graph);
+        self.tree_elements.clear();
+        self.currently_selected = vec![];
+        self.to_tree_items(facade, graph);
     }
 
     fn build<I: IntoIterator<Item = Node>>(
@@ -263,8 +269,15 @@ impl Items {
                     bundle_el.update_idx(index.clone());
                 }
                 Element::Error(ref mut err) => {
+                    let file = match &err.get() {
+                        BundleListError::AllRefnUnknown => todo!(),
+                        BundleListError::GraphError(GraphError::UnknownRefn(refn)) => refn,
+                        _ => {
+                            todo!()
+                        }
+                    };
                     let line = Span::styled(
-                        format!("! {:?}", err.to_str()),
+                        format!("! {:?}", file),
                         Style::default()
                             .fg(Color::Red)
                             .add_modifier(Modifier::ITALIC),
@@ -321,14 +334,17 @@ impl Items {
         })
     }
 
+    /// Returns element of given index
     pub fn element(&self, k: &str) -> Option<Element> {
-        self.nodes
-            .iter()
-            .find(|node| match node.index() {
-                Some(i) if i.eq(k) => true,
-                _ => false,
+        self.nodes.iter().find_map(|node| {
+            node.index().and_then(|i| {
+                if i.eq(k) {
+                    Some(node.bundle.clone())
+                } else {
+                    None
+                }
             })
-            .map(|el| el.bundle.clone())
+        })
     }
 }
 
