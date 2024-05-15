@@ -98,7 +98,17 @@ impl OutputWindow {
                 LastAction::NoAction => Paragraph::new("")
                     .block(Block::bordered().title("Output"))
                     .render(area, buf),
+                LastAction::Pushing => self.render_building_process(area, buf),
             },
+            Busy::Publish => {
+                let layout = Layout::vertical([Constraint::Length(2), Constraint::Fill(2)]);
+                let [building_title, output_area] = layout.areas(area);
+                let simple = throbber_widgets_tui::Throbber::default()
+                    .label("Publishing in progress. It may take some time.")
+                    .style(ratatui::style::Style::default().fg(Color::Yellow));
+                Widget::render(simple, building_title, buf);
+                self.render_building_process(output_area, buf);
+            }
         }
     }
 
@@ -130,7 +140,7 @@ impl OutputWindow {
         widget.render(area, buf, &mut self.state)
     }
 
-    pub fn check(
+    pub fn handle_validate(
         &mut self,
         facade: Arc<Mutex<Facade>>,
         graph: MutableGraph,
@@ -172,6 +182,12 @@ impl OutputWindow {
         errors.items = vec![];
     }
 
+    pub fn mark_publish(&self) {
+        let mut errors = self.errors.lock().unwrap();
+        errors.busy = Busy::Publish;
+        errors.items = vec![];
+    }
+
     pub fn error_list_mut(&self) -> Arc<Mutex<MessageList>> {
         self.errors.clone()
     }
@@ -187,7 +203,7 @@ pub fn update_errors(
     errors.update(messages, source_path);
 }
 
-pub fn _push_message(errs: Arc<Mutex<MessageList>>, message: Message) {
+pub fn push_message(errs: Arc<Mutex<MessageList>>, message: Message) {
     let mut messages_list = errs.lock().unwrap();
     messages_list.append(message);
 }

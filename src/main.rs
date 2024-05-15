@@ -3,12 +3,14 @@ use config::OCA_CACHE_DB_DIR;
 use config::OCA_INDEX_DIR;
 use config::OCA_REPOSITORY_DIR;
 use error::CliError;
+use oca_bundle::dyn_clone::clone;
 use oca_presentation::presentation::Presentation;
 use presentation_command::PresentationCommand;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::{env, fs, fs::File, io::Write, path::PathBuf, process, str::FromStr};
+use tui::output_window::message_list::MessageList;
 
 use clap::Parser as ClapParser;
 use clap::Subcommand;
@@ -20,6 +22,7 @@ use crate::dependency_graph::DependencyGraph;
 use crate::dependency_graph::MutableGraph;
 use crate::presentation_command::{handle_generate, handle_validate, Format};
 use crate::tui::logging::initialize_logging;
+use crate::tui::output_window::message_list::Message;
 use crate::utils::{load_ocafiles_all, visit_current_dir};
 use said::SelfAddressingIdentifier;
 use serde::{Deserialize, Serialize};
@@ -127,6 +130,46 @@ fn get_oca_facade(local_repository_path: PathBuf) -> Facade {
     Facade::new(Box::new(db.clone()), Box::new(cache), cache_storage_config)
 }
 
+fn saids_to_publish(
+    facade: Arc<Mutex<Facade>>,
+    saids: &[SelfAddressingIdentifier],
+) -> HashSet<SelfAddressingIdentifier> {
+    let mut to_publish = HashSet::new();
+    for said in saids {
+        to_publish.insert(said.clone());
+        let dep_said = dependant_saids(facade.clone(), said);
+
+        match dep_said {
+            Some(deps) => {
+                let more_deps = saids_to_publish(facade.clone(), &deps);
+                to_publish.extend(more_deps);
+            }
+            None => (),
+        };
+    }
+    to_publish
+}
+
+fn dependant_saids(
+    facade: Arc<Mutex<Facade>>,
+    said: &SelfAddressingIdentifier,
+) -> Option<Vec<SelfAddressingIdentifier>> {
+    let facade_locked = facade.lock().unwrap();
+    let bundles = facade_locked.get_oca_bundle(said.clone(), true).unwrap();
+    let saids = bundles.dependencies;
+
+    if saids.is_empty() {
+        None
+    } else {
+        Some(
+            saids
+                .iter()
+                .map(|bdle| bdle.said.as_ref().unwrap().clone())
+                .collect::<Vec<_>>(),
+        )
+    }
+}
+
 /// Publish oca bundle pointed by SAID to configured repository
 ///
 /// # Arguments
@@ -134,14 +177,16 @@ fn get_oca_facade(local_repository_path: PathBuf) -> Facade {
 ///
 ///
 fn publish_oca_file_for(
-    facade: &Facade,
+    facade: Arc<Mutex<Facade>>,
     said: SelfAddressingIdentifier,
     timeout: &Option<u64>,
     repository_url: &Option<String>,
     remote_repo_url: &Option<String>,
-) {
+) -> Result<(), CliError> {
     let timeout = timeout.unwrap_or(30);
-    match facade.get_oca_bundle_ocafile(said, false) {
+    let facade = facade.lock().unwrap();
+
+    match facade.get_oca_bundle_ocafile(said.clone(), false) {
         Ok(ocafile) => {
             let client = reqwest::blocking::Client::builder()
                 .timeout(std::time::Duration::from_secs(timeout))
@@ -149,25 +194,38 @@ fn publish_oca_file_for(
                 .expect("Failed to create reqwest client");
             let api_url = if let Some(repository_url) = repository_url {
                 info!("Override default repository with: {}", repository_url);
-                format!("{}{}", repository_url, "/oca-bundles")
-            } else if let Some(remote_repo_url) = remote_repo_url {
+                format!("{}{}", repository_url, "oca-bundles")
+            } else if let Some(remote_repo_url) = remote_repo_url.as_ref() {
                 info!("Use default repository: {}", remote_repo_url);
-                format!("{}{}", remote_repo_url, "/oca-bundles")
+                format!("{}{}", remote_repo_url, "oca-bundles")
             } else {
                 panic!("No repository url provided")
             };
-            debug!(
+            info!(
                 "Publish OCA bundle to: {} with payload: {}",
                 api_url, ocafile
             );
             match client.post(api_url).body(ocafile).send() {
-                Ok(v) => println!("{},{}", v.status(), v.text().unwrap()),
-                Err(e) => println!("Error while uploading OCAFILE: {}", e),
-            };
+                Ok(v) => match v.error_for_status() {
+                    Ok(v) => {
+                        info!("{},{}", v.status(), v.text().unwrap());
+                        Ok(())
+                    }
+                    Err(er) => {
+                        info!("error: {:?}", er);
+                        Err(CliError::PublishError(said, vec![er.to_string()]))
+                    }
+                },
+                Err(e) => {
+                    info!("Error while uploading OCAFILE: {}", e);
+                    Err(CliError::PublishError(
+                        said,
+                        vec![format!("Sending error: {}", e)],
+                    ))
+                }
+            }
         }
-        Err(errors) => {
-            println!("{:?}", errors);
-        }
+        Err(errors) => Err(CliError::PublishError(said, errors)),
     }
 }
 
@@ -271,42 +329,34 @@ fn main() -> Result<(), CliError> {
         }) => {
             info!("Publish OCA bundle to repository");
             let facade = get_oca_facade(local_repository_path);
+            let facade = Arc::new(Mutex::new(facade));
             match SelfAddressingIdentifier::from_str(said) {
                 Ok(said) => {
-                    let with_dependencies = true;
-                    let bundles = facade.get_oca_bundle(said, with_dependencies).unwrap();
-                    // Publish main object
-                    info!(
-                        "Publishing main object: {}",
-                        bundles.bundle.said.clone().unwrap()
-                    );
-                    publish_oca_file_for(
-                        &facade,
-                        bundles.bundle.said.clone().unwrap(),
-                        timeout,
-                        repository_url,
-                        &remote_repo_url,
-                    );
-
-                    let mut seen_said = HashSet::new();
-
-                    // Publish dependencies if available
-                    for bundle in bundles.dependencies {
-                        let said_opt = bundle.said.clone();
-                        if let Some(said) = said_opt {
-                            if seen_said.insert(said.clone()) {
-                                info!("Publishing dependency: {}", bundle.said.clone().unwrap());
-                                publish_oca_file_for(
-                                    &facade,
-                                    bundle.said.clone().unwrap(),
-                                    timeout,
-                                    repository_url,
-                                    &remote_repo_url,
-                                );
+                    // Find dependant saids for said.
+                    let saids_to_publish = saids_to_publish(facade.clone(), &[said.clone()]);
+                    // Make post request for all saids
+                    let res: Vec<_> = saids_to_publish
+                        .iter()
+                        .flat_map(|said| {
+                            match publish_oca_file_for(
+                                facade.clone(),
+                                said.clone(),
+                                &timeout,
+                                &repository_url,
+                                &None,
+                            ) {
+                                Ok(_) => {
+                                    vec![]
+                                }
+                                Err(err) => vec![err.to_string()],
                             }
-                        }
+                        })
+                        .collect();
+                    if res.is_empty() {
+                        Ok(())
+                    } else {
+                        Err(CliError::PublishError(said, res))
                     }
-                    Ok(())
                 }
                 Err(err) => {
                     println!("Invalid SAID: {}", err);
@@ -520,12 +570,17 @@ fn main() -> Result<(), CliError> {
                     .into_iter()
                     // Files without refn are ignored
                     .filter_map(|of| parse_node(directory, &of).ok().map(|v| v.0));
-                tui::draw(directory.clone(), to_show, all_oca_files, facade).unwrap_or_else(
-                    |err| {
-                        eprintln!("{err}");
-                        process::exit(1);
-                    },
-                );
+                tui::draw(
+                    directory.clone(),
+                    to_show,
+                    all_oca_files,
+                    facade,
+                    remote_repo_url,
+                )
+                .unwrap_or_else(|err| {
+                    eprintln!("{err}");
+                    process::exit(1);
+                });
                 Ok(())
             } else {
                 eprintln!("No file or directory provided");

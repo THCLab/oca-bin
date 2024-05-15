@@ -1,6 +1,7 @@
 use std::{
+    collections::HashSet,
     io,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
     thread,
     time::Duration,
@@ -25,6 +26,8 @@ use thiserror::Error;
 
 use crate::{
     dependency_graph::{parse_name, DependencyGraph, MutableGraph, Node},
+    get_oca_facade, publish_oca_file_for, saids_to_publish,
+    tui::output_window::{message_list::Message, push_message},
     validate::build,
 };
 
@@ -50,6 +53,7 @@ pub struct App {
     graph: MutableGraph,
     active_window: Window,
     base: PathBuf,
+    remote_repository: Option<String>,
 }
 
 enum Window {
@@ -64,6 +68,7 @@ impl App {
         facade: Arc<Mutex<Facade>>,
         paths: Vec<PathBuf>,
         size: usize,
+        remote_repo_url: Option<String>,
     ) -> Result<App, AppError> {
         let graph = Arc::new(DependencyGraph::from_paths(&base, &paths).unwrap());
         let mut_graph = MutableGraph::new(&base, &paths);
@@ -78,6 +83,7 @@ impl App {
             graph: mut_graph,
             facade: facade,
             base,
+            remote_repository: remote_repo_url,
         })
     }
 }
@@ -139,7 +145,7 @@ impl App {
                         let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
                         self.output.set_currently_validated(paths);
 
-                        self.output.check(
+                        self.output.handle_validate(
                             self.facade.clone(),
                             self.graph.clone(),
                             selected,
@@ -151,6 +157,12 @@ impl App {
                         let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
                         self.output.set_currently_validated(paths);
                         self.handle_build(selected, self.facade.clone(), self.graph.clone())?
+                    }
+                    KeyCode::Char('p') => {
+                        let selected = self.bundles.selected_oca_bundle();
+                        let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
+                        self.output.set_currently_validated(paths);
+                        self.handle_publish(selected, self.facade.clone(), self.graph.clone())?
                     }
                     KeyCode::Tab => self.change_window(),
                     _ => false,
@@ -203,6 +215,67 @@ impl App {
             } else {
                 update_errors(errs, res, &current_path);
             };
+        });
+
+        Ok(true)
+    }
+
+    pub fn handle_publish(
+        &mut self,
+        selected_bundle: Vec<Element>,
+        facade: Arc<Mutex<Facade>>,
+        mut graph: MutableGraph,
+    ) -> Result<bool, AppError> {
+        info!("Handling publish");
+        self.output.mark_publish();
+        let current_path = self.output.current_path();
+        let errs = self.output.error_list_mut();
+        let list = self.bundles.items.clone();
+        let to_show_dir = Arc::new(self.base.clone());
+        let base_path = self.base.clone();
+        let remote_repository = self.remote_repository.clone();
+
+        thread::spawn(move || {
+            let saids = selected_bundle
+                .into_iter()
+                .map(|el| match el {
+                    Element::Ok(oks) => oks.get().oca_bundle.said.clone().unwrap(),
+                    Element::Error(errors) => {
+                        let mut path = base_path.clone();
+                        path.push(errors.path());
+                        info!("Building path: {:?}", &path);
+                        todo!()
+                        // parse_name(path.as_path()).unwrap().0
+                    }
+                })
+                .collect::<Vec<_>>();
+            // Find dependant saids for said. Returns set of unique saids that need to be published.
+            let saids_to_publish = saids_to_publish(facade.clone(), &saids);
+            // Make post request for all saids
+            let res: Vec<_> = saids_to_publish
+                .iter()
+                .flat_map(|said| {
+                    match publish_oca_file_for(
+                        facade.clone(),
+                        said.clone(),
+                        &None,
+                        &remote_repository,
+                        &None,
+                    ) {
+                        Ok(_) => {
+                            let mut i = errs.lock().unwrap();
+                            i.append(Message::Info(format!(
+                                "Published {} to {}",
+                                said,
+                                remote_repository.as_ref().unwrap()
+                            )));
+                            vec![]
+                        }
+                        Err(err) => vec![err],
+                    }
+                })
+                .collect();
+            update_errors(errs.clone(), res, &current_path);
         });
 
         Ok(true)
@@ -291,7 +364,7 @@ impl App {
     }
 
     fn render_footer(&self, area: Rect, buf: &mut Buffer) {
-        Paragraph::new("\nUse ↓↑ to move, ← → to expand/collapse list element, space to select element, `v` to validate selected elements, 'b' to build selected OCA files.")
+        Paragraph::new("\nUse ↓↑ to move, ← → to expand/collapse list element, space to select element, `v` to validate selected elements, 'b' to build selected OCA files, 'p' to publish selected OCA files.")
             .centered()
             .render(area, buf);
     }

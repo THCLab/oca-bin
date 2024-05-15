@@ -1,6 +1,7 @@
 use std::{io, path::PathBuf};
 
 use oca_rs::facade::build::ValidationError;
+use said::SelfAddressingIdentifier;
 use thiserror::Error;
 
 use crate::{
@@ -40,10 +41,12 @@ pub enum CliError {
     AllRefnUnknown(PathBuf),
     #[error("Validation error: file: {0}, reason: {1:?}")]
     GrammarError(PathBuf, Vec<ValidationError>),
-    #[error("Validation error: file: {0}, reason: {1:?}")]
+    #[error("Building error: file: {0}, reason: {1:?}")]
     BuildingError(PathBuf, Vec<oca_rs::facade::build::Error>),
     #[error(transparent)]
     GraphError(#[from] GraphError),
+    #[error("Publishing error: file: {0}, reason: {1:?}")]
+    PublishError(SelfAddressingIdentifier, Vec<String>),
 }
 
 impl From<BundleListError> for CliError {

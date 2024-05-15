@@ -30,6 +30,7 @@ pub fn draw<I>(
     nodes_to_show: I,
     paths: Vec<PathBuf>,
     facade: Arc<Mutex<Facade>>,
+    repository_url: Option<String>,
 ) -> Result<(), AppError>
 where
     I: IntoIterator<Item = Node> + Clone,
@@ -40,7 +41,15 @@ where
     terminal.clear()?;
     let size = terminal.size().unwrap().width;
 
-    let res = App::new(base_dir, nodes_to_show, facade, paths, size as usize)?.run(terminal);
+    let res = App::new(
+        base_dir,
+        nodes_to_show,
+        facade,
+        paths,
+        size as usize,
+        repository_url,
+    )?
+    .run(terminal);
 
     if let Err(err) = res {
         println!("{err:?}");

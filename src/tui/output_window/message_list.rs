@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use itertools::Itertools;
 use ratatui::{
@@ -22,6 +22,7 @@ pub enum Message {
 pub(crate) enum Busy {
     Validation,
     Building,
+    Publish,
     #[default]
     NoTask,
 }
@@ -30,6 +31,7 @@ pub(crate) enum Busy {
 pub enum LastAction {
     Building,
     Validating,
+    Pushing,
     NoAction,
 }
 
@@ -57,6 +59,7 @@ impl MessageList {
             Busy::Validation => self.validation_completed(),
             Busy::Building => self.build_completed(source_path),
             Busy::NoTask => self.last_action = LastAction::NoAction,
+            Busy::Publish => self.pushing_completed(source_path),
         }
         self.busy = Busy::NoTask;
     }
@@ -76,6 +79,21 @@ impl MessageList {
         self.last_action = LastAction::Validating
     }
 
+    pub fn pushing_completed(&mut self, path: &[PathBuf]) {
+        if !self.any_error() {
+            let comment = if path.is_empty() {
+                "No element selected".to_string()
+            } else {
+                format!(
+                    "Publishing successful for: {}",
+                    &path.iter().map(|p| p.to_str().unwrap()).join(", ")
+                )
+            };
+            self.items.push(Message::Info(comment));
+        }
+        self.last_action = LastAction::Pushing
+    }
+
     pub fn any_error(&self) -> bool {
         self.items.iter().any(|item| match item {
             Message::Error(_) => true,
@@ -89,7 +107,7 @@ impl MessageList {
                 "No element selected".to_string()
             } else {
                 format!(
-                    "Validation successful for: {}",
+                    "Building successful for: {}",
                     &path.iter().map(|p| p.to_str().unwrap()).join(", ")
                 )
             };
