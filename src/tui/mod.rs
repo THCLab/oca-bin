@@ -24,6 +24,7 @@ pub mod bundle_list;
 mod item;
 pub(crate) mod logging;
 pub mod output_window;
+pub mod changes;
 
 pub fn draw<I>(
     base_dir: PathBuf,

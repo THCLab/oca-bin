@@ -1,7 +1,6 @@
 use std::{
-    collections::HashSet,
     io,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Arc, Mutex},
     thread,
     time::Duration,
@@ -26,15 +25,13 @@ use thiserror::Error;
 
 use crate::{
     dependency_graph::{parse_name, DependencyGraph, MutableGraph, Node},
-    get_oca_facade, publish_oca_file_for, saids_to_publish,
-    tui::output_window::{message_list::Message, push_message},
+    publish_oca_file_for, saids_to_publish,
+    tui::output_window::message_list::Message,
     validate::build,
 };
 
 use super::{
-    bundle_list::BundleList,
-    item::{rebuild_items, Element},
-    output_window::{update_errors, OutputWindow},
+    bundle_list::BundleList, changes::ChangesWindow, item::{rebuild_items, Element}, output_window::{update_errors, OutputWindow}
 };
 
 #[derive(Error, Debug)]
@@ -54,6 +51,7 @@ pub struct App {
     active_window: Window,
     base: PathBuf,
     remote_repository: Option<String>,
+    changes: ChangesWindow,
 }
 
 enum Window {
@@ -75,6 +73,7 @@ impl App {
         let list = BundleList::from_nodes(to_show, facade.clone(), graph)?;
 
         App::setup_panic_hooks().unwrap();
+        let changes = ChangesWindow::new(&base);
 
         Ok(App {
             bundles: list,
@@ -84,6 +83,7 @@ impl App {
             facade: facade,
             base,
             remote_repository: remote_repo_url,
+            changes
         })
     }
 }
@@ -189,6 +189,7 @@ impl App {
         let list = self.bundles.items.clone();
         let to_show_dir = Arc::new(self.base.clone());
         let base_path = self.base.clone();
+        let changes = self.changes.changes();
 
         thread::spawn(move || {
             let res: Vec<_> = selected_bundle
@@ -215,6 +216,10 @@ impl App {
             } else {
                 update_errors(errs, res, &current_path);
             };
+            {
+                let tmp_changes = changes.lock().unwrap();
+                tmp_changes.update();
+            }
         });
 
         Ok(true)
@@ -331,10 +336,13 @@ impl Widget for &mut App {
         // the changes block.
         let vertical = Layout::vertical([Constraint::Percentage(70), Constraint::Min(0)]);
         let [list_area, output_area] = vertical.areas(rest_area);
+        let horizontal = Layout::horizontal([Constraint::Percentage(70), Constraint::Min(0)]);
+        let [list_area, changes_area] = horizontal.areas(list_area);
 
         self.render_title(header_area, buf);
         self.bundles.render(list_area, buf);
         self.output.render(output_area, buf);
+        self.changes.render(changes_area, buf);
         self.render_footer(footer_area, buf);
     }
 }
