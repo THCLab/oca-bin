@@ -17,7 +17,12 @@ pub fn validate_directory(
     selected_bundle: Option<String>,
 ) -> Result<Vec<CliError>, CliError> {
     let dependent_nodes = match selected_bundle {
-        Some(dir) => graph.get_dependent_nodes(&dir)?,
+        Some(refn) => {
+            let mut nodes = graph.get_dependent_nodes(&refn).unwrap();
+            nodes.push(graph.node(&refn).unwrap());
+            nodes
+        
+        },
         None => graph.sort()?,
     };
     let errs = dependent_nodes
@@ -51,7 +56,11 @@ pub fn build(
     infos: Arc<Mutex<MessageList>>,
 ) -> Result<(), Vec<CliError>> {
     let dependent_nodes = match selected_bundle {
-        Some(dir) => graph.get_dependent_nodes(&dir).unwrap(),
+        Some(refn) => {
+            let mut nodes = graph.get_dependent_nodes(&refn).unwrap();
+            nodes.push(graph.node(&refn).unwrap());
+            nodes
+        },
         None => graph.sort().unwrap(),
     };
     // Validate nodes before updating local oca database.

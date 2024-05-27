@@ -241,6 +241,12 @@ impl MutableGraph {
         g.update_refn(refn, new_refn)
     }
 
+    pub fn node(&self, refn: &str) -> Result<Node, GraphError> {
+        let g = self.graph.lock().unwrap();
+        let start_node = g.get_index(refn)?;
+        Ok(g.graph[start_node].clone())
+    }
+
     pub fn get_dependent_nodes(&self, refn: &str) -> Result<Vec<Node>, GraphError> {
         let g = self.graph.lock().unwrap();
         let start_node = g.get_index(refn)?;
