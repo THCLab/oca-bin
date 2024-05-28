@@ -192,6 +192,7 @@ impl App {
         let changes = self.changes.changes();
 
         thread::spawn(move || {
+            let mut updated_nodes: Vec<String> = vec![];
             let res: Vec<_> = selected_bundle
                 .iter()
                 .flat_map(|el| {
@@ -203,6 +204,9 @@ impl App {
                             info!("Building path: {:?}", &path);
                             parse_name(path.as_path()).unwrap().0
                         }
+                    };
+                    if let Some(ref name) = name {
+                        updated_nodes.push(name.clone());
                     };
                     match build(name, facade.clone(), &mut graph, errs.clone()) {
                         Ok(_) => vec![],
@@ -218,7 +222,7 @@ impl App {
             };
             {
                 let tmp_changes = changes.lock().unwrap();
-                tmp_changes.update();
+                tmp_changes.update(&updated_nodes);
             }
         });
 

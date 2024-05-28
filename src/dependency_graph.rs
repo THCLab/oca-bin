@@ -267,8 +267,7 @@ impl MutableGraph {
         });
         let sorted = toposort(&h, None).map_err(|_e| GraphError::Cycle)?;
         let mut sorted_ancestors = sorted.into_iter();
-        // Remove first, it id leaf node
-        sorted_ancestors.next();
+        
         Ok(sorted_ancestors
             .into_iter()
             .map(|i| g.graph[i].clone())

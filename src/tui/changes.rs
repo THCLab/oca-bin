@@ -56,8 +56,13 @@ impl Changes {
 		Self {repo, graph, base: path.clone()}
 	}
 
-	pub fn update(&self) {
-		add_all(&self.repo);
+	pub fn update(&self, refns: &[String]) {
+		let r: Vec<_> = refns.iter().map(|refn| self.graph.get_ancestors(refn).unwrap())
+			.flatten()
+			.map(|node| {
+				node.path
+			}).collect();
+		add_files(&self.repo, &r);
 		commit(&self.repo);
 	}
 
@@ -68,8 +73,10 @@ impl Changes {
 			let mut file_path = self.base.clone();
 			file_path.push(path);
 			let (name, _) = parse_name(&file_path).unwrap();
-			let deps = self.graph.get_ancestors(name.as_ref().unwrap()).unwrap();
-			let deps_str = deps.into_iter().map(|node| format!("    └─ {}", node.path.to_str().unwrap())).collect::<Vec<String>>().join("\n");
+			let mut deps = self.graph.get_ancestors(name.as_ref().unwrap()).unwrap().into_iter();
+			// Remove first, it id leaf node
+        	deps.next();
+			let deps_str = deps.map(|node| format!("    └─ {}", node.path.to_str().unwrap())).collect::<Vec<String>>().join("\n");
 
 			format!("{}\n{}", s.path().unwrap(), deps_str)
 		}).collect::<Vec<_>>().join("\n");
@@ -93,6 +100,15 @@ fn add_all(repo: &git2::Repository) {
     index.write().unwrap();
 }
 
+fn add_files(repo: &git2::Repository, paths: &[PathBuf]) {
+    let mut index = repo.index().unwrap();
+    for path in paths {
+		index.add_path(path).unwrap();
+	}
+
+    index.write().unwrap();
+}
+
 fn commit(repo: &git2::Repository) {
     let mut index = repo.index().unwrap();
     let oid = index.write_tree().unwrap();
@@ -103,7 +119,7 @@ fn commit(repo: &git2::Repository) {
         Some("HEAD"),
         &signature,
         &signature,
-        "added some file",
+        "oca build",
         &tree,
         &[&parent_commit],
     )
