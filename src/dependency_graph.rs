@@ -247,6 +247,34 @@ impl MutableGraph {
         Ok(g.graph[start_node].clone())
     }
 
+     pub fn get_ancestors(&self, refn: &str) -> Result<Vec<Node>, GraphError> {
+        let g = self.graph.lock().unwrap();
+        let start_node = g.get_index(refn)?;
+        let mut h = DiGraphMap::new();
+        let mut rev_graph = g.graph.clone();
+        rev_graph.reverse();
+        depth_first_search(&rev_graph, Some(start_node), |event| {
+            use petgraph::visit::DfsEvent::*;
+            match event {
+                CrossForwardEdge(parent, child)
+                | BackEdge(parent, child)
+                | TreeEdge(parent, child) 
+                => {
+                    h.add_edge(parent, child, ());
+                }
+                Discover(_, _) | Finish(_, _)  => {}
+            }
+        });
+        let sorted = toposort(&h, None).map_err(|_e| GraphError::Cycle)?;
+        let mut sorted_ancestors = sorted.into_iter();
+        // Remove first, it id leaf node
+        sorted_ancestors.next();
+        Ok(sorted_ancestors
+            .into_iter()
+            .map(|i| g.graph[i].clone())
+            .collect())
+    }
+
     pub fn get_dependent_nodes(&self, refn: &str) -> Result<Vec<Node>, GraphError> {
         let g = self.graph.lock().unwrap();
         let start_node = g.get_index(refn)?;
@@ -294,7 +322,7 @@ impl oca_rs::facade::build::References for DependencyGraph {
 }
 
 #[test]
-fn test_sort() -> anyhow::Result<()> {
+fn test_ancestors() -> anyhow::Result<()> {
     use std::{fs::File, io::Write};
     use tempdir::TempDir;
 
@@ -304,13 +332,16 @@ fn test_sort() -> anyhow::Result<()> {
     let second_ocafile_str = "-- name=second\nADD ATTRIBUTE list=Array[Text] el=Text";
     let third_ocafile_str = "-- name=third\nADD ATTRIBUTE first=refn:first second=refn:second";
     let fourth_ocafile_str =
-        "-- name=fourth\nADD ATTRIBUTE first=refn:first second=refn:second third=refn:third";
+        "-- name=fourth\nADD ATTRIBUTE whatever=Text";
+    let fifth_ocafile_str =
+    "-- name=fifth\nADD ATTRIBUTE third=refn:third four=refn:fourth";
 
     let list = [
         ("first.ocafile", first_ocafile_str),
         ("second.ocafile", second_ocafile_str),
         ("third.ocafile", third_ocafile_str),
         ("fourth.ocafile", fourth_ocafile_str),
+        ("fifth.ocafile", fifth_ocafile_str),
     ];
 
     let mut paths = vec![];
@@ -321,25 +352,13 @@ fn test_sort() -> anyhow::Result<()> {
         paths.push(path)
     }
 
-    let petgraph = DependencyGraph::from_paths(tmp_dir.path(), paths)?;
-    assert_eq!(
-        petgraph
-            .sort()?
-            .iter()
-            .map(|node| node.refn.clone())
-            .collect::<Vec<_>>(),
-        vec!["first", "second", "third", "fourth"]
-    );
+    let petgraph = MutableGraph::new(tmp_dir.path(), paths);
 
-    let n: Vec<_> = petgraph
-        .neighbors("fourth")?
-        .iter()
-        .map(|n| n.refn.clone())
-        .collect();
-    assert_eq!(n.len(), 3);
-    assert!(n.contains(&"first".into()));
-    assert!(n.contains(&"second".into()));
-    assert!(n.contains(&"third".into()));
+    let first_anc = petgraph.get_ancestors("first").unwrap().into_iter().map(|node| node.refn).collect::<Vec<_>>();
+    assert_eq!(first_anc, vec!["third", "fifth"]);
+    
+    let fourth_anc = petgraph.get_ancestors("fourth").unwrap().into_iter().map(|node| node.refn).collect::<Vec<_>>();
+    assert_eq!(fourth_anc, vec!["fifth"]);
 
     Ok(())
 }

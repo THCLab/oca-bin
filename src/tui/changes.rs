@@ -4,17 +4,21 @@ use git2::{IndexAddOption, Repository, RepositoryInitOptions};
 use itertools::Itertools;
 use ratatui::{buffer::Buffer, layout::Rect, widgets::{Block, Paragraph, Widget}};
 
+use crate::dependency_graph::{parse_name, MutableGraph};
+
 pub struct ChangesWindow {
 	changes: Arc<Mutex<Changes>>
 }
 
 pub struct Changes {
-	repo: Repository
+	repo: Repository,
+	graph: MutableGraph,
+	base: PathBuf,
 }
 
 impl ChangesWindow {
-	pub fn new<P : AsRef<Path>>(path: P) -> Self {
-		Self {changes: Arc::new(Mutex::new(Changes::init(path)))}
+	pub fn new<P : AsRef<Path>>(path: P, graph: MutableGraph) -> Self {
+		Self {changes: Arc::new(Mutex::new(Changes::init(path, graph)))}
 	}
 
 	pub fn changes(&self) -> Arc<Mutex<Changes>> {
@@ -35,19 +39,21 @@ impl ChangesWindow {
 }
 
 impl Changes {
-	pub fn init<P : AsRef<Path>>(path: P) -> Self {
+	pub fn init<P : AsRef<Path>>(path: P, graph: MutableGraph) -> Self {
 		let mut config = RepositoryInitOptions::new();
 		config.no_reinit(true);
 		let repo = match git2::Repository::init_opts(&path, &config) {
-			Ok(repo) => repo,
+			Ok(repo) => {
+				create_initial_commit(&repo);
+				repo
+			},
 			Err(_) => {
 				// Repo already exists. Open it.
-				git2::Repository::open(path).unwrap()
+				git2::Repository::open(&path).unwrap()
 			},
 		};
-		create_initial_commit(&repo);
-		
-		Self {repo}
+		let path = path.as_ref().to_path_buf();
+		Self {repo, graph, base: path.clone()}
 	}
 
 	pub fn update(&self) {
@@ -57,24 +63,20 @@ impl Changes {
 
 	pub fn get_changes(&self) -> String {
 		let stats = self.repo.statuses(None).unwrap();
-    	let out = stats.into_iter().map(|s| {format!("{:?}", s.status())}).collect::<Vec<_>>().join("\n");
-		out
+    	let out = stats.into_iter().map(|s| {
+			let path = s.path().unwrap();
+			let mut file_path = self.base.clone();
+			file_path.push(path);
+			let (name, _) = parse_name(&file_path).unwrap();
+			let deps = self.graph.get_ancestors(name.as_ref().unwrap()).unwrap();
+			let deps_str = deps.into_iter().map(|node| format!("    └─ {}", node.path.to_str().unwrap())).collect::<Vec<String>>().join("\n");
 
+			format!("{}\n{}", s.path().unwrap(), deps_str)
+		}).collect::<Vec<_>>().join("\n");
+		out
 	}
 
 	
-}
-
-#[test]
-fn test_git2() {
-    let repo_path: PathBuf = "repo".parse().unwrap();
-    let file_name = "some-file";
-
-	let changes = Changes::init(&repo_path);
-	create_file(&repo_path, file_name);
-	changes.get_changes();
-	changes.update();
-	changes.get_changes();
 }
 
 fn create_file(repo_path: &Path, file_name: &str) {

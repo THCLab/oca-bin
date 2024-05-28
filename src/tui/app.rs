@@ -73,7 +73,7 @@ impl App {
         let list = BundleList::from_nodes(to_show, facade.clone(), graph)?;
 
         App::setup_panic_hooks().unwrap();
-        let changes = ChangesWindow::new(&base);
+        let changes = ChangesWindow::new(&base, mut_graph.clone());
 
         Ok(App {
             bundles: list,
