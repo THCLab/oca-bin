@@ -27,7 +27,7 @@ impl ChangesWindow {
 
 	fn changes_locked(&self) -> String {
 		let window = self.changes.lock().unwrap();
-		window.get_changes()
+		window.show_changes()
 	}
 
 	pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
@@ -66,19 +66,16 @@ impl Changes {
 		commit(&self.repo);
 	}
 
-	pub fn get_changes(&self) -> String {
+	pub fn show_changes(&self) -> String {
 		let stats = self.repo.statuses(None).unwrap();
     	let out = stats.into_iter().map(|s| {
 			let path = s.path().unwrap();
 			let mut file_path = self.base.clone();
 			file_path.push(path);
 			let (name, _) = parse_name(&file_path).unwrap();
-			let mut deps = self.graph.get_ancestors(name.as_ref().unwrap()).unwrap().into_iter();
-			// Remove first, it id leaf node
-        	deps.next();
-			let deps_str = deps.map(|node| format!("    └─ {}", node.path.to_str().unwrap())).collect::<Vec<String>>().join("\n");
-
-			format!("{}\n{}", s.path().unwrap(), deps_str)
+			let deps = self.graph.format_ancestor(name.as_ref().unwrap()).unwrap();
+			vec![path, &deps].join("\n")
+			
 		}).collect::<Vec<_>>().join("\n");
 		out
 	}
