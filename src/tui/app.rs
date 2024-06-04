@@ -108,6 +108,10 @@ impl App {
         true
     }
 
+    fn update_changes(&self) {
+        self.changes.update();
+    }
+
     fn handle_input(&mut self) -> Result<bool, AppError> {
         Ok(match event::read()? {
             event::Event::Key(key) => {
@@ -192,21 +196,21 @@ impl App {
         let changes = self.changes.changes();
 
         thread::spawn(move || {
-            let mut updated_nodes: Vec<String> = vec![];
+            let mut updated_nodes: Vec<PathBuf> = vec![];
             let res: Vec<_> = selected_bundle
                 .iter()
                 .flat_map(|el| {
-                    let name = match el {
-                        Element::Ok(oks) => Some(oks.get().refn.clone()),
+                    let (name, path) = match el {
+                        Element::Ok(oks) => (Some(oks.get().refn.clone()), oks.path().to_path_buf()),
                         Element::Error(errors) => {
                             let mut path = base_path.clone();
                             path.push(errors.path());
                             info!("Building path: {:?}", &path);
-                            parse_name(path.as_path()).unwrap().0
+                            (parse_name(path.as_path()).unwrap().0, path)
                         }
                     };
                     if let Some(ref name) = name {
-                        updated_nodes.push(name.clone());
+                        updated_nodes.push(path);
                     };
                     match build(name, facade.clone(), &mut graph, errs.clone()) {
                         Ok(_) => vec![],
@@ -221,8 +225,8 @@ impl App {
                 update_errors(errs, res, &current_path);
             };
             {
-                let tmp_changes = changes.lock().unwrap();
-                tmp_changes.update(&updated_nodes);
+                let mut tmp_changes = changes.lock().unwrap();
+                tmp_changes.load();
             }
         });
 

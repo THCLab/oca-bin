@@ -45,7 +45,6 @@ tracing-error = "0.2.0"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 lazy_static = "1.4.0"
 color-eyre = "0.6.3"
-git2 = "0.18.3"
 
 [dev-dependencies]
 tempdir = "0.3.7"

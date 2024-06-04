@@ -1,27 +1,79 @@
-use std::{path::{Path, PathBuf}, sync::{Arc, Mutex}};
+use std::{collections::HashMap, fs, path::{Path, PathBuf}, sync::{Arc, Mutex}};
 
-use git2::{IndexAddOption, Repository, RepositoryInitOptions};
-use itertools::Itertools;
 use ratatui::{buffer::Buffer, layout::Rect, widgets::{Block, Paragraph, Widget}};
+use said::{derivation::{HashFunction, HashFunctionCode}, SelfAddressingIdentifier};
 
-use crate::dependency_graph::{parse_name, MutableGraph};
+use crate::{dependency_graph::{parse_name, MutableGraph}, utils::visit_dirs_recursive};
+
+pub struct SavedData {
+	/// map between path and ocafile hash
+	/// updated when build
+	saved: HashMap<PathBuf, SelfAddressingIdentifier>,
+	graph: MutableGraph,
+	dir: PathBuf,
+}
+
+impl SavedData {
+	pub fn new(graph: MutableGraph, dir: &Path) ->Self {
+		Self { saved: HashMap::new(), graph, dir: dir.to_path_buf() }
+	}
+	pub fn load(&mut self) {
+		let paths = visit_dirs_recursive(&self.dir).unwrap();
+		for path in paths {
+			let contents = fs::read_to_string(&path)
+        		.expect("Should have been able to read the file");
+			let current_said = HashFunction::from(HashFunctionCode::SHA2_256).derive(contents.as_bytes());
+			info!("Insering change in file: {} and said: {}", &path.to_str().unwrap(), &current_said);
+			self.saved.insert(path, current_said);
+		}
+	}
+
+	pub fn changes(&self) -> Vec<PathBuf> {
+		self.saved.iter().filter_map(|(path, said)| {
+			let contents = fs::read_to_string(&path)
+        		.expect("Should have been able to read the file");
+			let current_said = HashFunction::from(HashFunctionCode::SHA2_256).derive(contents.as_bytes());
+			if current_said.eq(said) {
+				None
+			} else {
+				Some(path.clone())
+			}
+		}).collect()
+
+	}
+
+	pub fn show_changes(&self) -> String {
+		let stats = self.changes();
+    	let out = stats.into_iter().map(|file_path| {
+			let (name, _) = parse_name(&file_path).unwrap();
+			let deps = self.graph.format_ancestor(name.as_ref().unwrap()).unwrap();
+			vec![file_path.to_str().unwrap(), &deps].join("\n")
+			
+		}).collect::<Vec<_>>().join("\n");
+		out
+	}
+}
+
 
 pub struct ChangesWindow {
-	changes: Arc<Mutex<Changes>>
+	// changes: Arc<Mutex<Changes>>
+	changes: Arc<Mutex<SavedData>>
 }
 
-pub struct Changes {
-	repo: Repository,
-	graph: MutableGraph,
-	base: PathBuf,
-}
+// pub struct Changes {
+// 	repo: Repository,
+// 	graph: MutableGraph,
+// 	base: PathBuf,
+// }
 
 impl ChangesWindow {
 	pub fn new<P : AsRef<Path>>(path: P, graph: MutableGraph) -> Self {
-		Self {changes: Arc::new(Mutex::new(Changes::init(path, graph)))}
+		let mut sd = SavedData::new(graph, path.as_ref());
+		sd.load();
+		Self {changes: Arc::new(Mutex::new(sd))}
 	}
 
-	pub fn changes(&self) -> Arc<Mutex<Changes>> {
+	pub fn changes(&self) -> Arc<Mutex<SavedData>> {
 		self.changes.clone()
 	}
 
@@ -30,110 +82,17 @@ impl ChangesWindow {
 		window.show_changes()
 	}
 
+	pub fn update(&self) {
+		let mut window = self.changes.lock().unwrap();
+		window.load();
+	}
+
+	
+
 	pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
 		
         Paragraph::new(self.changes_locked())
                     .block(Block::bordered().title("Changes"))
                     .render(area, buf)
         }
-}
-
-impl Changes {
-	pub fn init<P : AsRef<Path>>(path: P, graph: MutableGraph) -> Self {
-		let mut config = RepositoryInitOptions::new();
-		config.no_reinit(true);
-		let repo = match git2::Repository::init_opts(&path, &config) {
-			Ok(repo) => {
-				create_initial_commit(&repo);
-				repo
-			},
-			Err(_) => {
-				// Repo already exists. Open it.
-				git2::Repository::open(&path).unwrap()
-			},
-		};
-		let path = path.as_ref().to_path_buf();
-		Self {repo, graph, base: path.clone()}
-	}
-
-	pub fn update(&self, refns: &[String]) {
-		let r: Vec<_> = refns.iter().map(|refn| self.graph.get_ancestors(refn).unwrap())
-			.flatten()
-			.map(|node| {
-				node.path
-			}).collect();
-		add_files(&self.repo, &r);
-		commit(&self.repo);
-	}
-
-	pub fn show_changes(&self) -> String {
-		let stats = self.repo.statuses(None).unwrap();
-    	let out = stats.into_iter().map(|s| {
-			let path = s.path().unwrap();
-			let mut file_path = self.base.clone();
-			file_path.push(path);
-			let (name, _) = parse_name(&file_path).unwrap();
-			let deps = self.graph.format_ancestor(name.as_ref().unwrap()).unwrap();
-			vec![path, &deps].join("\n")
-			
-		}).collect::<Vec<_>>().join("\n");
-		out
-	}
-
-	
-}
-
-fn create_file(repo_path: &Path, file_name: &str) {
-    let filepath = repo_path.join(file_name);
-    std::fs::File::create(filepath).unwrap();
-}
-
-fn add_all(repo: &git2::Repository) {
-    let mut index = repo.index().unwrap();
-    
-    index
-        .add_all(&["."], git2::IndexAddOption::DEFAULT, None)
-        .unwrap();
-    index.write().unwrap();
-}
-
-fn add_files(repo: &git2::Repository, paths: &[PathBuf]) {
-    let mut index = repo.index().unwrap();
-    for path in paths {
-		index.add_path(path).unwrap();
-	}
-
-    index.write().unwrap();
-}
-
-fn commit(repo: &git2::Repository) {
-    let mut index = repo.index().unwrap();
-    let oid = index.write_tree().unwrap();
-    let signature = repo.signature().unwrap();
-    let parent_commit = repo.head().unwrap().peel_to_commit().unwrap();
-    let tree = repo.find_tree(oid).unwrap();
-    repo.commit(
-        Some("HEAD"),
-        &signature,
-        &signature,
-        "oca build",
-        &tree,
-        &[&parent_commit],
-    )
-    .unwrap();
-}
-
-fn create_initial_commit(repo: &git2::Repository) {
-    let signature = repo.signature().unwrap();
-    let oid = repo.index().unwrap().write_tree().unwrap();
-    let tree = repo.find_tree(oid).unwrap();
-    repo.commit(
-        Some("HEAD"),
-        &signature,
-        &signature,
-        "Initial commit",
-        &tree,
-        &[],
-    )
-    .unwrap();
 }
