@@ -68,7 +68,14 @@ impl App {
         size: usize,
         remote_repo_url: Option<String>,
     ) -> Result<App, AppError> {
-        let graph = Arc::new(DependencyGraph::from_paths(&base, &paths).unwrap());
+        let graph = match DependencyGraph::from_paths(&base, &paths) {
+            Ok(graph) => {
+                Ok(Arc::new(graph))
+            },
+            Err(e) => {
+                Err(AppError::BundleList(BundleListError::GraphError(e)))
+            }
+        }?;
         let mut_graph = MutableGraph::new(&base, &paths);
         let list = BundleList::from_nodes(to_show, facade.clone(), graph)?;
 

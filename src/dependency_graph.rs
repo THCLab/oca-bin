@@ -27,6 +27,8 @@ pub enum GraphError {
     UnknownSaid(String),
     #[error(transparent)]
     NodeParsingError(#[from] NodeParsingError),
+    #[error("Duplicate refn: {refn} in files {first_path} and {second_path}")]
+    DuplicateKey{ refn: String, first_path: PathBuf, second_path: PathBuf },
 }
 
 #[derive(Error, Debug, Clone)]
@@ -47,6 +49,7 @@ pub struct Node {
 pub struct DependencyGraph {
     base_dir: PathBuf,
     graph: Graph<Node, ()>,
+    key_set: HashMap<String, PathBuf>,
 }
 
 impl DependencyGraph {
@@ -62,25 +65,37 @@ impl DependencyGraph {
         let mut graph = DependencyGraph {
             base_dir: base_dir.to_path_buf(),
             graph: Graph::<Node, ()>::new(),
+            key_set: HashMap::new(),
         };
-        file_paths
+        let file_paths = file_paths
             .into_iter()
             // Files without refn are ignored
-            .filter_map(|path| parse_node(base_dir, path.as_ref()).ok())
-            .for_each(|(node, dependencies)| {
-                let index = graph.insert_node(node, &mut edges_to_save);
-                for dep in dependencies {
-                    let edges = edges_to_save.get_mut(&dep);
-                    match edges {
-                        Some(edges) => {
-                            edges.push(index);
-                        }
-                        None => {
-                            edges_to_save.insert(dep.clone(), vec![index]);
-                        }
-                    };
-                }
+            .filter_map(|path| {
+                parse_node(base_dir, path.as_ref()).ok()
             });
+
+            for (node, dependencies) in file_paths {
+                match graph.key_set.get(&node.refn) {
+                    Some(key) =>  {
+                        return Err(GraphError::DuplicateKey {refn: node.refn.clone(), first_path: key.clone(), second_path: node.path } );
+                    },
+                    None => {
+                        graph.key_set.insert(node.refn.clone(), node.path.clone());
+                        let index = graph.insert_node(node, &mut edges_to_save);
+                        for dep in dependencies {
+                            let edges = edges_to_save.get_mut(&dep);
+                            match edges {
+                                Some(edges) => {
+                                    edges.push(index);
+                                }
+                                None => {
+                                    edges_to_save.insert(dep.clone(), vec![index]);
+                                }
+                            };
+                        }
+                    },
+                }
+            };
 
         // Process remaining edges.
         for (refn, nodes) in edges_to_save.iter() {
