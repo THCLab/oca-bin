@@ -117,6 +117,9 @@ enum Commands {
         /// Browse oca objects from directory (recursive)
         #[arg(short, long)]
         dir: Option<PathBuf>,
+        /// Publishing timeout in seconds. Default is 30.
+        #[arg(short, long)]
+        timeout: Option<u64>,
     },
     /// Generate json file with all fields of oca object for specified said
     Mapping {
@@ -561,7 +564,7 @@ fn main() -> Result<(), CliError> {
             }
             Ok(())
         }
-        Some(Commands::Tui { dir }) => {
+        Some(Commands::Tui { dir, timeout }) => {
             if let Some(directory) = dir.as_ref() {
                 let (all_oca_files, _base_dir) = load_ocafiles_all(None, Some(directory))
                     .unwrap_or_else(|err| {
@@ -580,6 +583,7 @@ fn main() -> Result<(), CliError> {
                     all_oca_files,
                     facade,
                     remote_repo_url,
+                    timeout.clone(),
                 )
                 .unwrap_or_else(|err| {
                     eprintln!("{err}");

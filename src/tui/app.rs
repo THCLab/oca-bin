@@ -55,6 +55,7 @@ pub struct App {
     base: PathBuf,
     remote_repository: Option<String>,
     changes: ChangesWindow,
+    publish_timeout: Option<u64>,
 }
 
 enum Window {
@@ -70,6 +71,7 @@ impl App {
         paths: Vec<PathBuf>,
         size: usize,
         remote_repo_url: Option<String>,
+        publish_timeout: Option<u64>,
     ) -> Result<App, AppError> {
         let graph = match DependencyGraph::from_paths(&base, &paths) {
             Ok(graph) => Ok(Arc::new(graph)),
@@ -90,6 +92,7 @@ impl App {
             base,
             remote_repository: remote_repo_url,
             changes,
+            publish_timeout,
         })
     }
 }
@@ -251,10 +254,9 @@ impl App {
         self.output.mark_publish();
         let current_path = self.output.current_path();
         let errs = self.output.error_list_mut();
-        let list = self.bundles.items.clone();
-        let to_show_dir = Arc::new(self.base.clone());
         let base_path = self.base.clone();
         let remote_repository = self.remote_repository.clone();
+        let timeout = self.publish_timeout;
 
         thread::spawn(move || {
             let saids = selected_bundle
@@ -279,7 +281,7 @@ impl App {
                     match publish_oca_file_for(
                         facade.clone(),
                         said.clone(),
-                        &None,
+                        &timeout,
                         &remote_repository,
                         &None,
                     ) {

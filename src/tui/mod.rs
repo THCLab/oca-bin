@@ -32,6 +32,7 @@ pub fn draw<I>(
     paths: Vec<PathBuf>,
     facade: Arc<Mutex<Facade>>,
     repository_url: Option<String>,
+    publish_timeout: Option<u64>,
 ) -> Result<(), AppError>
 where
     I: IntoIterator<Item = Node> + Clone,
@@ -49,6 +50,7 @@ where
         paths,
         size as usize,
         repository_url,
+        publish_timeout,
     )?
     .run(terminal);
 
