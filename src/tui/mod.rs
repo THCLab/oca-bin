@@ -21,10 +21,10 @@ use self::app::AppError;
 pub mod app;
 pub mod bundle_info;
 pub mod bundle_list;
+pub mod changes;
 mod item;
 pub(crate) mod logging;
 pub mod output_window;
-pub mod changes;
 
 pub fn draw<I>(
     base_dir: PathBuf,

@@ -31,7 +31,10 @@ use crate::{
 };
 
 use super::{
-    bundle_list::BundleList, changes::ChangesWindow, item::{rebuild_items, Element}, output_window::{update_errors, OutputWindow}
+    bundle_list::BundleList,
+    changes::ChangesWindow,
+    item::{rebuild_items, Element},
+    output_window::{update_errors, OutputWindow},
 };
 
 #[derive(Error, Debug)]
@@ -69,12 +72,8 @@ impl App {
         remote_repo_url: Option<String>,
     ) -> Result<App, AppError> {
         let graph = match DependencyGraph::from_paths(&base, &paths) {
-            Ok(graph) => {
-                Ok(Arc::new(graph))
-            },
-            Err(e) => {
-                Err(AppError::BundleList(BundleListError::GraphError(e)))
-            }
+            Ok(graph) => Ok(Arc::new(graph)),
+            Err(e) => Err(AppError::BundleList(BundleListError::GraphError(e))),
         }?;
         let mut_graph = MutableGraph::new(&base, &paths);
         let list = BundleList::from_nodes(to_show, facade.clone(), graph)?;
@@ -90,7 +89,7 @@ impl App {
             facade: facade,
             base,
             remote_repository: remote_repo_url,
-            changes
+            changes,
         })
     }
 }
@@ -208,7 +207,9 @@ impl App {
                 .iter()
                 .flat_map(|el| {
                     let (name, path) = match el {
-                        Element::Ok(oks) => (Some(oks.get().refn.clone()), oks.path().to_path_buf()),
+                        Element::Ok(oks) => {
+                            (Some(oks.get().refn.clone()), oks.path().to_path_buf())
+                        }
                         Element::Error(errors) => {
                             let mut path = base_path.clone();
                             path.push(errors.path());

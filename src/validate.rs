@@ -21,8 +21,7 @@ pub fn validate_directory(
             let mut nodes = graph.get_dependent_nodes(&refn).unwrap();
             nodes.push(graph.node(&refn).unwrap());
             nodes
-        
-        },
+        }
         None => graph.sort()?,
     };
     let errs = dependent_nodes
@@ -60,7 +59,7 @@ pub fn build(
             let mut nodes = graph.get_dependent_nodes(&refn).unwrap();
             nodes.push(graph.node(&refn).unwrap());
             nodes
-        },
+        }
         None => graph.sort().unwrap(),
     };
     // Validate nodes before updating local oca database.
