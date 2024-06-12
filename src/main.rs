@@ -1,16 +1,15 @@
+use crate::mapping::mapping;
 use config::create_or_open_local_storage;
 use config::OCA_CACHE_DB_DIR;
 use config::OCA_INDEX_DIR;
 use config::OCA_REPOSITORY_DIR;
 use error::CliError;
-use oca_bundle::dyn_clone::clone;
 use oca_presentation::presentation::Presentation;
 use presentation_command::PresentationCommand;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::{env, fs, fs::File, io::Write, path::PathBuf, process, str::FromStr};
-use tui::output_window::message_list::MessageList;
 
 use clap::Parser as ClapParser;
 use clap::Subcommand;
@@ -22,7 +21,6 @@ use crate::dependency_graph::DependencyGraph;
 use crate::dependency_graph::MutableGraph;
 use crate::presentation_command::{handle_generate, handle_validate, Format};
 use crate::tui::logging::initialize_logging;
-use crate::tui::output_window::message_list::Message;
 use crate::utils::{load_ocafiles_all, visit_current_dir};
 use said::SelfAddressingIdentifier;
 use serde::{Deserialize, Serialize};
@@ -120,7 +118,7 @@ enum Commands {
         #[arg(short, long)]
         dir: Option<PathBuf>,
     },
-    /// Generate json file with all fields of oca object for specify said
+    /// Generate json file with all fields of oca object for specified said
     Mapping {
         #[arg(short, long)]
         said: String,
@@ -594,7 +592,17 @@ fn main() -> Result<(), CliError> {
             }
         }
         Some(Commands::Mapping { said }) => {
-            todo!()
+            let said = SelfAddressingIdentifier::from_str(said)?;
+            let (paths, base_dir) = load_ocafiles_all(None, Some(&local_repository_path))?;
+            let facade = get_oca_facade(local_repository_path);
+
+            let graph = DependencyGraph::from_paths(&base_dir, paths).unwrap();
+
+            let o = mapping(said, &facade, &graph).unwrap();
+
+            let actual_json = serde_json::to_string_pretty(&o).unwrap();
+            println!("{}", actual_json);
+            Ok(())
         }
         None => Ok(()),
     }
