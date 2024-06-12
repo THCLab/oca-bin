@@ -1,14 +1,9 @@
-use std::{fs::File, path::PathBuf};
-
 use oca_ast::ast::{NestedAttrType, RefValue};
-use oca_bundle::state::{attribute::Attribute, oca::OCABundle};
 use oca_rs::Facade;
 use said::SelfAddressingIdentifier;
 use serde_json::{Map, Value};
 
-use crate::{
-    dependency_graph::DependencyGraph, error::CliError, get_oca_facade, utils::load_ocafiles_all,
-};
+use crate::{dependency_graph::DependencyGraph, error::CliError};
 
 /// Generates json with all attributes of OCA element of given SAID
 pub fn mapping(
@@ -20,8 +15,13 @@ pub fn mapping(
         .get_oca_bundle(said.clone(), true)
         .map_err(CliError::OcaBundleAstError)?;
     let bundle = oca_bundles.bundle;
+    let capture_base_said = bundle.capture_base.said.clone().unwrap();
     let mut map = Map::new();
-    map.insert("digest".to_string(), Value::String(said.to_string()));
+    map.insert(
+        "capture_base".to_string(),
+        Value::String(capture_base_said.to_string()),
+    );
+    let mut attribute_mapping = Map::new();
     bundle
         .capture_base
         .attributes
@@ -29,8 +29,12 @@ pub fn mapping(
         .map(|(name, attr)| handle_attr(name, attr, facade, dep_graph))
         .flatten()
         .for_each(|key| {
-            map.insert(key, Value::String("".to_string()));
+            attribute_mapping.insert(key, Value::String("".to_string()));
         });
+    map.insert(
+        "attribute_mapping".to_string(),
+        Value::Object(attribute_mapping),
+    );
 
     Ok(map)
 }
@@ -132,11 +136,13 @@ mod tests {
         let o = mapping(digest2, &facade, &dependency_graph).unwrap();
 
         let expected_json = r#"{
-  "digest": "EJFw2ZOSK0wdiKTmB0dvovdi9Y20Xb5Aye4DuvmW_qKT",
-  "cat_lover.like_cats": "",
-  "cat_lover.person.name": "",
-  "cat_lover.person.number": "",
-  "favorite_cat": ""
+  "capture_base": "EAF0irS_GXSZaAlb99_zv7LJ-9I1Ljdv6RvVvPPZFrQb",
+  "attribute_mapping": {
+    "cat_lover.like_cats": "",
+    "cat_lover.person.name": "",
+    "cat_lover.person.number": "",
+    "favorite_cat": ""
+  }
 }"#;
 
         let actual_json = serde_json::to_string_pretty(&o).unwrap();
@@ -192,8 +198,14 @@ mod tests {
         )
         .unwrap();
 
+        let expected_json = r#"{
+  "capture_base": "ECR3Kq3QmrVJYwu2ibLPScAU3mlZQs7H1o3nBJYho5vU",
+  "attribute_mapping": {
+    "many_persons.person.name": "",
+    "many_persons.person.number": ""
+  }
+}"#;
         let actual_json = serde_json::to_string_pretty(&o).unwrap();
-        // assert_eq!(expected_json, actual_json);
-        println!("{}", actual_json);
+        assert_eq!(expected_json, actual_json);
     }
 }
