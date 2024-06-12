@@ -1,3 +1,9 @@
+# 0.4.0-rc.12
+
+Support for build, validate and publish in TUI
+Introduce tree view for references and nested objects
+Add mapping command to generate mapping attributes for give SAID
+
 # 0.4.0-rc.11
 
 Introduce TUI
