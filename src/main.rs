@@ -35,6 +35,7 @@ extern crate log;
 mod config;
 mod dependency_graph;
 pub mod error;
+mod mapping;
 pub mod presentation_command;
 mod tui;
 mod utils;
@@ -118,6 +119,11 @@ enum Commands {
         /// Browse oca objects from directory (recursive)
         #[arg(short, long)]
         dir: Option<PathBuf>,
+    },
+    /// Generate json file with all fields of oca object for specify said
+    Mapping {
+        #[arg(short, long)]
+        said: String,
     },
 }
 
@@ -586,6 +592,9 @@ fn main() -> Result<(), CliError> {
                 eprintln!("No file or directory provided");
                 process::exit(1);
             }
+        }
+        Some(Commands::Mapping { said }) => {
+            todo!()
         }
         None => Ok(()),
     }
