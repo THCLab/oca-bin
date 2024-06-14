@@ -175,7 +175,7 @@ impl App {
                         let selected = self.bundles.selected_oca_bundle();
                         let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
                         self.output.set_currently_validated(paths);
-                        self.handle_publish(selected, self.facade.clone(), self.graph.clone())?
+                        self.handle_publish(selected, self.facade.clone())?
                     }
                     KeyCode::Tab => self.change_window(),
                     _ => false,
@@ -248,7 +248,6 @@ impl App {
         &mut self,
         selected_bundle: Vec<Element>,
         facade: Arc<Mutex<Facade>>,
-        mut graph: MutableGraph,
     ) -> Result<bool, AppError> {
         info!("Handling publish");
         self.output.mark_publish();

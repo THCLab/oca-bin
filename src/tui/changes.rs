@@ -20,6 +20,12 @@ use crate::{
     utils::visit_dirs_recursive,
 };
 
+pub enum Change {
+    Delete(PathBuf),
+    Modified(PathBuf),
+    New(PathBuf),
+}
+
 pub struct SavedData {
     /// map between path and ocafile hash
     /// updated when build
@@ -52,19 +58,20 @@ impl SavedData {
         }
     }
 
-    pub fn changes(&self) -> Vec<PathBuf> {
+    pub fn changes(&self) -> Vec<Change> {
         self.saved
             .iter()
-            .filter_map(|(path, said)| {
-                let contents =
-                    fs::read_to_string(&path).expect("Should have been able to read the file");
-                let current_said =
-                    HashFunction::from(HashFunctionCode::SHA2_256).derive(contents.as_bytes());
-                if current_said.eq(said) {
-                    None
-                } else {
-                    Some(path.clone())
+            .filter_map(|(path, said)| match fs::read_to_string(&path) {
+                Ok(contents) => {
+                    let current_said =
+                        HashFunction::from(HashFunctionCode::SHA2_256).derive(contents.as_bytes());
+                    if current_said.eq(said) {
+                        None
+                    } else {
+                        Some(Change::Modified(path.clone()))
+                    }
                 }
+                Err(_) => Some(Change::Delete(path.clone())),
             })
             .collect()
     }
@@ -73,10 +80,15 @@ impl SavedData {
         let stats = self.changes();
         let out = stats
             .into_iter()
-            .map(|file_path| {
-                let (name, _) = parse_name(&file_path).unwrap();
-                let deps = self.graph.format_ancestor(name.as_ref().unwrap()).unwrap();
-                vec![file_path.to_str().unwrap(), &deps].join("\n")
+            .map(|change| match change {
+                Change::Delete(path) => ["DELETED", path.to_str().unwrap()].join(": "),
+                Change::Modified(path) => {
+                    let (name, _) = parse_name(&path).unwrap();
+                    let deps = self.graph.format_ancestor(name.as_ref().unwrap()).unwrap();
+                    let change_line = ["MODIFIED", path.to_str().unwrap()].join(": ");
+                    [change_line, deps].join("\n")
+                }
+                Change::New(path) => ["NEW", path.to_str().unwrap()].join(": "),
             })
             .collect::<Vec<_>>()
             .join("\n");
