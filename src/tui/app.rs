@@ -252,7 +252,6 @@ impl App {
         self.output.mark_publish();
         let current_path = self.output.current_path();
         let errs = self.output.error_list_mut();
-        let base_path = self.base.clone();
         let remote_repository = self.remote_repository.clone();
         let timeout = self.publish_timeout;
 
