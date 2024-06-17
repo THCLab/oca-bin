@@ -80,7 +80,7 @@ impl App {
         let mut_graph = MutableGraph::new(&base, &paths);
         let list = BundleList::from_nodes(to_show, facade.clone(), graph)?;
 
-        App::setup_panic_hooks().unwrap();
+        App::setup_panic_hooks()?;
         let changes = ChangesWindow::new(&base, mut_graph.clone());
 
         Ok(App {
@@ -216,11 +216,10 @@ impl App {
                         Element::Error(errors) => {
                             let mut path = base_path.clone();
                             path.push(errors.path());
-                            info!("Building path: {:?}", &path);
                             (parse_name(path.as_path()).unwrap().0, path)
                         }
                     };
-                    if let Some(ref name) = name {
+                    if let Some(_) = name {
                         updated_nodes.push(path);
                     };
                     match build(name, facade.clone(), &mut graph, errs.clone()) {
@@ -258,46 +257,56 @@ impl App {
         let timeout = self.publish_timeout;
 
         thread::spawn(move || {
-            let saids = selected_bundle
+            let saids: Result<Vec<_>, AppError> = selected_bundle
                 .into_iter()
                 .map(|el| match el {
-                    Element::Ok(oks) => oks.get().oca_bundle.said.clone().unwrap(),
+                    Element::Ok(oks) => Ok(oks.get().oca_bundle.said.clone().unwrap()),
                     Element::Error(errors) => {
-                        let mut path = base_path.clone();
-                        path.push(errors.path());
-                        info!("Building path: {:?}", &path);
-                        todo!()
-                        // parse_name(path.as_path()).unwrap().0
-                    }
-                })
-                .collect::<Vec<_>>();
-            // Find dependant saids for said. Returns set of unique saids that need to be published.
-            let saids_to_publish = saids_to_publish(facade.clone(), &saids);
-            // Make post request for all saids
-            let res: Vec<_> = saids_to_publish
-                .iter()
-                .flat_map(|said| {
-                    match publish_oca_file_for(
-                        facade.clone(),
-                        said.clone(),
-                        &timeout,
-                        &remote_repository,
-                        &None,
-                    ) {
-                        Ok(_) => {
-                            let mut i = errs.lock().unwrap();
-                            i.append(Message::Info(format!(
-                                "Published {} to {}",
-                                said,
-                                remote_repository.as_ref().unwrap()
-                            )));
-                            vec![]
-                        }
-                        Err(err) => vec![err],
+                        info!("Error selected for publish {:?}", &errors.path());
+                        Err(AppError::BundleList(BundleListError::ErrorSelected(
+                            errors.path().into(),
+                        )))
                     }
                 })
                 .collect();
-            update_errors(errs.clone(), res, &current_path);
+            match saids {
+                Ok(saids) => {
+                    // Find dependant saids for said. Returns set of unique saids that need to be published.
+                    let saids_to_publish = saids_to_publish(facade.clone(), &saids);
+                    // Make post request for all saids
+                    let res: Vec<_> = saids_to_publish
+                        .iter()
+                        .flat_map(|said| {
+                            match publish_oca_file_for(
+                                facade.clone(),
+                                said.clone(),
+                                &timeout,
+                                &remote_repository,
+                                &None,
+                            ) {
+                                Ok(_) => {
+                                    let mut i = errs.lock().unwrap();
+                                    i.append(Message::Info(format!(
+                                        "Published {} to {}",
+                                        said,
+                                        remote_repository.as_ref().unwrap()
+                                    )));
+                                    vec![]
+                                }
+                                Err(err) => vec![err],
+                            }
+                        })
+                        .collect();
+                    update_errors(errs.clone(), res, &current_path);
+                }
+                Err(AppError::BundleList(e)) => {
+                    update_errors(errs.clone(), vec![e.into()], &current_path);
+                }
+                e => {
+                    info!("Unhandled error: {:?}", e);
+                    todo!()
+                }
+            }
         });
 
         Ok(true)
@@ -365,17 +374,17 @@ impl Widget for &mut App {
 }
 
 impl App {
-    fn setup_panic_hooks() -> Result<()> {
+    fn setup_panic_hooks() -> io::Result<()> {
         let original_hook = std::panic::take_hook();
 
-        let reset_terminal = || -> Result<()> {
+        let reset_terminal = || -> io::Result<()> {
             disable_raw_mode()?;
             crossterm::execute!(io::stdout(), LeaveAlternateScreen)?;
             Ok(())
         };
 
         std::panic::set_hook(Box::new(move |panic| {
-            reset_terminal().unwrap();
+            let _ = reset_terminal();
             original_hook(panic);
         }));
         Ok(())

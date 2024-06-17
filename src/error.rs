@@ -19,7 +19,7 @@ pub enum CliError {
     WriteFileFailed(std::io::Error),
     #[error("Error reading file: {0}")]
     ReadFileFailed(std::io::Error),
-    #[error("Oca bundle ast errors: {0:?}")]
+    #[error("Oca bundle ast errors: {0:?}i")]
     OcaBundleAstError(Vec<String>),
     #[error("Invalid said: {0}")]
     InvalidSaid(#[from] said::error::Error),
@@ -47,6 +47,8 @@ pub enum CliError {
     GraphError(#[from] GraphError),
     #[error("Publishing error: file: {0}, reason: {1:?}")]
     PublishError(SelfAddressingIdentifier, Vec<String>),
+    #[error("Selected element isn't build properly: {0}")]
+    SelectionError(PathBuf),
 }
 
 impl From<BundleListError> for CliError {
@@ -54,6 +56,7 @@ impl From<BundleListError> for CliError {
         match value {
             BundleListError::AllRefnUnknown => CliError::AllRefnUnknown("".into()),
             BundleListError::GraphError(g) => CliError::GraphError(g),
+            BundleListError::ErrorSelected(p) => CliError::SelectionError(p),
         }
     }
 }

@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use oca_rs::Facade;
 use ratatui::{
@@ -21,6 +24,8 @@ pub enum BundleListError {
     AllRefnUnknown,
     #[error(transparent)]
     GraphError(#[from] GraphError),
+    #[error("Selected element isn't built properly: {0}")]
+    ErrorSelected(PathBuf),
 }
 
 pub struct BundleList {
