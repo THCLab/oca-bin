@@ -16,6 +16,7 @@ use tui_tree_widget::TreeItem;
 
 use crate::{
     dependency_graph::{parse_node, DependencyGraph, GraphError, MutableGraph, Node},
+    error::CliError,
     utils::visit_current_dir,
 };
 
@@ -127,7 +128,7 @@ impl ListElement {
     ) -> Result<Self, GraphError> {
         let oca_bundle = get_oca_bundle(refn, facade);
         match oca_bundle {
-            Some(oca_bundle) => {
+            Ok(oca_bundle) => {
                 let deps = graph.neighbors(refn)?;
                 Ok(Self::new_bundle_info(
                     BundleInfo {
@@ -138,7 +139,7 @@ impl ListElement {
                     path,
                 ))
             }
-            None => Ok(Self::new_error(
+            Err(_) => Ok(Self::new_error(
                 GraphError::UnknownRefn(refn.to_string()).into(),
                 path,
             )),
@@ -228,7 +229,6 @@ impl Items {
     ) {
         self.nodes.clear();
         self.indexer = Indexer::new();
-        info!("Should be clean: {:?}", &self.nodes);
         self.build(to_show, facade.clone(), graph);
         self.tree_elements.clear();
         self.currently_selected = vec![];
@@ -390,20 +390,19 @@ fn handle_reference_type<'a>(
     graph: &DependencyGraph,
     i: &Indexer,
 ) -> TreeItem<'a, String> {
-    let (ocafile_path, oca_bundle) = match reference {
+    let path_and_bundle = match reference {
         RefValue::Said(said) => {
-            let (refn, bundle) = get_oca_bundle_by_said(said, facade.clone())
-                .unwrap_or_else(|| panic!("Unknown said: {}", &said));
-            (graph.oca_file_path(&refn), bundle)
+            get_oca_bundle_by_said(said, facade.clone()).and_then(|(refn, bundle)| {
+                { graph.oca_file_path(&refn).map(|path| (path, bundle)) }
+                    .map_err(CliError::GraphError)
+            })
         }
-        RefValue::Name(refn) => {
-            let bundle = get_oca_bundle(refn, facade.clone())
-                .unwrap_or_else(|| panic!("Unknown refn: {}", &refn));
-            (graph.oca_file_path(refn), bundle)
-        }
+        RefValue::Name(refn) => get_oca_bundle(refn, facade.clone()).and_then(|bundle| {
+            { graph.oca_file_path(&refn).map(|path| (path, bundle)) }.map_err(CliError::GraphError)
+        }),
     };
-    match ocafile_path {
-        Ok(ocafile_path) => {
+    match path_and_bundle {
+        Ok((ocafile_path, oca_bundle)) => {
             let line = vec![
                 Span::styled(line, Style::default()),
                 Span::styled(

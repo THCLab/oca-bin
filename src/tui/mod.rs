@@ -14,7 +14,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::dependency_graph::Node;
+use crate::{dependency_graph::Node, error::CliError};
 
 use self::app::AppError;
 
@@ -64,7 +64,7 @@ where
     Ok(())
 }
 
-pub fn get_oca_bundle(refn: &str, facade: Arc<Mutex<Facade>>) -> Option<OCABundle> {
+pub fn get_oca_bundle(refn: &str, facade: Arc<Mutex<Facade>>) -> Result<OCABundle, CliError> {
     let f = facade.lock().unwrap();
     let refs = f.fetch_all_refs().unwrap();
     refs.into_iter()
@@ -74,18 +74,22 @@ pub fn get_oca_bundle(refn: &str, facade: Arc<Mutex<Facade>>) -> Option<OCABundl
                 .map(|b| b.bundle)
                 .ok()
         })
+        .ok_or(CliError::OCABundleRefnNotFound(refn.to_string()))
 }
 
 fn get_oca_bundle_by_said(
     said: &SelfAddressingIdentifier,
     facade: Arc<Mutex<Facade>>,
-) -> Option<(String, OCABundle)> {
+) -> Result<(String, OCABundle), CliError> {
     let f = facade.lock().unwrap();
     let refs = f.fetch_all_refs().unwrap();
-    let (refn, _said) = refs
-        .into_iter()
+    refs.into_iter()
         .find(|(_name, s)| *s == said.to_string())
-        .unwrap_or_else(|| panic!("Unknown oca bundle of said: {}", said));
-    let oca_bun = f.get_oca_bundle(said.clone(), false).unwrap();
-    Some((refn, oca_bun.bundle))
+        .map(|(refn, _s)| -> Result<_, CliError> {
+            let oca_bun = f
+                .get_oca_bundle(said.clone(), false)
+                .map_err(|e| CliError::OcaBundleAstError(e))?;
+            Ok((refn, oca_bun.bundle))
+        })
+        .ok_or(CliError::OCABundleSAIDNotFound(said.clone()))?
 }

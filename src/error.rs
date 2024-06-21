@@ -49,6 +49,10 @@ pub enum CliError {
     PublishError(SelfAddressingIdentifier, Vec<String>),
     #[error("Selected element isn't build properly: {0}")]
     SelectionError(PathBuf),
+    #[error("Oca bundle of said {0} not found")]
+    OCABundleSAIDNotFound(SelfAddressingIdentifier),
+    #[error("Oca bundle of  refn {0} not found")]
+    OCABundleRefnNotFound(String),
 }
 
 impl From<BundleListError> for CliError {
