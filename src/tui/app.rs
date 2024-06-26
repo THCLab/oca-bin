@@ -17,7 +17,8 @@ use ratatui::{
     backend::Backend,
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
-    style::Stylize,
+    style::{Modifier, Style, Stylize},
+    text::{Line, Span},
     widgets::{Paragraph, Widget},
     Terminal,
 };
@@ -61,6 +62,7 @@ pub struct App {
 enum Window {
     Errors,
     Bundles,
+    Help,
 }
 
 impl App {
@@ -112,6 +114,7 @@ impl App {
         match self.active_window {
             Window::Errors => self.active_window = Window::Bundles,
             Window::Bundles => self.active_window = Window::Errors,
+            Window::Help => self.active_window = Window::Bundles,
         }
 
         true
@@ -122,72 +125,81 @@ impl App {
     }
 
     fn handle_input(&mut self) -> Result<bool, AppError> {
-        Ok(match event::read()? {
-            event::Event::Key(key) => {
-                let items = self.bundles.items();
-                let state = match self.active_window {
-                    Window::Bundles => &mut self.bundles.state,
-                    // Window::Errors => (&mut self.errors.state, todo!()),
-                    Window::Errors => &mut self.bundles.state,
-                };
-                match key.code {
-                    KeyCode::Char('q') => return Ok(false),
-                    KeyCode::Esc => self.bundles.unselect_all(),
-                    KeyCode::Enter => state.toggle_selected(),
-                    KeyCode::Char(' ') => {
-                        self.bundles.select();
-                        true
-                    }
-                    KeyCode::Char('a') if key.modifiers.eq(&KeyModifiers::CONTROL) => {
-                        self.bundles.select_all()
-                    }
-                    KeyCode::Left => state.key_left(),
-                    KeyCode::Right => state.key_right(),
-                    KeyCode::Down => self.handle_key_down(),
-                    KeyCode::Up => self.handle_key_up(),
-                    KeyCode::Home => state.select_first(&items),
-                    KeyCode::End => state.select_last(&items),
-                    KeyCode::PageDown => state.select_visible_relative(&items, |current| {
-                        current.map_or(0, |current| current.saturating_add(10))
-                    }),
-                    KeyCode::PageUp => state.select_visible_relative(&items, |current| {
-                        current.map_or(0, |current| current.saturating_sub(10))
-                    }),
-                    KeyCode::Char('v') => {
-                        let selected = self.bundles.selected_oca_bundle();
-                        let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
-                        self.output.set_currently_validated(paths);
-
-                        self.output.handle_validate(
-                            self.facade.clone(),
-                            self.graph.clone(),
-                            selected,
-                            self.base.clone(),
-                        )?
-                    }
-                    KeyCode::Char('b') => {
-                        let selected = self.bundles.selected_oca_bundle();
-                        let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
-                        self.output.set_currently_validated(paths);
-                        self.handle_build(selected, self.facade.clone(), self.graph.clone())?
-                    }
-                    KeyCode::Char('p') => {
-                        let selected = self.bundles.selected_oca_bundle();
-                        let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
-                        self.output.set_currently_validated(paths);
-                        self.handle_publish(selected, self.facade.clone())?
-                    }
-                    KeyCode::Tab => self.change_window(),
-                    _ => false,
+        if let Window::Help = self.active_window {
+            match event::read()? {
+                _ => {
+                    self.active_window = Window::Bundles;
+                    Ok(true)
                 }
             }
-            Event::Mouse(mouse) => match mouse.kind {
-                MouseEventKind::ScrollDown => self.bundles.state.scroll_down(1),
-                MouseEventKind::ScrollUp => self.bundles.state.scroll_up(1),
+        } else {
+            Ok(match event::read()? {
+                event::Event::Key(key) => {
+                    let items = self.bundles.items();
+                    let state = &mut self.bundles.state;
+                    match key.code {
+                        KeyCode::Char('q') => return Ok(false),
+                        KeyCode::Esc => self.bundles.unselect_all(),
+                        KeyCode::Enter => state.toggle_selected(),
+                        KeyCode::Char(' ') => {
+                            self.bundles.select();
+                            true
+                        }
+                        KeyCode::Char('a') if key.modifiers.eq(&KeyModifiers::CONTROL) => {
+                            self.bundles.select_all()
+                        }
+                        KeyCode::Left => state.key_left(),
+                        KeyCode::Right => state.key_right(),
+                        KeyCode::Down => self.handle_key_down(),
+                        KeyCode::Up => self.handle_key_up(),
+                        KeyCode::Home => state.select_first(&items),
+                        KeyCode::End => state.select_last(&items),
+                        KeyCode::PageDown => state.select_visible_relative(&items, |current| {
+                            current.map_or(0, |current| current.saturating_add(10))
+                        }),
+                        KeyCode::PageUp => state.select_visible_relative(&items, |current| {
+                            current.map_or(0, |current| current.saturating_sub(10))
+                        }),
+                        KeyCode::Char('v') => {
+                            let selected = self.bundles.selected_oca_bundle();
+                            let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
+                            self.output.set_currently_validated(paths);
+
+                            self.output.handle_validate(
+                                self.facade.clone(),
+                                self.graph.clone(),
+                                selected,
+                                self.base.clone(),
+                            )?
+                        }
+                        KeyCode::Char('b') => {
+                            let selected = self.bundles.selected_oca_bundle();
+                            let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
+                            self.output.set_currently_validated(paths);
+                            self.handle_build(selected, self.facade.clone(), self.graph.clone())?
+                        }
+                        KeyCode::Char('p') => {
+                            let selected = self.bundles.selected_oca_bundle();
+                            let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
+                            self.output.set_currently_validated(paths);
+                            self.handle_publish(selected, self.facade.clone())?
+                        }
+                        KeyCode::Tab => self.change_window(),
+                        KeyCode::F(1) => {
+                            self.active_window = Window::Help;
+                            true
+                        }
+                        _ => false,
+                    }
+                }
+                Event::Mouse(mouse) => match mouse.kind {
+                    MouseEventKind::ScrollDown => self.bundles.state.scroll_down(1),
+                    MouseEventKind::ScrollUp => self.bundles.state.scroll_up(1),
+                    _ => false,
+                },
                 _ => false,
-            },
-            _ => false,
-        })
+            })
+        }
     }
 
     pub fn handle_build(
@@ -322,6 +334,9 @@ impl App {
                 let state = &mut self.output.state;
                 state.next()
             }
+            Window::Help => {
+                self.active_window = Window::Bundles;
+            }
         };
         true
     }
@@ -337,6 +352,9 @@ impl App {
                 let state = &mut self.output.state;
                 state.previous()
             }
+            Window::Help => {
+                self.active_window = Window::Bundles;
+            }
         };
         true
     }
@@ -349,26 +367,33 @@ impl App {
 
 impl Widget for &mut App {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        // Create a space for header, todo list and the footer.
+        // Create a space for header, list and the footer.
         let vertical = Layout::vertical([
             Constraint::Length(2),
             Constraint::Min(0),
             Constraint::Length(2),
         ]);
-        let [header_area, rest_area, footer_area] = vertical.areas(area);
 
-        // Create two chunks with equal horizontal screen space. One for the list and dependencies and the other for
-        // the changes block.
-        let vertical = Layout::vertical([Constraint::Percentage(70), Constraint::Min(0)]);
-        let [list_area, output_area] = vertical.areas(rest_area);
-        let horizontal = Layout::horizontal([Constraint::Percentage(70), Constraint::Min(0)]);
-        let [list_area, changes_area] = horizontal.areas(list_area);
+        if let Window::Help = self.active_window {
+            let [header_area, rest_area, _footer] = vertical.areas(area);
+            self.render_title(header_area, buf, "Help");
+            self.render_help(rest_area, buf);
+        } else {
+            let [header_area, rest_area, footer_area] = vertical.areas(area);
 
-        self.render_title(header_area, buf);
-        self.bundles.render(list_area, buf);
-        self.output.render(output_area, buf);
-        self.changes.render(changes_area, buf);
-        self.render_footer(footer_area, buf);
+            // Create two chunks with equal horizontal screen space. One for the list and dependencies and the other for
+            // the changes block.
+            let vertical = Layout::vertical([Constraint::Percentage(70), Constraint::Min(0)]);
+            let [list_area, output_area] = vertical.areas(rest_area);
+            let horizontal = Layout::horizontal([Constraint::Percentage(70), Constraint::Min(0)]);
+            let [list_area, changes_area] = horizontal.areas(list_area);
+
+            self.render_title(header_area, buf, "OCA tool");
+            self.bundles.render(list_area, buf);
+            self.output.render(output_area, buf);
+            self.changes.render(changes_area, buf);
+            self.render_footer(footer_area, buf);
+        }
     }
 }
 
@@ -389,16 +414,40 @@ impl App {
         Ok(())
     }
 
-    fn render_title(&self, area: Rect, buf: &mut Buffer) {
-        Paragraph::new("OCA Tool")
-            .bold()
-            .centered()
-            .render(area, buf);
+    fn render_title(&self, area: Rect, buf: &mut Buffer, title: &str) {
+        Paragraph::new(title).bold().centered().render(area, buf);
     }
 
     fn render_footer(&self, area: Rect, buf: &mut Buffer) {
         Paragraph::new("\nUse ↓↑ to move, ← → to expand/collapse list element, space to select element, `v` to validate selected elements, 'b' to build selected OCA files, 'p' to publish selected OCA files.")
             .centered()
             .render(area, buf);
+    }
+
+    fn render_help(&self, area: Rect, buf: &mut Buffer) {
+        let commands = vec![
+            ("↓↑", "scroll list elements"),
+            ("← →", "expand/collapse list element"),
+            ("PageUp", "move 10 position up the list"),
+            ("PageDown", "move 10 positions down the list"),
+            ("space", "select element"),
+            ("Ctrl + A", "select all"),
+            ("v", "validate selected OCA files"),
+            ("b", "build selected OCA files"),
+            ("p", "publish selected OCA files"),
+            ("F1", "Open help"),
+        ];
+
+        let lines: Vec<_> = commands
+            .into_iter()
+            .map(|(command, role)| {
+                Line::from(vec![
+                    Span::styled(command, Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(format!("    {}", role), Style::default()),
+                ])
+            })
+            .collect();
+
+        Paragraph::new(lines).render(area, buf);
     }
 }
