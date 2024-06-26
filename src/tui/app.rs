@@ -148,12 +148,24 @@ impl App {
                         KeyCode::Char('a') if key.modifiers.eq(&KeyModifiers::CONTROL) => {
                             self.bundles.select_all()
                         }
-                        KeyCode::Left => state.key_left(),
-                        KeyCode::Right => state.key_right(),
+                        KeyCode::Left => {
+                            state.key_left();
+                            true
+                        },
+                        KeyCode::Right => {
+                            state.key_right();
+                            true
+                        },
                         KeyCode::Down => self.handle_key_down(),
                         KeyCode::Up => self.handle_key_up(),
-                        KeyCode::Home => state.select_first(&items),
-                        KeyCode::End => state.select_last(&items),
+                        KeyCode::Home => {
+                            state.select_first(&items);
+                            true
+                        },
+                        KeyCode::End => {
+                            state.select_last(&items);
+                            true
+                        },
                         KeyCode::PageDown => state.select_visible_relative(&items, |current| {
                             current.map_or(0, |current| current.saturating_add(10))
                         }),
@@ -189,7 +201,7 @@ impl App {
                             self.active_window = Window::Help;
                             true
                         }
-                        _ => false,
+                        _ => true,
                     }
                 }
                 Event::Mouse(mouse) => match mouse.kind {
@@ -430,6 +442,8 @@ impl App {
             ("← →", "expand/collapse list element"),
             ("PageUp", "move 10 position up the list"),
             ("PageDown", "move 10 positions down the list"),
+            ("Home", "move to first element"),
+            ("End", "move to last element"),
             ("space", "select element"),
             ("Ctrl + A", "select all"),
             ("v", "validate selected OCA files"),
