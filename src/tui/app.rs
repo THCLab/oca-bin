@@ -214,9 +214,9 @@ impl App {
                 Event::Mouse(mouse) => match mouse.kind {
                     MouseEventKind::ScrollDown => self.bundles.state.scroll_down(1),
                     MouseEventKind::ScrollUp => self.bundles.state.scroll_up(1),
-                    _ => false,
+                    _ => true,
                 },
-                _ => false,
+                _ => true,
             })
         }
     }
