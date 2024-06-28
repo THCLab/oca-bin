@@ -27,7 +27,7 @@ use thiserror::Error;
 use crate::{
     dependency_graph::{parse_name, DependencyGraph, MutableGraph, Node},
     publish_oca_file_for, saids_to_publish,
-    tui::output_window::message_list::Message,
+    tui::{get_oca_bundle_by_said, output_window::message_list::Message},
     validate::build,
 };
 
@@ -315,12 +315,21 @@ impl App {
                                 &None,
                             ) {
                                 Ok(_) => {
-                                    let mut i = errs.lock().unwrap();
-                                    i.append(Message::Info(format!(
-                                        "Published {} to {}",
-                                        said,
-                                        remote_repository.as_ref().unwrap()
-                                    )));
+                                    match get_oca_bundle_by_said(said, facade.clone()) {
+                                        Ok((name, _bundle)) => {
+                                            let mut i = errs.lock().unwrap();
+                                            i.append(Message::Info(format!(
+                                                "Published {} to {}",
+                                                name,
+                                                remote_repository.as_ref().unwrap()
+                                            )));
+                                        }
+                                        Err(e) => {
+                                            let mut i = errs.lock().unwrap();
+                                            i.append(Message::Error(e));
+                                        }
+                                    };
+
                                     vec![]
                                 }
                                 Err(err) => vec![err],

@@ -77,7 +77,7 @@ pub fn get_oca_bundle(refn: &str, facade: Arc<Mutex<Facade>>) -> Result<OCABundl
         .ok_or(CliError::OCABundleRefnNotFound(refn.to_string()))
 }
 
-fn get_oca_bundle_by_said(
+pub fn get_oca_bundle_by_said(
     said: &SelfAddressingIdentifier,
     facade: Arc<Mutex<Facade>>,
 ) -> Result<(String, OCABundle), CliError> {
