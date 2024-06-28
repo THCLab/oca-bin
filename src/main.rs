@@ -190,7 +190,7 @@ fn publish_oca_file_for(
     repository_url: &Option<String>,
     remote_repo_url: &Option<String>,
 ) -> Result<(), CliError> {
-    let timeout = timeout.unwrap_or(30);
+    let timeout = timeout.unwrap_or(666);
     let facade = facade.lock().unwrap();
 
     match facade.get_oca_bundle_ocafile(said.clone(), false) {
