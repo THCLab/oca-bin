@@ -5,20 +5,24 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use petgraph::{graph::NodeIndex, graphmap::GraphMap, visit::EdgeRef, Directed};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    widgets::{Block, Paragraph, Widget},
+    widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, StatefulWidget, Widget},
 };
 use said::{
     derivation::{HashFunction, HashFunctionCode},
     SelfAddressingIdentifier,
 };
+use tui_tree_widget::{Tree, TreeItem, TreeState};
 
 use crate::{
-    dependency_graph::{parse_name, MutableGraph},
+    dependency_graph::{parse_name, DependencyGraph, GraphError, MutableGraph},
     utils::visit_dirs_recursive,
 };
+
+use super::bundle_list::Indexer;
 
 pub enum Change {
     Delete(PathBuf),
@@ -76,42 +80,42 @@ impl SavedData {
             .collect()
     }
 
-    pub fn show_changes(&self) -> String {
+    pub fn show_changes(&self) -> Vec<TreeItem<'static, String>> {
         let stats = self.changes();
+        let index = Indexer::new();
         let out = stats
             .into_iter()
             .map(|change| match change {
-                Change::Delete(path) => ["DELETED", path.to_str().unwrap()].join(": "),
+                Change::Delete(path) => TreeItem::new_leaf(
+                    index.current(),
+                    ["DELETED", path.to_str().unwrap()].join(": "),
+                ),
                 Change::Modified(path) => {
                     let (name, _) = parse_name(&path).unwrap();
-                    let deps = self.graph.format_ancestor(name.as_ref().unwrap()).unwrap();
+                    let deps = format_ancestor_tree(name.as_ref().unwrap(), &self.graph).unwrap();
                     let change_line = ["MODIFIED", path.to_str().unwrap()].join(": ");
-                    [change_line, deps].join("\n")
+                    TreeItem::new(index.current(), change_line, deps).unwrap()
                 }
-                Change::New(path) => ["NEW", path.to_str().unwrap()].join(": "),
+                Change::New(path) => {
+                    TreeItem::new_leaf(index.current(), ["NEW", path.to_str().unwrap()].join(": "))
+                }
             })
-            .collect::<Vec<_>>()
-            .join("\n");
+            .collect::<Vec<_>>();
         out
     }
 }
 
 pub struct ChangesWindow {
-    // changes: Arc<Mutex<Changes>>
+    pub state: TreeState<String>,
     changes: Arc<Mutex<SavedData>>,
 }
-
-// pub struct Changes {
-// 	repo: Repository,
-// 	graph: MutableGraph,
-// 	base: PathBuf,
-// }
 
 impl ChangesWindow {
     pub fn new<P: AsRef<Path>>(path: P, graph: MutableGraph) -> Self {
         let mut sd = SavedData::new(graph, path.as_ref());
         sd.load();
         Self {
+            state: TreeState::default(),
             changes: Arc::new(Mutex::new(sd)),
         }
     }
@@ -120,19 +124,90 @@ impl ChangesWindow {
         self.changes.clone()
     }
 
-    fn changes_locked(&self) -> String {
-        let window = self.changes.lock().unwrap();
-        window.show_changes()
-    }
+    // fn changes_locked(&self) -> String {
+    //     let window = self.changes.lock().unwrap();
+    //     window.show_changes()
+    // }
 
     pub fn update(&self) {
         let mut window = self.changes.lock().unwrap();
         window.load();
     }
 
-    pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
-        Paragraph::new(self.changes_locked())
-            .block(Block::bordered().title("Changes"))
-            .render(area, buf)
+    // pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
+    //     Paragraph::new(self.changes_locked())
+    //         .block(Block::bordered().title("Changes"))
+    //         .render(area, buf)
+    // }
+
+    pub fn items(&self) -> Vec<TreeItem<'static, String>> {
+        let changes = self.changes.lock().unwrap();
+        changes.show_changes()
     }
+
+    pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
+        let widget = Tree::new(self.items())
+            .expect("all item identifiers are unique")
+            .block(Block::bordered().title("Changes"))
+            .experimental_scrollbar(Some(
+                Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                    .begin_symbol(None)
+                    .track_symbol(None)
+                    .end_symbol(None),
+            ))
+            // .highlight_style(
+            //     Style::new()
+            //         .fg(Color::Black)
+            //         .bg(Color::LightGreen)
+            //         .add_modifier(Modifier::BOLD),
+            // )
+            .highlight_symbol("> ");
+
+        StatefulWidget::render(widget, area, buf, &mut self.state);
+    }
+}
+
+fn changes_tree(
+    start_node: NodeIndex,
+    ancestor_graph: &GraphMap<NodeIndex, (), Directed>,
+    full_graph: &DependencyGraph,
+    i: &Indexer,
+) -> Vec<TreeItem<'static, String>> {
+    let anc = ancestor_graph
+        .edges_directed(start_node, petgraph::Direction::Outgoing)
+        .map(|e| e.target())
+        .collect::<Vec<_>>();
+    anc.into_iter()
+        .map(|index: NodeIndex| {
+            if !ancestor_graph
+                .edges_directed(index, petgraph::Direction::Outgoing)
+                .map(|e| e.target())
+                .collect::<Vec<_>>()
+                .is_empty()
+            {
+                let path = full_graph.node(index);
+                let children = changes_tree(index, ancestor_graph, full_graph, i);
+                TreeItem::new(
+                    i.current(),
+                    format!("{}", path.path.to_str().unwrap()),
+                    children,
+                )
+                .unwrap()
+            } else {
+                let p = full_graph.node(index);
+                TreeItem::new_leaf(i.current(), format!("{}", p.path.to_str().unwrap()))
+            }
+        })
+        .collect()
+}
+
+pub fn format_ancestor_tree(
+    refn: &str,
+    graph: &MutableGraph,
+) -> Result<Vec<TreeItem<'static, String>>, GraphError> {
+    let full_graph = graph.graph.lock().unwrap();
+    let start_node = full_graph.get_index(refn)?;
+    let ancestor_graph = MutableGraph::ancestor_graph(start_node, &full_graph)?;
+    let i = Indexer::new();
+    Ok(changes_tree(start_node, &ancestor_graph, &full_graph, &i))
 }

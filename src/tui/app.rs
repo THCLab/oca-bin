@@ -63,6 +63,7 @@ enum Window {
     Errors,
     Bundles,
     Help,
+    Changes,
 }
 
 impl App {
@@ -113,8 +114,9 @@ impl App {
     fn change_window(&mut self) -> bool {
         match self.active_window {
             Window::Errors => self.active_window = Window::Bundles,
-            Window::Bundles => self.active_window = Window::Errors,
+            Window::Bundles => self.active_window = Window::Changes,
             Window::Help => self.active_window = Window::Bundles,
+            Window::Changes => self.active_window = Window::Errors,
         }
 
         true
@@ -136,7 +138,12 @@ impl App {
             Ok(match event::read()? {
                 event::Event::Key(key) => {
                     let items = self.bundles.items();
-                    let state = &mut self.bundles.state;
+                    let state = match self.active_window {
+                        Window::Errors => &mut self.bundles.state,
+                        Window::Bundles => &mut self.bundles.state,
+                        Window::Changes => &mut self.changes.state,
+                        Window::Help => todo!(),
+                    };
                     match key.code {
                         KeyCode::Char('q') => return Ok(false),
                         KeyCode::Esc => self.bundles.unselect_all(),
@@ -151,21 +158,21 @@ impl App {
                         KeyCode::Left => {
                             state.key_left();
                             true
-                        },
+                        }
                         KeyCode::Right => {
                             state.key_right();
                             true
-                        },
+                        }
                         KeyCode::Down => self.handle_key_down(),
                         KeyCode::Up => self.handle_key_up(),
                         KeyCode::Home => {
                             state.select_first(&items);
                             true
-                        },
+                        }
                         KeyCode::End => {
                             state.select_last(&items);
                             true
-                        },
+                        }
                         KeyCode::PageDown => state.select_visible_relative(&items, |current| {
                             current.map_or(0, |current| current.saturating_add(10))
                         }),
@@ -349,14 +356,19 @@ impl App {
             Window::Help => {
                 self.active_window = Window::Bundles;
             }
+            Window::Changes => {
+                let items = self.changes.items();
+                let state: &mut tui_tree_widget::TreeState<String> = &mut self.changes.state;
+                state.key_down(&items);
+            }
         };
         true
     }
 
     fn handle_key_up(&mut self) -> bool {
-        let items = self.bundles.items();
         match self.active_window {
             Window::Bundles => {
+                let items = self.bundles.items();
                 let state = &mut self.bundles.state;
                 state.key_up(&items);
             }
@@ -366,6 +378,11 @@ impl App {
             }
             Window::Help => {
                 self.active_window = Window::Bundles;
+            }
+            Window::Changes => {
+                let items = self.changes.items();
+                let state: &mut tui_tree_widget::TreeState<String> = &mut self.changes.state;
+                state.key_up(&items);
             }
         };
         true
@@ -431,7 +448,7 @@ impl App {
     }
 
     fn render_footer(&self, area: Rect, buf: &mut Buffer) {
-        Paragraph::new("\nUse ↓↑ to move, ← → to expand/collapse list element, space to select element, `v` to validate selected elements, 'b' to build selected OCA files, 'p' to publish selected OCA files.")
+        Paragraph::new("Press F1 to open help window")
             .centered()
             .render(area, buf);
     }

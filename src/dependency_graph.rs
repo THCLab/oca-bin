@@ -16,6 +16,9 @@ use petgraph::{
 use regex::Regex;
 use said::SelfAddressingIdentifier;
 use thiserror::Error;
+use tui_tree_widget::TreeItem;
+
+use crate::tui::bundle_list::Indexer;
 
 #[derive(Error, Debug, Clone)]
 pub enum GraphError {
@@ -128,6 +131,10 @@ impl DependencyGraph {
             .node_indices()
             .find(|id| self.graph[*id].refn.eq(&refn))
             .ok_or(GraphError::UnknownRefn(refn.to_owned()))
+    }
+
+    pub fn node(&self, i: NodeIndex) -> Node {
+        self.graph[i].clone()
     }
 
     pub fn neighbors(&self, refn: &str) -> Result<Vec<Node>, GraphError> {
@@ -272,8 +279,7 @@ impl MutableGraph {
         Ok(g.graph[start_node].clone())
     }
 
-    fn ancestor_graph(
-        &self,
+    pub fn ancestor_graph(
         start_node: NodeIndex,
         g: &DependencyGraph,
     ) -> Result<GraphMap<NodeIndex, (), Directed>, GraphError> {
@@ -294,17 +300,10 @@ impl MutableGraph {
         Ok(h)
     }
 
-    pub fn format_ancestor(&self, refn: &str) -> Result<String, GraphError> {
-        let g = self.graph.lock().unwrap();
-        let start_node = g.get_index(refn)?;
-        let h = self.ancestor_graph(start_node, &g)?;
-        Ok(self.show_graph_struct(start_node, &h, &g, 1))
-    }
-
     pub fn get_ancestors(&self, refn: &str) -> Result<Vec<Node>, GraphError> {
         let g = self.graph.lock().unwrap();
         let start_node = g.get_index(refn)?;
-        let h = self.ancestor_graph(start_node, &g)?;
+        let h = MutableGraph::ancestor_graph(start_node, &g)?;
 
         let sorted = toposort(&h, None).map_err(|_e| GraphError::Cycle)?;
         let sorted_ancestors = sorted.into_iter();
@@ -313,36 +312,6 @@ impl MutableGraph {
             .into_iter()
             .map(|i| g.graph[i].clone())
             .collect())
-    }
-
-    fn show_graph_struct(
-        &self,
-        start_node: NodeIndex,
-        graph: &GraphMap<NodeIndex, (), Directed>,
-        g: &DependencyGraph,
-        depth: usize,
-    ) -> String {
-        let mut result = String::new();
-        let anc = graph
-            .edges_directed(start_node, petgraph::Direction::Outgoing)
-            .map(|e| e.target())
-            .collect::<Vec<_>>();
-        for a in anc {
-            result.push_str(&format!(
-                "{}└─ {}\n",
-                "  ".repeat(depth),
-                g.graph[a].clone().path.to_str().unwrap()
-            ));
-            if !graph
-                .edges_directed(a, petgraph::Direction::Outgoing)
-                .map(|e| e.target())
-                .collect::<Vec<_>>()
-                .is_empty()
-            {
-                result.push_str(&self.show_graph_struct(a, graph, g, depth + 1))
-            }
-        }
-        result
     }
 
     pub fn get_dependent_nodes(&self, refn: &str) -> Result<Vec<Node>, GraphError> {
