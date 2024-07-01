@@ -1,78 +1,333 @@
-# 0.4.0-rc.13
+# Changelog
 
-TUI: Support timeout for publish
-Update presentation support for new question type
-TUI: Show deleted files in changes
+All notable changes to this project will be documented in this file.
 
-# 0.4.0-rc.12
+## [0.4.0] - 2024-07-01
 
-Support for build, validate and publish in TUI
-Introduce tree view for references and nested objects
-Add mapping command to generate mapping attributes for give SAID
+### 🚀 Features
 
-# 0.4.0-rc.11
+- Add help window
+- Make changes list scrollable
 
-Introduce TUI
+### 🐛 Bug Fixes
 
-# 0.4.0-rc.10
+- Remove unwrap
+- Don't close tui when not supported button pressed
+- *(tui)* Prevent exit on window resize
+- *(publish)* Show refn of published element
+- Change default publishing timeout
 
-Fix number types for presentation model
+### ⚙️ Miscellaneous Tasks
 
-# 0.4.0-rc.9
+- Release 0.4.0 version
 
-Support number in presentation model
+## [0.4.0-rc.13] - 2024-06-17
 
-# 0.4.0-rc.8
+### 🚀 Features
 
-Support new presentation model
+- Allow setting publishing timeout in tui
+- Show deleted files in changes
 
-# 0.4.0-rc.7
+### 🚜 Refactor
 
-Update presentation parsing
-Support for dependency detection while building ocafiles
+- Remove unwraps
 
-# 0.4.0-rc.6
+### ⚙️ Miscellaneous Tasks
 
-Add presentation object to the presentation output
+- Bump oca-presentation version
+- Release 0.4.0-rc.13 version
+- Changelog for rc13
 
-# 0.4.0-rc.5
+### Fit
 
-Improve the presentation parsing and validation
-Fix listing local oca objects
+- Change mapping format
 
-# 0.4.0-rc.4
+## [0.4.0-rc.12] - 2024-06-12
 
-Support recursive scaning of the directory while building from dir
+### 🚀 Features
 
-# 0.4.0-rc.3
+- *(tui)* Add publish command
+- Track changes with git2 crate
+- Add changes tree
+- *(tui)* Commit only selected changes
+- *(tui)* Show tree of dependent changes
+- Add mapping function
+- Process arrays in mapping function
+- Add mapping command
 
-Allow to build ocafile from directory
+### 🐛 Bug Fixes
 
-# 0.4.0-rc.2
+- Build initial ocafile
+- Return error on duplicate refn tag
 
-Add support for oca presentation
-Add support f
-listing
-feat: publish all dependencies at once
-feat: add with dependency flag for fetching all bundles at once
-feat: always dereference local references for oca bundle
-feat: support for pages in list
-feat: support dereference of refn for
-fix: publish endpoint
-feat: Add possibility to display ast for given said
-fix: handle properly remote repo configuration
+### 🚜 Refactor
 
-# 0.3.0
+- Stop using git for changes tracking
+- Cargo fmt
 
-15-11-2023
+### ⚙️ Miscellaneous Tasks
 
-- Add support for refs and refn
+- Release 0.4.0-rc.12 version
+- Add changelog for rc12
 
-# 0.2.0
+## [0.4.0-rc.11] - 2024-05-08
 
-2-10-2023 - Add config file functionality
-          - Add publish command to upload ocafile directly to remote repo
+### 🚀 Features
 
-# 0.1.0
+- Tui draft
+- Use petgraph crate
+- Add expandlable list
+- Enable expanding references
+- Show only chosen directroy
+- Handle Enter and PageUp/PageDown buttons
+- Add validate directory command
+- *(tui)* Add errors window
+- *(tui)* Allow switching windows
+- Validate only selected form
+- Add build command to tui
+- Update status comments
+- Render messages while building
+- Show building errors
+- Add timeout for publish command
+- Validate all files before building
+- Build only selected ocafile
+- *(tui)* Select multiple elements
+- Validate or build multiple files
+- Select/unselect all
+- Allow error selecting
+- Allow multiple elements validation and building
 
-17-10-2023 - Initial release
+### 🐛 Bug Fixes
+
+- Minor changes
+- Split main into modules
+- Add DependencyGraph struct
+- Remove unused code
+- Change reference color
+- Use ocafiles from subdirectories
+- Update array type display
+- Allow building from ocafile
+- Remove local dependencies
+- Check if directory exists
+- Ignore files without refn
+- Render missing refn error
+- *(tui)* Print relative path in errors
+- Don't block on validation
+- Render errors as a list
+- Update name if it changed
+- Update oca dependencies
+- Add commands description
+- Show validation result
+- Update footer
+- Show last message in output window
+- Fix ocafile build command
+- Setup panic hooks
+- Setup logging
+- Remove todo
+- Print help if no command
+- *(tui)* Update footer
+
+### 🚜 Refactor
+
+- Fix clippy warnings
+- Add GraphError
+- Cargo fmt
+- Rename error to message
+- Remove unused code
+- Reformat and cargo clippy
+
+### ⚙️ Miscellaneous Tasks
+
+- Update presentation dependency
+- Improve naming in graph logic
+- Add info logs for publish
+- Remove path from oca-presentation deps
+- Publish dependency only once
+- Update cargo lock
+- Fix clippy warnings and reformat
+- Update dependencies
+- Release 0.4.0-rc.11 version
+
+## [0.4.0-rc.10] - 2024-03-08
+
+### 🚀 Features
+
+- Fix number type in presentation
+
+### ⚙️ Miscellaneous Tasks
+
+- Add changelog for rc.10
+- Release 0.4.0-rc.10 version
+
+## [0.4.0-rc.9] - 2024-03-07
+
+### 🚀 Features
+
+- Support number in pres type
+
+### ⚙️ Miscellaneous Tasks
+
+- Default reduce verbosity
+- Add changelog for rc.9
+- Release 0.4.0-rc.9 version
+
+## [0.4.0-rc.8] - 2024-03-07
+
+### ⚙️ Miscellaneous Tasks
+
+- Update presentation crate
+- Release 0.4.0-rc.8 version
+
+## [0.4.0-rc.7] - 2024-02-26
+
+### 🚀 Features
+
+- Handle dependecies while building object
+
+### 🐛 Bug Fixes
+
+- Update oca-presentation version
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.4.0-rc.7 version
+
+## [0.4.0-rc.6] - 2024-02-02
+
+### 🚀 Features
+
+- Add presentation field
+
+### 🐛 Bug Fixes
+
+- Remove attributes translations from po field
+- Change extention according to provided format
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.4.0-rc.6 version
+
+## [0.4.0-rc.5] - 2024-01-29
+
+### 🚀 Features
+
+- Fail presentation parsing in said is wrong
+- Convert OcaBundle to Presentation
+- Support array of refs in presentation
+- Load languages from overlays
+- Allow presentation in yaml format
+- Generate translations
+- Fill interaction section
+
+### 🐛 Bug Fixes
+
+- Update oca-presentation dependency
+- Warnings
+- Presentation test
+- Remove presentation get subcommand
+- List of oca objects in local repo
+- Replace parse command with valdiate
+- Add namespaces in `i` section
+- Generate namespaces for arrays
+
+### 🚜 Refactor
+
+- Update presentation command
+- Add subcommands for presentation
+- Add CliError
+- Reformat
+
+### 📚 Documentation
+
+- Add description of presentation subcommands
+
+### ⚙️ Miscellaneous Tasks
+
+- Update cargo.toml
+- Release 0.4.0-rc.5 version
+
+### Fir
+
+- Reformat
+
+## [0.4.0-rc.4] - 2024-01-09
+
+### 🚀 Features
+
+- Build ocafiles from directory
+- Build from dir with recursive
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.4.0-rc.3 version
+- Release 0.4.0-rc.3 version
+- Remove unused code
+- Release 0.4.0-rc.4 version
+
+## [0.4.0-rc.2] - 2024-01-09
+
+### ⚙️ Miscellaneous Tasks
+
+- Add release configuration
+- Exclude gitattributes
+- Fix version in cargo
+- Release 0.4.0-rc.2 version
+
+### Release
+
+- 0.4.0-rc.2
+
+## [0.4.0-rc.1] - 2024-01-09
+
+### 🚀 Features
+
+- Add possibility to display ast for given said
+- Bump oca-rs to 0.3.7
+- Support dereference of refn
+- Support for pages in list
+- Always dereference local references for oca bundle
+- Add with dependency flag for fetching all bundles at once
+- Publish all dependencies at once
+- Show refn for build if available
+- Add support for oca presentation
+
+### 🐛 Bug Fixes
+
+- Handle properly remote repo configuration
+- Publish endpoint
+
+### ⚙️ Miscellaneous Tasks
+
+- Adopt to changes from string to SAID in oca-rs
+
+## [0.3.0] - 2023-11-15
+
+### 🚀 Features
+
+- List references for each available object
+
+### 🐛 Bug Fixes
+
+- Allow to control log level
+
+### ⚙️ Miscellaneous Tasks
+
+- Update dependencies
+- Update documentation on subcomands
+- Remove dep path to compile project on github action
+
+## [0.2.0] - 2023-11-03
+
+### 🚀 Features
+
+- Add config subcommand
+- Add publish command
+- Implement configuration
+
+## [0.1.0] - 2023-10-17
+
+### 🐛 Bug Fixes
+
+- Bundled sql dependency to pass builds on windows
+
+<!-- generated by git-cliff -->
