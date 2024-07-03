@@ -186,7 +186,7 @@ pub fn handle_generate(
         attribute_order: attr_order,
     };
 
-    let presentation_base = presentation::Presentation {
+    let mut presentation_base = presentation::Presentation {
         version: "1.0.0".to_string(),
         bundle_digest: bundle.said.clone().unwrap(),
         said: None,
@@ -200,6 +200,7 @@ pub fn handle_generate(
         }],
         languages,
     };
+    presentation_base.compute_digest();
 
     Ok(presentation_base)
 }

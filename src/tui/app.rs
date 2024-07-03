@@ -153,7 +153,8 @@ impl App {
                             true
                         }
                         KeyCode::Char('a') if key.modifiers.eq(&KeyModifiers::CONTROL) => {
-                            self.bundles.select_all()
+                            self.bundles.select_all();
+                            true
                         }
                         KeyCode::Left => {
                             state.key_left();
