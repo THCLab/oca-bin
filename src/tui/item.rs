@@ -15,7 +15,9 @@ use ratatui::{
 use tui_tree_widget::TreeItem;
 
 use crate::{
-    dependency_graph::{parse_node, DependencyGraph, GraphError, MutableGraph, Node},
+    dependency_graph::{
+        parse_node, DependencyGraph, GraphError, MutableGraph, Node, NodeParsingError,
+    },
     error::CliError,
     utils::visit_current_dir,
 };
@@ -210,7 +212,7 @@ impl Items {
             .collect_vec()
     }
 
-    pub fn new_items<I: IntoIterator<Item = Node>>(
+    pub fn new_items<I: IntoIterator<Item = Result<Node, NodeParsingError>>>(
         to_show: I,
         facade: Arc<Mutex<Facade>>,
         graph: &DependencyGraph,
@@ -221,7 +223,7 @@ impl Items {
         items
     }
 
-    fn rebuild<I: IntoIterator<Item = Node>>(
+    fn rebuild<I: IntoIterator<Item = Result<Node, NodeParsingError>>>(
         &mut self,
         to_show: I,
         facade: Arc<Mutex<Facade>>,
@@ -235,17 +237,27 @@ impl Items {
         self.to_tree_items(facade, graph);
     }
 
-    fn build<I: IntoIterator<Item = Node>>(
+    fn build<I: IntoIterator<Item = Result<Node, NodeParsingError>>>(
         &mut self,
         to_show: I,
         facade: Arc<Mutex<Facade>>,
         graph: &DependencyGraph,
     ) {
-        to_show.into_iter().for_each(|node| {
-            self.nodes.push(
+        to_show.into_iter().for_each(|node| match node {
+            Ok(node) => self.nodes.push(
                 ListElement::list_item_from_refn(&node.refn, node.path, graph, facade.clone())
                     .unwrap(),
-            )
+            ),
+            Err(NodeParsingError::MissingRefn(path)) => self.nodes.push(ListElement::new_error(
+                BundleListError::RefnMissing(path.clone()),
+                path,
+            )),
+            Err(NodeParsingError::FileParsing(path)) => self.nodes.push(ListElement::new_error(
+                BundleListError::GraphError(GraphError::NodeParsingError(
+                    NodeParsingError::FileParsing(path.clone()),
+                )),
+                path,
+            )),
         });
     }
 
@@ -269,15 +281,9 @@ impl Items {
                     bundle_el.update_idx(index.clone());
                 }
                 Element::Error(ref mut err) => {
-                    let file = match &err.get() {
-                        BundleListError::AllRefnUnknown => todo!(),
-                        BundleListError::GraphError(GraphError::UnknownRefn(refn)) => refn,
-                        _ => {
-                            todo!()
-                        }
-                    };
+                    let error_comment = err.get().to_string();
                     let line = Span::styled(
-                        format!("! {:?}", file),
+                        format!("! {:?}", error_comment),
                         Style::default()
                             .fg(Color::Red)
                             .add_modifier(Modifier::ITALIC),
@@ -358,8 +364,7 @@ pub fn rebuild_items(
     let to_show_list = visit_current_dir(to_show_dir)
         .unwrap()
         .into_iter()
-        // Files without refn are ignored
-        .filter_map(|of| parse_node(to_show_dir, &of).ok().map(|v| v.0));
+        .map(|of| parse_node(to_show_dir, &of).map(|(node, _)| node));
     let mut items = items.lock().unwrap();
     items.rebuild(to_show_list, facade, &graph);
 }

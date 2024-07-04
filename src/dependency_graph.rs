@@ -10,21 +10,20 @@ use petgraph::{
     algo::toposort,
     graph::NodeIndex,
     graphmap::{DiGraphMap, GraphMap},
-    visit::{depth_first_search, EdgeRef},
+    visit::depth_first_search,
     Directed, Graph,
 };
 use regex::Regex;
 use said::SelfAddressingIdentifier;
 use thiserror::Error;
-use tui_tree_widget::TreeItem;
 
-use crate::tui::bundle_list::Indexer;
+use crate::utils::visit_current_dir;
 
 #[derive(Error, Debug, Clone)]
 pub enum GraphError {
     #[error("Cycle detected")]
     Cycle,
-    #[error("Unknown name: {0}")]
+    #[error("Unknown refn: {0}")]
     UnknownRefn(String),
     #[error("Unknown said for name {0}")]
     UnknownSaid(String),
@@ -41,8 +40,8 @@ pub enum GraphError {
 #[derive(Error, Debug, Clone)]
 pub enum NodeParsingError {
     #[error("File parsing error: {0}")]
-    FileParsing(String),
-    #[error("OCA file doesn't contain bundle name: {0}")]
+    FileParsing(PathBuf),
+    #[error("OCA file doesn't contain bundle name: {0}. Insert `--name=<name>` on the first line of the file.")]
     MissingRefn(PathBuf),
 }
 
@@ -76,8 +75,8 @@ impl DependencyGraph {
         };
         let file_paths = file_paths
             .into_iter()
-            // Files without refn are ignored
-            .filter_map(|path| parse_node(base_dir, path.as_ref()).ok());
+            .map(|path| parse_node(base_dir, path.as_ref()))
+            .collect::<Result<Vec<_>, NodeParsingError>>()?;
 
         for (node, dependencies) in file_paths {
             match graph.key_set.get(&node.refn) {
@@ -232,11 +231,11 @@ pub fn parse_node(base: &Path, file_path: &Path) -> Result<(Node, Vec<String>), 
 
 pub fn parse_name(file_path: &Path) -> Result<(Option<String>, Vec<String>), NodeParsingError> {
     let content = fs::read_to_string(file_path)
-        .map_err(|_e| NodeParsingError::FileParsing("Failed to read file".to_string()))?;
+        .map_err(|_e| NodeParsingError::FileParsing(file_path.to_path_buf()))?;
     let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
     let ref_name_line = lines
         .first()
-        .ok_or(NodeParsingError::FileParsing("File is empty".to_string()))?;
+        .ok_or(NodeParsingError::FileParsing(file_path.to_path_buf()))?;
     let name = ref_name_line.split("name=").nth(1).map(|n| n.to_string());
     Ok((name, lines))
 }
@@ -256,6 +255,14 @@ impl MutableGraph {
         Self {
             graph: Arc::new(Mutex::new(g)),
         }
+    }
+
+    pub fn reload(&mut self, base_dir: &Path) -> Result<(), GraphError> {
+        let file_paths = visit_current_dir(base_dir).unwrap();
+
+        let g = DependencyGraph::from_paths(base_dir, file_paths)?;
+        self.graph = Arc::new(Mutex::new(g));
+        Ok(())
     }
 
     pub fn sort(&self) -> Result<Vec<Node>, GraphError> {

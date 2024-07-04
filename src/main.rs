@@ -575,8 +575,7 @@ fn main() -> Result<(), CliError> {
 
                 let to_show = visit_current_dir(directory)?
                     .into_iter()
-                    // Files without refn are ignored
-                    .filter_map(|of| parse_node(directory, &of).ok().map(|v| v.0));
+                    .map(|of| parse_node(directory, &of).map(|(node, _)| node));
                 tui::draw(
                     directory.clone(),
                     to_show,

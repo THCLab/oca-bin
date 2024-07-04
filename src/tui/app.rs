@@ -25,7 +25,7 @@ use ratatui::{
 use thiserror::Error;
 
 use crate::{
-    dependency_graph::{parse_name, DependencyGraph, MutableGraph, Node},
+    dependency_graph::{parse_name, DependencyGraph, MutableGraph, Node, NodeParsingError},
     publish_oca_file_for, saids_to_publish,
     tui::{get_oca_bundle_by_said, output_window::message_list::Message},
     validate::build,
@@ -67,7 +67,7 @@ enum Window {
 }
 
 impl App {
-    pub fn new<I: IntoIterator<Item = Node> + Clone>(
+    pub fn new<I: IntoIterator<Item = Result<Node, NodeParsingError>> + Clone>(
         base: PathBuf,
         to_show: I,
         facade: Arc<Mutex<Facade>>,
@@ -228,6 +228,14 @@ impl App {
         facade: Arc<Mutex<Facade>>,
         mut graph: MutableGraph,
     ) -> Result<bool, AppError> {
+        if let Err(e) = self.graph.reload(&self.base) {
+            let err_msg = Message::Error(e.into());
+            let errs = self.output.error_list_mut();
+            let mut mut_errs = errs.lock().unwrap();
+            mut_errs.append(err_msg);
+            return Ok(true);
+        };
+        
         self.output.mark_build();
         let current_path = self.output.current_path();
         let errs = self.output.error_list_mut();

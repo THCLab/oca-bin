@@ -95,9 +95,9 @@ impl OutputWindow {
                     };
                     self.render_action_result(&comment, area, buf);
                 }
-                LastAction::NoAction => Paragraph::new("")
-                    .block(Block::bordered().title("Output"))
-                    .render(area, buf),
+                LastAction::NoAction => {
+                    self.render_building_process(area, buf);
+                }
                 LastAction::Pushing => self.render_building_process(area, buf),
             },
             Busy::Publish => {

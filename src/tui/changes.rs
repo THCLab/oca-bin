@@ -92,9 +92,14 @@ impl SavedData {
                 ),
                 Change::Modified(path) => {
                     let (name, _) = parse_name(&path).unwrap();
-                    let deps = format_ancestor_tree(name.as_ref().unwrap(), &self.graph).unwrap();
                     let change_line = ["MODIFIED", path.to_str().unwrap()].join(": ");
-                    TreeItem::new(index.current(), change_line, deps).unwrap()
+                    if let None = name {
+                        return TreeItem::new_leaf(index.current(), change_line);
+                    };
+                    match format_ancestor_tree(name.as_ref().unwrap(), &self.graph) {
+                        Ok(deps) => TreeItem::new(index.current(), change_line, deps).unwrap(),
+                        Err(_) => TreeItem::new_leaf(index.current(), change_line),
+                    }
                 }
                 Change::New(path) => {
                     TreeItem::new_leaf(index.current(), ["NEW", path.to_str().unwrap()].join(": "))

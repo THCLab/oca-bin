@@ -13,7 +13,7 @@ use ratatui::{
 use thiserror::Error;
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
-use crate::dependency_graph::{DependencyGraph, GraphError, Node};
+use crate::dependency_graph::{DependencyGraph, GraphError, Node, NodeParsingError};
 
 use super::item::Element;
 use super::item::Items;
@@ -26,6 +26,8 @@ pub enum BundleListError {
     GraphError(#[from] GraphError),
     #[error("Selected element isn't built properly: {0}")]
     ErrorSelected(PathBuf),
+    #[error("Missing refn in file: {0}")]
+    RefnMissing(PathBuf),
 }
 
 pub struct BundleList {
@@ -47,7 +49,7 @@ impl Indexer {
 }
 
 impl BundleList {
-    pub fn from_nodes<I: IntoIterator<Item = Node>>(
+    pub fn from_nodes<I: IntoIterator<Item = Result<Node, NodeParsingError>>>(
         to_show: I,
         facade: Arc<Mutex<Facade>>,
         graph: Arc<DependencyGraph>,

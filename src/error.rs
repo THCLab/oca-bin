@@ -53,6 +53,8 @@ pub enum CliError {
     OCABundleSAIDNotFound(SelfAddressingIdentifier),
     #[error("Oca bundle of  refn {0} not found")]
     OCABundleRefnNotFound(String),
+    #[error("Missing refn in file: {0}")]
+    MissingRefn(PathBuf),
 }
 
 impl From<BundleListError> for CliError {
@@ -61,6 +63,7 @@ impl From<BundleListError> for CliError {
             BundleListError::AllRefnUnknown => CliError::AllRefnUnknown("".into()),
             BundleListError::GraphError(g) => CliError::GraphError(g),
             BundleListError::ErrorSelected(p) => CliError::SelectionError(p),
+            BundleListError::RefnMissing(p) => CliError::MissingRefn(p),
         }
     }
 }

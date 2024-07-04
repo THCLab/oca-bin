@@ -14,7 +14,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::{dependency_graph::Node, error::CliError};
+use crate::{
+    dependency_graph::{Node, NodeParsingError},
+    error::CliError,
+};
 
 use self::app::AppError;
 
@@ -35,7 +38,7 @@ pub fn draw<I>(
     publish_timeout: Option<u64>,
 ) -> Result<(), AppError>
 where
-    I: IntoIterator<Item = Node> + Clone,
+    I: IntoIterator<Item = Result<Node, NodeParsingError>> + Clone,
 {
     stdout().execute(EnterAlternateScreen)?;
     enable_raw_mode()?;

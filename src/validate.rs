@@ -56,7 +56,9 @@ pub fn build(
 ) -> Result<(), Vec<CliError>> {
     let dependent_nodes = match selected_bundle {
         Some(refn) => {
-            let mut nodes = graph.get_dependent_nodes(&refn).unwrap();
+            let mut nodes = graph
+                .get_dependent_nodes(&refn)
+                .map_err(|e| vec![CliError::GraphError(e)])?;
             nodes.push(graph.node(&refn).unwrap());
             nodes
         }
