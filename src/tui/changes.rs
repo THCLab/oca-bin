@@ -9,7 +9,7 @@ use petgraph::{graph::NodeIndex, graphmap::GraphMap, visit::EdgeRef, Directed};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, StatefulWidget, Widget},
+    widgets::{Block, Scrollbar, ScrollbarOrientation, StatefulWidget},
 };
 use said::{
     derivation::{HashFunction, HashFunctionCode},

@@ -67,6 +67,10 @@ impl<T: Display> GenericElement<T> {
         self.err.to_string()
     }
 
+    pub fn index(&self) -> Option<String> {
+        self.index.clone()
+    }
+
     pub fn update_idx(&mut self, index: String) {
         self.index = Some(index)
     }

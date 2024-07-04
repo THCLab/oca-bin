@@ -235,7 +235,7 @@ impl App {
             mut_errs.append(err_msg);
             return Ok(true);
         };
-        
+
         self.output.mark_build();
         let current_path = self.output.current_path();
         let errs = self.output.error_list_mut();
@@ -249,21 +249,27 @@ impl App {
             let res: Vec<_> = selected_bundle
                 .iter()
                 .flat_map(|el| {
-                    let (name, path) = match el {
-                        Element::Ok(oks) => {
-                            (Some(oks.get().refn.clone()), oks.path().to_path_buf())
-                        }
+                    let (name, path, index) = match el {
+                        Element::Ok(oks) => (
+                            Some(oks.get().refn.clone()),
+                            oks.path().to_path_buf(),
+                            oks.index(),
+                        ),
                         Element::Error(errors) => {
                             let mut path = base_path.clone();
                             path.push(errors.path());
-                            (parse_name(path.as_path()).unwrap().0, path)
+                            (parse_name(path.as_path()).unwrap().0, path, errors.index())
                         }
                     };
                     if let Some(_) = name {
                         updated_nodes.push(path);
                     };
-                    match build(name, facade.clone(), &mut graph, errs.clone()) {
-                        Ok(_) => vec![],
+                    match build(name.clone(), facade.clone(), &mut graph, errs.clone()) {
+                        Ok(_) => {
+                            let mut items = list.lock().unwrap();
+                            items.update_state(&index.unwrap());
+                            vec![]
+                        }
                         Err(errs) => errs,
                     }
                 })
