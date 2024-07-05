@@ -1,9 +1,5 @@
 use std::{
-    io,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-    thread,
-    time::Duration,
+    collections::HashMap, io, path::PathBuf, sync::{Arc, Mutex}, thread, time::Duration
 };
 
 pub use super::bundle_list::BundleListError;
@@ -300,14 +296,21 @@ impl App {
         let errs = self.output.error_list_mut();
         let remote_repository = self.remote_repository.clone();
         let timeout = self.publish_timeout;
+        let list = self.bundles.items.clone();
 
         thread::spawn(move || {
+            let mut said_index_map = HashMap::new();
             let saids: Result<Vec<_>, AppError> = selected_bundle
                 .into_iter()
                 .map(|el| match el {
-                    Element::Ok(oks) => Ok(oks.get().oca_bundle.said.clone().unwrap()),
+                    Element::Ok(oks) => {
+                        let said = oks.get().oca_bundle.said.clone().unwrap();
+                        if let Some(index) = oks.index() {
+                            said_index_map.insert(said.clone(), index);
+                        }
+                        Ok(said)
+                    },
                     Element::Error(errors) => {
-                        info!("Error selected for publish {:?}", &errors.path());
                         Err(AppError::BundleList(BundleListError::ErrorSelected(
                             errors.path().into(),
                         )))
@@ -338,6 +341,10 @@ impl App {
                                                 name,
                                                 remote_repository.as_ref().unwrap()
                                             )));
+                                            let mut items = list.lock().unwrap();
+                                            if let Some(index) = said_index_map.get(&said) {
+                                                items.update_state(index);
+                                            };
                                         }
                                         Err(e) => {
                                             let mut i = errs.lock().unwrap();
