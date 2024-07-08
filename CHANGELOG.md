@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.4.0] - 2024-07-01
+## [0.4.1] - 2024-07-08
 
 ### 🚀 Features
 
@@ -16,11 +16,19 @@ All notable changes to this project will be documented in this file.
 - *(tui)* Prevent exit on window resize
 - *(publish)* Show refn of published element
 - Change default publishing timeout
+- Compute presentation digest during generation
+- Ensure all files have refn set
+- *(tui)* Unselect elements that were built
+- *(tui)* Unselect elements that were published
 
 ### ⚙️ Miscellaneous Tasks
 
 - Release 0.4.0 version
 - Rewamp CHANGELOG
+
+### Build
+
+- Use git cliff to auto-update CHANGELOG.md
 
 ## [0.4.0-rc.13] - 2024-06-17
 
