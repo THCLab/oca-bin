@@ -3,6 +3,7 @@ use config::create_or_open_local_storage;
 use config::OCA_CACHE_DB_DIR;
 use config::OCA_INDEX_DIR;
 use config::OCA_REPOSITORY_DIR;
+use dependency_graph::GraphError;
 use error::CliError;
 use oca_presentation::presentation::Presentation;
 use presentation_command::PresentationCommand;
@@ -275,7 +276,18 @@ fn main() -> Result<(), CliError> {
             let (paths, base_dir) = load_ocafiles_all(ocafile.as_ref(), directory.as_ref())?;
 
             let mut facade = get_oca_facade(local_repository_path);
-            let graph = DependencyGraph::from_paths(&base_dir, paths).unwrap();
+            let graph = match DependencyGraph::from_paths(&base_dir, paths) {
+                Ok(graph) => graph,
+                Err(GraphError::NodeParsingError(e)) => {
+                    println!("{}", e.to_string());
+                    return Ok(());
+                }
+                Err(e) => {
+                    println!("{}", e.to_string());
+                    return Ok(());
+                }
+            };
+
             let sorted_graph = graph.sort().unwrap();
 
             info!("Sorted: {:?}", sorted_graph);
