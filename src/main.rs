@@ -85,11 +85,6 @@ enum Commands {
         #[arg(short, long)]
         timeout: Option<u64>,
     },
-    /// Sign specific object to claim ownership
-    Sign {
-        #[arg(short, long)]
-        scid: String,
-    },
     /// Show ocafile for specify said
     Show {
         #[arg(short, long)]
@@ -366,10 +361,6 @@ fn main() -> Result<(), CliError> {
                     Err(err.into())
                 }
             }
-        }
-        Some(Commands::Sign { scid: _ }) => {
-            info!("Sign OCA bundle byc SCID");
-            unimplemented!("Coming soon!")
         }
         Some(Commands::List {}) => {
             info!(
