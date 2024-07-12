@@ -13,7 +13,7 @@ pub const OCA_DIR_NAME: &str = ".oca";
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct Config {
     pub local_repository_path: PathBuf,
-    pub remote_repo_url: Option<String>,
+    pub repository_url: Option<String>,
 }
 
 impl Config {

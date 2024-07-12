@@ -55,6 +55,10 @@ pub enum CliError {
     OCABundleRefnNotFound(String),
     #[error("Missing refn in file: {0}")]
     MissingRefn(PathBuf),
+    #[error(transparent)]
+    UrlError(#[from] url::ParseError),
+    #[error("No repository path set. You can set it by adding `repository_url` to config file or with `-r` option.")]
+    UnknownRemoteRepoUrl,
 }
 
 impl From<BundleListError> for CliError {

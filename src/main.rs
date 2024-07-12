@@ -14,6 +14,7 @@ use std::{env, fs, fs::File, io::Write, path::PathBuf, process, str::FromStr};
 use clap::Parser as ClapParser;
 use clap::Subcommand;
 use oca_rs::{repositories::SQLiteConfig, Facade};
+use url::Url;
 
 use crate::config::{init_or_read_config, write_config, Config, OCA_DIR_NAME};
 use crate::dependency_graph::parse_node;
@@ -187,8 +188,7 @@ fn publish_oca_file_for(
     facade: Arc<Mutex<Facade>>,
     said: SelfAddressingIdentifier,
     timeout: &Option<u64>,
-    repository_url: &Option<String>,
-    remote_repo_url: &Option<String>,
+    repository_url: Url,
 ) -> Result<(), CliError> {
     let timeout = timeout.unwrap_or(666);
     let facade = facade.lock().unwrap();
@@ -199,20 +199,9 @@ fn publish_oca_file_for(
                 .timeout(std::time::Duration::from_secs(timeout))
                 .build()
                 .expect("Failed to create reqwest client");
-            let api_url = if let Some(repository_url) = repository_url {
-                info!("Override default repository with: {}", repository_url);
-                format!("{}{}", repository_url, "oca-bundles")
-            } else if let Some(remote_repo_url) = remote_repo_url.as_ref() {
-                info!("Use default repository: {}", remote_repo_url);
-                format!("{}{}", remote_repo_url, "oca-bundles")
-            } else {
-                panic!("No repository url provided")
-            };
-            info!(
-                "Publish OCA bundle to: {} with payload: {}",
-                api_url, ocafile
-            );
-            match client.post(api_url).body(ocafile).send() {
+            let url = repository_url.join("oca-bundles")?;
+            info!("Publish OCA bundle to: {} with payload: {}", url, ocafile);
+            match client.post(url).body(ocafile).send() {
                 Ok(v) => match v.error_for_status() {
                     Ok(v) => {
                         info!("{},{}", v.status(), v.text().unwrap());
@@ -252,7 +241,7 @@ fn main() -> Result<(), CliError> {
     let config = init_or_read_config();
     info!("Config: {:?}", config);
     let local_repository_path = config.local_repository_path;
-    let remote_repo_url = config.remote_repo_url;
+    let remote_repo_url_from_config = config.repository_url;
 
     match &args.command {
         Some(Commands::Init {}) => {
@@ -341,6 +330,14 @@ fn main() -> Result<(), CliError> {
                 Ok(said) => {
                     // Find dependant saids for said.
                     let saids_to_publish = saids_to_publish(facade.clone(), &[said.clone()]);
+                    let remote_repo_url = match (repository_url, remote_repo_url_from_config) {
+                        (None, None) => {
+                            println!("Error: {}", CliError::UnknownRemoteRepoUrl.to_string());
+                            return Ok(());
+                        }
+                        (None, Some(config_url)) => url::Url::parse(&config_url)?,
+                        (Some(repo_url), _) => url::Url::parse(&repo_url)?,
+                    };
                     // Make post request for all saids
                     let res: Vec<_> = saids_to_publish
                         .iter()
@@ -349,8 +346,7 @@ fn main() -> Result<(), CliError> {
                                 facade.clone(),
                                 said.clone(),
                                 &timeout,
-                                &repository_url,
-                                &None,
+                                remote_repo_url.clone(),
                             ) {
                                 Ok(_) => {
                                     vec![]
@@ -581,7 +577,7 @@ fn main() -> Result<(), CliError> {
                     to_show,
                     all_oca_files,
                     facade,
-                    remote_repo_url,
+                    remote_repo_url_from_config,
                     timeout.clone(),
                 )
                 .unwrap_or_else(|err| {

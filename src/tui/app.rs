@@ -1,5 +1,10 @@
 use std::{
-    collections::HashMap, io, path::PathBuf, sync::{Arc, Mutex}, thread, time::Duration
+    collections::HashMap,
+    io,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
 };
 
 pub use super::bundle_list::BundleListError;
@@ -42,6 +47,10 @@ pub enum AppError {
     Input(#[from] io::Error),
     #[error("Validation error: {0}")]
     Validation(String),
+    #[error("No repository path set. You can set it by adding `repository_url` to config file.")]
+    UnknownRemoteRepoUrl,
+    #[error("Remote repository url parse error: {0}")]
+    WrongUrl(#[from] url::ParseError),
 }
 pub struct App {
     bundles: BundleList,
@@ -294,7 +303,12 @@ impl App {
         self.output.mark_publish();
         let current_path = self.output.current_path();
         let errs = self.output.error_list_mut();
-        let remote_repository = self.remote_repository.clone();
+        let remote_repository = url::Url::parse(
+            &self
+                .remote_repository
+                .clone()
+                .ok_or(AppError::UnknownRemoteRepoUrl)?,
+        )?;
         let timeout = self.publish_timeout;
         let list = self.bundles.items.clone();
 
@@ -309,12 +323,10 @@ impl App {
                             said_index_map.insert(said.clone(), index);
                         }
                         Ok(said)
-                    },
-                    Element::Error(errors) => {
-                        Err(AppError::BundleList(BundleListError::ErrorSelected(
-                            errors.path().into(),
-                        )))
                     }
+                    Element::Error(errors) => Err(AppError::BundleList(
+                        BundleListError::ErrorSelected(errors.path().into()),
+                    )),
                 })
                 .collect();
             match saids {
@@ -329,8 +341,7 @@ impl App {
                                 facade.clone(),
                                 said.clone(),
                                 &timeout,
-                                &remote_repository,
-                                &None,
+                                remote_repository.clone(),
                             ) {
                                 Ok(_) => {
                                     match get_oca_bundle_by_said(said, facade.clone()) {
@@ -339,7 +350,7 @@ impl App {
                                             i.append(Message::Info(format!(
                                                 "Published {} to {}",
                                                 name,
-                                                remote_repository.as_ref().unwrap()
+                                                remote_repository.as_ref()
                                             )));
                                             let mut items = list.lock().unwrap();
                                             if let Some(index) = said_index_map.get(&said) {
