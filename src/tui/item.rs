@@ -256,12 +256,15 @@ impl Items {
                 BundleListError::RefnMissing(path.clone()),
                 path,
             )),
-            Err(NodeParsingError::FileParsing(path)) => self.nodes.push(ListElement::new_error(
-                BundleListError::GraphError(GraphError::NodeParsingError(
-                    NodeParsingError::FileParsing(path.clone()),
-                )),
-                path,
-            )),
+            Err(NodeParsingError::FileParsing(path))
+            | Err(NodeParsingError::WrongCharacterRefn(_, path)) => {
+                self.nodes.push(ListElement::new_error(
+                    BundleListError::GraphError(GraphError::NodeParsingError(
+                        NodeParsingError::FileParsing(path.clone()),
+                    )),
+                    path,
+                ))
+            }
         });
     }
 

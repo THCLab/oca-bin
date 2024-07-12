@@ -43,6 +43,8 @@ pub enum NodeParsingError {
     FileParsing(PathBuf),
     #[error("OCA file doesn't contain bundle name: {0}. Insert `--name=<name>` on the first line of the file.")]
     MissingRefn(PathBuf),
+    #[error("Reference '{0}' in file {1} contains an invalid character. Only alphanumeric characters, '-' or '_' are allowed.")]
+    WrongCharacterRefn(String, PathBuf),
 }
 
 #[derive(Default, Debug, Clone)]
@@ -237,6 +239,18 @@ pub fn parse_name(file_path: &Path) -> Result<(Option<String>, Vec<String>), Nod
         .first()
         .ok_or(NodeParsingError::FileParsing(file_path.to_path_buf()))?;
     let name = ref_name_line.split("name=").nth(1).map(|n| n.to_string());
+    if let Some(name) = &name {
+        if name
+            .chars()
+            .any(|ch| !(ch.is_alphanumeric() || ['-', '_'].contains(&ch)))
+        {
+            return Err(NodeParsingError::WrongCharacterRefn(
+                name.to_string(),
+                file_path.to_path_buf(),
+            ));
+        }
+    }
+
     Ok((name, lines))
 }
 
