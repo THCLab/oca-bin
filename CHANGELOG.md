@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.2] - 2024-07-16
+
+### 🐛 Bug Fixes
+
+- Use repository_url from config file in publish
+- Remove sign command
+- Don't panic when refn is missing in ocafile
+- Don't panic on not supported chars in refn
+
 ## [0.4.1] - 2024-07-08
 
 ### 🚀 Features
@@ -25,6 +34,7 @@ All notable changes to this project will be documented in this file.
 
 - Release 0.4.0 version
 - Rewamp CHANGELOG
+- Release 0.4.1 version
 
 ### Build
 
