@@ -2,14 +2,14 @@
 
 Command line tool to work with OCA objects
 
+## Installation
 
-## How to use
+Download the latest [release](https://github.com/THCLab/oca-bin/releases/latest)
 
-Run:
+## Usage
 
+See https://oca.colossi.network/ecosystem/oca-bin.html or run:
+
+```
 ./oca --help
-
-WIP:
-- pull and push oca object from/to oca repository
-- store and query locally stored OCA objects
-
+```
