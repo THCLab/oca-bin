@@ -1,4 +1,4 @@
-use oca_ast::ast::{NestedAttrType, RefValue};
+use oca_ast_semantics::ast::{NestedAttrType, RefValue};
 use oca_rs::Facade;
 use said::SelfAddressingIdentifier;
 use serde_json::{Map, Value};
@@ -87,6 +87,15 @@ fn handle_reference(
 mod tests {
     use crate::{dependency_graph::DependencyGraph, get_oca_facade, mapping::mapping};
     use std::{fs::File, io::Write};
+    use oca_rs::facade::bundle::BundleElement;
+    use oca_bundle_semantics::state::oca::OCABundle;
+
+    fn extract_mechanics(element: BundleElement) -> OCABundle {
+        match element {
+            BundleElement::Mechanics(mechanics) => mechanics,
+            _ => panic!("Expected BundleElement::Mechanics"),
+        }
+    }
 
     #[test]
     fn test_handle_references() {
@@ -98,7 +107,8 @@ mod tests {
 
         // Value oca bundle
         let oca_bundle0 = facade.build_from_ocafile(oca_file0.clone()).unwrap();
-        let digest0 = oca_bundle0.said.unwrap();
+        let mechanics0 = extract_mechanics(oca_bundle0);
+        let digest0 = mechanics0.said.unwrap();
 
         let oca_file1 = format!(
             "ADD ATTRIBUTE person=refs:{}\nADD ATTRIBUTE like_cats=Boolean",
@@ -107,7 +117,8 @@ mod tests {
 
         // Reference oca bundle
         let oca_bundle1 = facade.build_from_ocafile(oca_file1.clone()).unwrap();
-        let digest1 = oca_bundle1.said.unwrap();
+        let mechanics1 = extract_mechanics(oca_bundle1);
+        let digest1 = mechanics1.said.unwrap();
 
         let oca_file2 = format!(
             "ADD ATTRIBUTE cat_lover=refs:{}\nADD ATTRIBUTE favorite_cat=Text",
@@ -116,7 +127,8 @@ mod tests {
 
         // Reference to Reference oca bundle
         let oca_bundle2 = facade.build_from_ocafile(oca_file2.clone()).unwrap();
-        let digest2 = oca_bundle2.said.unwrap();
+        let mechanics2 = extract_mechanics(oca_bundle2);
+        let digest2 = mechanics2.said.unwrap();
 
         // Build temporary directory with test ocafiles.
         let list = [
@@ -126,7 +138,7 @@ mod tests {
         ];
 
         let mut paths = vec![];
-        for (name, contents) in list {
+        for (name, _contents) in list {
             let path = tmp_dir.path().join(format!("{}.ocafile", name));
             let mut tmp_file = File::create(&path).unwrap();
             writeln!(tmp_file, "-- name={}", name).unwrap();
@@ -137,7 +149,7 @@ mod tests {
         let o = mapping(digest2, &facade, &dependency_graph).unwrap();
 
         let expected_json = r#"{
-  "capture_base": "EAF0irS_GXSZaAlb99_zv7LJ-9I1Ljdv6RvVvPPZFrQb",
+  "capture_base": "EJZSrCQs29v-oYK6cRAvLkPqyoy-QuoGy56Sd1q2eEJ5",
   "attribute_mapping": {
     "cat_lover.like_cats": "",
     "cat_lover.person.name": "",
@@ -160,13 +172,15 @@ mod tests {
 
         // Value oca bundle
         let oca_bundle0 = facade.build_from_ocafile(oca_file1.clone()).unwrap();
-        let digest0 = oca_bundle0.said.unwrap();
+        let mechanics0 = extract_mechanics(oca_bundle0);
+        let digest0 = mechanics0.said.unwrap();
 
         let oca_file2 = format!("ADD ATTRIBUTE person=refs:{}", digest0.to_string());
 
         // Reference oca bundle
         let person_oca_bundle = facade.build_from_ocafile(oca_file2.clone()).unwrap();
-        let person_bundle_said = person_oca_bundle.said.unwrap();
+        let person_mechanics = extract_mechanics(person_oca_bundle);
+        let person_bundle_said = person_mechanics.said.unwrap();
 
         // Array of references oca bundle
         let oca_file3 = format!(
@@ -175,7 +189,8 @@ mod tests {
         );
 
         let many_persons_bundle = facade.build_from_ocafile(oca_file3.clone()).unwrap();
-        let many_person_bundle_digest = many_persons_bundle.said.unwrap();
+        let many_persons_mechanics = extract_mechanics(many_persons_bundle);
+        let many_person_bundle_digest = many_persons_mechanics.said.unwrap();
 
         // Build temporary directory with test ocafiles.
         let list = [
@@ -201,7 +216,7 @@ mod tests {
         .unwrap();
 
         let expected_json = r#"{
-  "capture_base": "ECR3Kq3QmrVJYwu2ibLPScAU3mlZQs7H1o3nBJYho5vU",
+  "capture_base": "EPjX9YCPCua2ZpcyRtbOiYFokx3ccrPWL29qqOIPsPK6",
   "attribute_mapping": {
     "many_persons.person.name": "",
     "many_persons.person.number": ""

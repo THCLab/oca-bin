@@ -6,7 +6,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use oca_ast::ast::{NestedAttrType, RefValue};
+use oca_ast_semantics::ast::{NestedAttrType, RefValue};
 use oca_rs::Facade;
 use ratatui::{
     style::{Color, Modifier, Style},

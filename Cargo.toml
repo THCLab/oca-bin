@@ -17,15 +17,15 @@ path = "src/main.rs"
 dirs = "5.0.1"
 clap = { version = "4.0.29", features = ["derive"] }
 log = "0.4.20"
-oca-rs = { version = "0.4.3", features = ["local-references"] }
-oca-ast = { version = "0.4.3"}
-oca-bundle = { version = "0.4.3"}
+oca-rs = { version = "0.5.4", features = ["local-references"] }
+oca-ast-semantics = { version = "0.5.4"}
+oca-bundle-semantics = { version = "0.5.4"}
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
 reqwest = { version = "0.11", features = ["json", "blocking"] }
 toml = "0.5"
-said = { version = "0.3.0", features = ["macros"] }
-oca-presentation = { version = "0.7.1" }
+said = { version = "0.4.1", features = ["macros"] }
+oca-presentation = { version = "0.7.2" }
 isolang = { version = "2.3.0", features = ["serde"] }
 walkdir = "2.3"
 indexmap = "2.1.0"

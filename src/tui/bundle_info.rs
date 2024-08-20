@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use oca_bundle::state::oca::OCABundle;
+use oca_bundle_semantics::state::oca::OCABundle;
 
 use crate::dependency_graph::Node;
 

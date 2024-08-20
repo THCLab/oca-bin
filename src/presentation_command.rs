@@ -2,9 +2,9 @@ use clap::Subcommand;
 use indexmap::IndexMap;
 use isolang::Language;
 use itertools::Itertools;
-use oca_ast::ast::recursive_attributes::NestedAttrTypeFrame;
-use oca_ast::ast::{AttributeType, NestedAttrType, OverlayType, RefValue};
-use oca_bundle::state::oca::OCABundle;
+use oca_ast_semantics::ast::recursive_attributes::NestedAttrTypeFrame;
+use oca_ast_semantics::ast::{AttributeType, NestedAttrType, OverlayType, RefValue};
+use oca_bundle_semantics::state::oca::OCABundle;
 use oca_presentation::page::recursion_setup::PageElementFrame;
 use oca_presentation::presentation::AttrType;
 use oca_presentation::{
@@ -13,7 +13,7 @@ use oca_presentation::{
 };
 use oca_rs::Facade;
 use recursion::{CollapsibleExt, ExpandableExt};
-use said::{sad::SAD, SelfAddressingIdentifier};
+use said::{sad::{SAD, SerializationFormats}, derivation::HashFunctionCode, SelfAddressingIdentifier};
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -81,11 +81,13 @@ pub fn handle_validate(
     mut pres: Presentation,
     recalculate: bool,
 ) -> Result<Presentation, PresentationError> {
+    let code = HashFunctionCode::Blake3_256;
+    let format = SerializationFormats::JSON;
     match pres.validate_digest() {
         Err(e) => {
             if recalculate {
                 println!("Computing presentation digest and inserting it into `d` field.");
-                pres.compute_digest();
+                pres.compute_digest(&code, &format);
                 Ok(pres)
             } else {
                 Err(e.into())
@@ -200,7 +202,9 @@ pub fn handle_generate(
         }],
         languages,
     };
-    presentation_base.compute_digest();
+    let code = HashFunctionCode::Blake3_256;
+    let format = SerializationFormats::JSON;
+    presentation_base.compute_digest(&code, &format);
 
     Ok(presentation_base)
 }
@@ -260,8 +264,17 @@ mod tests {
 
     use isolang::Language;
     use oca_presentation::{page::PageElement, presentation::AttrType};
+    use oca_rs::facade::bundle::BundleElement;
+    use oca_bundle_semantics::state::oca::OCABundle;
 
     use crate::{get_oca_facade, presentation_command::handle_generate};
+
+    fn extract_mechanics(element: BundleElement) -> OCABundle {
+        match element {
+            BundleElement::Mechanics(mechanics) => mechanics,
+            _ => panic!("Expected BundleElement::Mechanics"),
+        }
+    }
 
     #[test]
     fn test_handle_references() {
@@ -273,7 +286,8 @@ mod tests {
 
         // Value oca bundle
         let oca_bundle0 = facade.build_from_ocafile(oca_file0).unwrap();
-        let digest0 = oca_bundle0.said.unwrap();
+        let mechanics0 = extract_mechanics(oca_bundle0);
+        let digest0 = mechanics0.said.unwrap();
 
         let oca_file1 = format!(
             "ADD ATTRIBUTE person=refs:{}\nADD ATTRIBUTE like_cats=Boolean",
@@ -282,7 +296,8 @@ mod tests {
 
         // Reference oca bundle
         let oca_bundle1 = facade.build_from_ocafile(oca_file1).unwrap();
-        let digest1 = oca_bundle1.said.unwrap();
+        let mechanics1 = extract_mechanics(oca_bundle1);
+        let digest1 = mechanics1.said.unwrap();
 
         let presentation = handle_generate(digest1.clone(), &facade).unwrap();
 
@@ -309,7 +324,8 @@ mod tests {
 
         // Reference to Reference oca bundle
         let oca_bundle2 = facade.build_from_ocafile(oca_file2).unwrap();
-        let digest2 = oca_bundle2.said.unwrap();
+        let mechanics2 = extract_mechanics(oca_bundle2);
+        let digest2 = mechanics2.said.unwrap();
 
         let presentation = handle_generate(digest2.clone(), &facade).unwrap();
 
@@ -345,11 +361,12 @@ mod tests {
 
         // Reference oca bundle
         let array_bundle = facade.build_from_ocafile(oca_file0.clone()).unwrap();
-        let array_bundle_said = array_bundle.said.unwrap();
+        let array_mechanics = extract_mechanics(array_bundle);
+        let array_bundle_said = array_mechanics.said.unwrap();
 
         let presentation = handle_generate(array_bundle_said.clone(), &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EJi486RStLv0EzSOaOfY1RtCPfY7-tGBdS6CnFLacKqW","l":[],"d":"ENvO1n2zR_PE3Ds65tIm6Onyj8VbewZRP9yYuzW9DXdX","p":[{"n":"page 1","ao":["list","name"]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"ELzcfyie-N2rp6OfERt36TOG-LxuEsauorTCA1yF39cB","l":[],"d":"EJw2gOTgFeD_u_D8O8ZW4HbR8uTqT12v7XMUw1ao0l_7","p":[{"n":"page 1","ao":["list","name"]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -361,7 +378,7 @@ mod tests {
         ];
 
         assert_eq!(
-            presentation.pages.get(0).unwrap().attribute_order,
+            presentation.pages.first().unwrap().attribute_order,
             person_page_element.clone()
         );
 
@@ -369,11 +386,12 @@ mod tests {
 
         // Value oca bundle
         let oca_bundle0 = facade.build_from_ocafile(oca_file1.clone()).unwrap();
-        let digest0 = oca_bundle0.said.unwrap();
+        let mechanics0 = extract_mechanics(oca_bundle0);
+        let digest0 = mechanics0.said.unwrap();
 
         let presentation = handle_generate(digest0.clone(), &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EEx1y3CnK5LcByLUb_MF7hR3Iv-Fs8enGdbYCiiil21T","l":[],"d":"EB-MLroNJ9nxFheQdGY9k0zd8Jjpm_0um2DSAkQghc2I","p":[{"n":"page 1","ao":["name","number"]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"ENmCXdYwYLC2lDNywG8OUhJ4-xg5KepXp45jSb0Cd9FQ","l":[],"d":"EFxGHn7vj6JGvK5rXKujgwtEcLEzxj8xo2uybCFi-LsV","p":[{"n":"page 1","ao":["name","number"]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -385,11 +403,12 @@ mod tests {
 
         // Reference oca bundle
         let person_oca_bundle = facade.build_from_ocafile(oca_file1.clone()).unwrap();
-        let person_bundle_said = person_oca_bundle.said.unwrap();
+        let person_mechanics = extract_mechanics(person_oca_bundle);
+        let person_bundle_said = person_mechanics.said.unwrap();
 
         let presentation = handle_generate(person_bundle_said.clone(), &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EGU0faBu85GSuo4rwDAo7Qi52OpZpHS8GutS8Rh5rIfl","l":[],"d":"EPb-u2BczE61ZJczQhOztGlYAw8idIIhQVz6Z98r7ovM","p":[{"n":"page 1","ao":[{"n":"person","ao":["name","number"]}]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EN1gss9dAe7d8SzRLCekA6K6vSZj0cfmGJ-gB6cXhena","l":[],"d":"ENyN9Fza7l7UZgw7iL4YU3rtjVgLfjBKE0RCMfDD5TeB","p":[{"n":"page 1","ao":[{"n":"person","ao":["name","number"]}]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -417,11 +436,12 @@ mod tests {
         );
 
         let many_persons_bundle = facade.build_from_ocafile(oca_file2.clone()).unwrap();
-        let many_person_bundle_digest = many_persons_bundle.said.unwrap();
+        let many_persons_mechanics = extract_mechanics(many_persons_bundle);
+        let many_person_bundle_digest = many_persons_mechanics.said.unwrap();
 
         let presentation = handle_generate(many_person_bundle_digest, &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EDqTtz-Lp5tWstJ8nLfhpe5UC1cnFQkA27CZQeSfnvHs","l":[],"d":"EMzUk7Tgjc_Nme2KAPtBi_XsVPcrGrwaW3_U6n6MDNHo","p":[{"n":"page 1","ao":[{"n":"many_persons","ao":[{"n":"person","ao":["name","number"]}]}]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EOgTmYu_842l_u3ldgVQOwHAG0zM5VMyctiv6xTRJedK","l":[],"d":"EKxkjqfAZwpBU-fp1Oc2TE38vRLiPfptXmLTAaXFDUsW","p":[{"n":"page 1","ao":[{"n":"many_persons","ao":[{"n":"person","ao":["name","number"]}]}]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -455,7 +475,8 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
 "#;
 
         let oca_bundle = facade.build_from_ocafile(oca_file.to_string()).unwrap();
-        let digest = oca_bundle.said.unwrap();
+        let mechanics = extract_mechanics(oca_bundle);
+        let digest = mechanics.said.unwrap();
 
         let presentation = handle_generate(digest, &facade).unwrap();
         assert_eq!(presentation.languages, vec![Language::Epo, Language::Pol]);
@@ -476,7 +497,8 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
         let oca_file = r#"ADD ATTRIBUTE radio=Text dt=DateTime img=Binary"#;
 
         let oca_bundle = facade.build_from_ocafile(oca_file.to_string()).unwrap();
-        let digest = oca_bundle.said.unwrap();
+        let mechanics = extract_mechanics(oca_bundle);
+        let digest = mechanics.said.unwrap();
 
         let presentation = handle_generate(digest, &facade).unwrap();
         let interaction_attrs = presentation.interaction[0].clone().attr_properties;
@@ -501,11 +523,13 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
         let oca_file = r#"ADD ATTRIBUTE radio=Text dt=DateTime img=Binary"#;
 
         let oca_bundle = facade.build_from_ocafile(oca_file.to_string()).unwrap();
-        let digest = oca_bundle.said.unwrap();
+        let mechanics = extract_mechanics(oca_bundle);
+        let digest = mechanics.said.unwrap();
 
         let oca_file_2 = format!(r#"ADD ATTRIBUTE nested=refs:{}"#, digest.to_string());
         let oca_bundle2 = facade.build_from_ocafile(oca_file_2.to_string()).unwrap();
-        let nested_digest = oca_bundle2.said.unwrap();
+        let mechanics2 = extract_mechanics(oca_bundle2);
+        let nested_digest = mechanics2.said.unwrap();
 
         let oca_file_3 = format!(
             r#"ADD ATTRIBUTE again=refs:{} once=refs:{}"#,
@@ -513,7 +537,8 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
             digest.to_string()
         );
         let oca_bundle3 = facade.build_from_ocafile(oca_file_3.to_string()).unwrap();
-        let nested_digest = oca_bundle3.said.unwrap();
+        let mechanics3 = extract_mechanics(oca_bundle3);
+        let nested_digest = mechanics3.said.unwrap();
 
         let presentation = handle_generate(nested_digest, &facade).unwrap();
         let interaction_attrs = presentation.interaction[0].clone().attr_properties;
@@ -536,7 +561,8 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
 
         let oca_file_4 = format!(r#"ADD ATTRIBUTE list=Array[refs:{}]"#, digest.to_string());
         let oca_bundle4 = facade.build_from_ocafile(oca_file_4.to_string()).unwrap();
-        let array_digest = oca_bundle4.said.unwrap();
+        let mechanics4 = extract_mechanics(oca_bundle4);
+        let array_digest = mechanics4.said.unwrap();
         let presentation = handle_generate(array_digest, &facade).unwrap();
         let interaction_attrs = presentation.interaction[0].clone().attr_properties;
         assert_eq!(

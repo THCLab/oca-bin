@@ -14,7 +14,7 @@ use std::{env, fs, fs::File, io::Write, path::PathBuf, process, str::FromStr};
 
 use clap::Parser as ClapParser;
 use clap::Subcommand;
-use oca_rs::{repositories::SQLiteConfig, Facade};
+use oca_rs::{repositories::SQLiteConfig, Facade, facade::bundle::BundleElement};
 use url::Url;
 
 use crate::config::{init_or_read_config, write_config, Config, OCA_DIR_NAME};
@@ -297,25 +297,29 @@ fn main() -> Result<(), CliError> {
                     Ok(path) => {
                         let unparsed_file =
                             fs::read_to_string(&path).map_err(CliError::ReadFileFailed)?;
-                        let oca_bundle = facade
+                        let oca_bundle_element = facade
                             .build_from_ocafile(unparsed_file)
                             .map_err(|e| CliError::BuildingError(path, e))?;
-                        let refs = facade.fetch_all_refs().unwrap();
-                        let schema_name = refs
-                            .iter()
-                            .find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
-                        if let Some((refs, _)) = schema_name {
-                            println!(
-                                "OCA bundle created in local repository with SAID: {} and name: {}",
-                                oca_bundle.said.unwrap(),
-                                refs
-                            );
+                        if let BundleElement::Mechanics(oca_bundle) = oca_bundle_element {
+                            let refs = facade.fetch_all_refs().unwrap();
+                            let schema_name = refs
+                                .iter()
+                                .find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
+                            if let Some((refs, _)) = schema_name {
+                                println!(
+                                    "OCA bundle created in local repository with SAID: {} and name: {}",
+                                    oca_bundle.said.unwrap(),
+                                    refs
+                                );
+                            } else {
+                                println!(
+                                    "OCA bundle created in local repository with SAID: {:?}",
+                                    oca_bundle.said.unwrap()
+                                );
+                            };
                         } else {
-                            println!(
-                                "OCA bundle created in local repository with SAID: {:?}",
-                                oca_bundle.said.unwrap()
-                            );
-                        };
+                            println!("Expected BundleElement::Mechanics");
+                        }
                     }
                     _ => {
                         println!("RefN not found in graph: {}", node.refn);

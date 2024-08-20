@@ -4,7 +4,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
-use oca_bundle::state::oca::OCABundle;
+use oca_bundle_semantics::state::oca::OCABundle;
 use oca_rs::Facade;
 use ratatui::prelude::*;
 use said::SelfAddressingIdentifier;
