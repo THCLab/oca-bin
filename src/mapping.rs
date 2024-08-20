@@ -120,16 +120,17 @@ mod tests {
 
         // Build temporary directory with test ocafiles.
         let list = [
-            ("first.ocafile", oca_file0),
-            ("second.ocafile", oca_file1),
-            ("third.ocafile", oca_file2),
+            ("first", oca_file0),
+            ("second", oca_file1),
+            ("third", oca_file2),
         ];
 
         let mut paths = vec![];
         for (name, contents) in list {
-            let path = tmp_dir.path().join(name);
+            let path = tmp_dir.path().join(format!("{}.ocafile", name));
             let mut tmp_file = File::create(&path).unwrap();
-            writeln!(tmp_file, "{}", contents).unwrap();
+            writeln!(tmp_file, "-- name={}", name).unwrap();
+
             paths.push(path)
         }
         let dependency_graph = DependencyGraph::from_paths(tmp_dir.path(), paths).unwrap();
@@ -178,14 +179,15 @@ mod tests {
 
         // Build temporary directory with test ocafiles.
         let list = [
-            ("first.ocafile", oca_file1),
-            ("second.ocafile", oca_file2),
-            ("third.ocafile", oca_file3),
+            ("first", oca_file1),
+            ("second", oca_file2),
+            ("third", oca_file3),
         ];
         let mut paths = vec![];
         for (name, contents) in list {
-            let path = tmp_dir.path().join(name);
+            let path = tmp_dir.path().join(format!("{}.ocafile", name));
             let mut tmp_file = File::create(&path).unwrap();
+            writeln!(tmp_file, "-- name={}", name).unwrap();
             writeln!(tmp_file, "{}", contents).unwrap();
             paths.push(path)
         }

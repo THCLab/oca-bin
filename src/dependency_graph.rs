@@ -418,7 +418,7 @@ fn test_ancestors() -> anyhow::Result<()> {
         .into_iter()
         .map(|node| node.refn)
         .collect::<Vec<_>>();
-    assert_eq!(first_anc, vec!["third", "fifth"]);
+    assert_eq!(first_anc, vec!["first", "third", "fifth"]);
 
     let fourth_anc = petgraph
         .get_ancestors("fourth")
@@ -426,7 +426,7 @@ fn test_ancestors() -> anyhow::Result<()> {
         .into_iter()
         .map(|node| node.refn)
         .collect::<Vec<_>>();
-    assert_eq!(fourth_anc, vec!["fifth"]);
+    assert_eq!(fourth_anc, vec!["fourth", "fifth"]);
 
     Ok(())
 }
