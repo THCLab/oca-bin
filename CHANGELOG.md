@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.3] - 2024-08-20
+
+### 🐛 Bug Fixes
+
+- Correct failing tests
+
+### ⚙️ Miscellaneous Tasks
+
+- Cleanup README.md
+- Update README.md
+- Update said package to 0.4.1 and oca packages to 0.5.4
+
 ## [0.4.2] - 2024-07-16
 
 ### 🐛 Bug Fixes
@@ -10,6 +22,10 @@ All notable changes to this project will be documented in this file.
 - Remove sign command
 - Don't panic when refn is missing in ocafile
 - Don't panic on not supported chars in refn
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.4.2 version
 
 ## [0.4.1] - 2024-07-08
 
