@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.4] - 2024-08-23
+
+### 🚀 Features
+
+- Add handling for BundleElement::Transformation to build transformation files
+
 ## [0.4.3] - 2024-08-20
 
 ### 🐛 Bug Fixes
@@ -13,6 +19,7 @@ All notable changes to this project will be documented in this file.
 - Cleanup README.md
 - Update README.md
 - Update said package to 0.4.1 and oca packages to 0.5.4
+- Release 0.4.3 version
 
 ## [0.4.2] - 2024-07-16
 
