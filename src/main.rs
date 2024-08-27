@@ -369,8 +369,22 @@ fn main() -> Result<(), CliError> {
                             println!("Error: {}", CliError::UnknownRemoteRepoUrl.to_string());
                             return Ok(());
                         }
-                        (None, Some(config_url)) => url::Url::parse(&config_url)?,
-                        (Some(repo_url), _) => url::Url::parse(&repo_url)?,
+                        (None, Some(config_url)) => {
+                            let url = if !config_url.ends_with("/") { 
+                                let mut tmp = config_url.clone();
+                                tmp.push('/');
+                                tmp
+                            } else {config_url};
+                            url::Url::parse(&url)?
+                        },
+                        (Some(repo_url), _) => {
+                            let url = if !repo_url.ends_with("/") { 
+                                let mut tmp = repo_url.clone();
+                                tmp.push('/');
+                                tmp
+                            } else {repo_url.clone()};
+                            url::Url::parse(&url)?
+                        },
                     };
                     // Make post request for all saids
                     let res: Vec<_> = saids_to_publish

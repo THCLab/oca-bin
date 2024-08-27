@@ -26,10 +26,7 @@ use ratatui::{
 use thiserror::Error;
 
 use crate::{
-    dependency_graph::{parse_name, DependencyGraph, MutableGraph, Node, NodeParsingError},
-    publish_oca_file_for, saids_to_publish,
-    tui::{get_oca_bundle_by_said, output_window::message_list::Message},
-    validate::build,
+    dependency_graph::{parse_name, DependencyGraph, MutableGraph, Node, NodeParsingError}, error::CliError, publish_oca_file_for, saids_to_publish, tui::{get_oca_bundle_by_said, output_window::message_list::Message}, validate::build
 };
 
 use super::{
@@ -300,15 +297,28 @@ impl App {
         facade: Arc<Mutex<Facade>>,
     ) -> Result<bool, AppError> {
         info!("Handling publish");
-        self.output.mark_publish();
         let current_path = self.output.current_path();
         let errs = self.output.error_list_mut();
-        let remote_repository = url::Url::parse(
-            &self
-                .remote_repository
-                .clone()
-                .ok_or(AppError::UnknownRemoteRepoUrl)?,
-        )?;
+        let remote_repository = match &self.remote_repository {
+            Some(url) => {
+                match url::Url::parse(
+                    url,
+                ) {
+                    Ok(url) => url,
+                    Err(e) => {
+                        let mut i = errs.lock().unwrap();
+                        i.append(Message::Error(CliError::from(e)));
+                        return Ok(true)
+                    },
+                }
+            },
+            None => {
+                let mut i = errs.lock().unwrap();
+                i.append(Message::Error(CliError::UnknownRemoteRepoUrl));
+                return Ok(true)
+            },
+        };
+        self.output.mark_publish();
         let timeout = self.publish_timeout;
         let list = self.bundles.items.clone();
 
