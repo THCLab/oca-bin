@@ -11,6 +11,8 @@ use crate::{
 
 #[derive(Debug, Error)]
 pub enum CliError {
+    #[error(transparent)]
+    Input(#[from] io::Error),
     #[error("Presentation command error: {0}")]
     Presentation(#[from] PresentationError),
     #[error("Error getting current directory: {0}")]

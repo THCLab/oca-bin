@@ -24,6 +24,7 @@ use ratatui::{
     Terminal,
 };
 use thiserror::Error;
+use url::Url;
 
 use crate::{
     dependency_graph::{parse_name, DependencyGraph, MutableGraph, Node, NodeParsingError}, error::CliError, publish_oca_file_for, saids_to_publish, tui::{get_oca_bundle_by_said, output_window::message_list::Message}, validate::build
@@ -105,7 +106,7 @@ impl App {
 impl App {
     pub fn run(&mut self, mut terminal: Terminal<impl Backend>) -> Result<(), AppError> {
         loop {
-            if poll(Duration::from_millis(100))? && !self.handle_input()? {
+            if poll(Duration::from_millis(100))? && !self.handle_input() {
                 return Ok(());
             }
 
@@ -128,17 +129,18 @@ impl App {
         self.changes.update();
     }
 
-    fn handle_input(&mut self) -> Result<bool, AppError> {
-        if let Window::Help = self.active_window {
-            match event::read()? {
-                _ => {
+    fn handle_input(&mut self) -> bool {
+        let output = if let Window::Help = self.active_window {
+            match event::read() {
+                Ok(_) => {
                     self.active_window = Window::Bundles;
                     Ok(true)
-                }
+                },
+                Err(e) => Err(CliError::Input(e))
             }
         } else {
-            Ok(match event::read()? {
-                event::Event::Key(key) => {
+            match event::read() {
+                Ok(event::Event::Key(key)) => {
                     let items = self.bundles.items();
                     let state = match self.active_window {
                         Window::Errors => &mut self.bundles.state,
@@ -147,41 +149,41 @@ impl App {
                         Window::Help => todo!(),
                     };
                     match key.code {
-                        KeyCode::Char('q') => return Ok(false),
-                        KeyCode::Esc => self.bundles.unselect_all(),
-                        KeyCode::Enter => state.toggle_selected(),
+                        KeyCode::Char('q') => return false,
+                        KeyCode::Esc => Ok(self.bundles.unselect_all()),
+                        KeyCode::Enter => Ok(state.toggle_selected()),
                         KeyCode::Char(' ') => {
                             self.bundles.select();
-                            true
+                            Ok(true)
                         }
                         KeyCode::Char('a') if key.modifiers.eq(&KeyModifiers::CONTROL) => {
                             self.bundles.select_all();
-                            true
+                            Ok(true)
                         }
                         KeyCode::Left => {
                             state.key_left();
-                            true
+                            Ok(true)
                         }
                         KeyCode::Right => {
                             state.key_right();
-                            true
+                            Ok(true)
                         }
-                        KeyCode::Down => self.handle_key_down(),
-                        KeyCode::Up => self.handle_key_up(),
+                        KeyCode::Down => Ok(self.handle_key_down()),
+                        KeyCode::Up => Ok(self.handle_key_up()),
                         KeyCode::Home => {
                             state.select_first(&items);
-                            true
+                            Ok(true)
                         }
                         KeyCode::End => {
                             state.select_last(&items);
-                            true
+                            Ok(true)
                         }
-                        KeyCode::PageDown => state.select_visible_relative(&items, |current| {
+                        KeyCode::PageDown => Ok(state.select_visible_relative(&items, |current| {
                             current.map_or(0, |current| current.saturating_add(10))
-                        }),
-                        KeyCode::PageUp => state.select_visible_relative(&items, |current| {
+                        })),
+                        KeyCode::PageUp => Ok(state.select_visible_relative(&items, |current| {
                             current.map_or(0, |current| current.saturating_sub(10))
-                        }),
+                        })),
                         KeyCode::Char('v') => {
                             let selected = self.bundles.selected_oca_bundle();
                             let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
@@ -192,35 +194,45 @@ impl App {
                                 self.graph.clone(),
                                 selected,
                                 self.base.clone(),
-                            )?
+                            )
                         }
                         KeyCode::Char('b') => {
                             let selected = self.bundles.selected_oca_bundle();
                             let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
                             self.output.set_currently_validated(paths);
-                            self.handle_build(selected, self.facade.clone(), self.graph.clone())?
+                            self.handle_build(selected, self.facade.clone(), self.graph.clone())
                         }
                         KeyCode::Char('p') => {
                             let selected = self.bundles.selected_oca_bundle();
                             let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
                             self.output.set_currently_validated(paths);
-                            self.handle_publish(selected, self.facade.clone())?
+                            self.handle_publish(selected, self.facade.clone())
                         }
-                        KeyCode::Tab => self.change_window(),
+                        KeyCode::Tab => Ok(self.change_window()),
                         KeyCode::F(1) => {
                             self.active_window = Window::Help;
-                            true
+                            Ok(true)
                         }
-                        _ => true,
+                        _ => Ok(true),
                     }
                 }
-                Event::Mouse(mouse) => match mouse.kind {
+                Ok(Event::Mouse(mouse)) => Ok(match mouse.kind {
                     MouseEventKind::ScrollDown => self.bundles.state.scroll_down(1),
                     MouseEventKind::ScrollUp => self.bundles.state.scroll_up(1),
                     _ => true,
-                },
-                _ => true,
-            })
+                }),
+                Ok(_) => Ok(true),
+                Err(e) => Err(CliError::Input(e))
+            }
+        };
+        match output {
+            Ok(out) => out,
+            Err(er) => {
+                let output_window = self.output.error_list_mut();
+                let mut out = output_window.lock().unwrap();
+                out.append(Message::Error(er));
+                true
+            },
         }
     }
 
@@ -229,7 +241,7 @@ impl App {
         selected_bundle: Vec<Element>,
         facade: Arc<Mutex<Facade>>,
         mut graph: MutableGraph,
-    ) -> Result<bool, AppError> {
+    ) -> Result<bool, CliError> {
         if let Err(e) = self.graph.reload(&self.base) {
             let err_msg = Message::Error(e.into());
             let errs = self.output.error_list_mut();
@@ -295,29 +307,11 @@ impl App {
         &mut self,
         selected_bundle: Vec<Element>,
         facade: Arc<Mutex<Facade>>,
-    ) -> Result<bool, AppError> {
+    ) -> Result<bool, CliError> {
         info!("Handling publish");
         let current_path = self.output.current_path();
         let errs = self.output.error_list_mut();
-        let remote_repository = match &self.remote_repository {
-            Some(url) => {
-                match url::Url::parse(
-                    url,
-                ) {
-                    Ok(url) => url,
-                    Err(e) => {
-                        let mut i = errs.lock().unwrap();
-                        i.append(Message::Error(CliError::from(e)));
-                        return Ok(true)
-                    },
-                }
-            },
-            None => {
-                let mut i = errs.lock().unwrap();
-                i.append(Message::Error(CliError::UnknownRemoteRepoUrl));
-                return Ok(true)
-            },
-        };
+        let remote_repository: Url = self.remote_repository.as_ref().ok_or(CliError::UnknownRemoteRepoUrl)?.parse()?;
         self.output.mark_publish();
         let timeout = self.publish_timeout;
         let list = self.bundles.items.clone();

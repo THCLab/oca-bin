@@ -146,7 +146,7 @@ impl OutputWindow {
         graph: MutableGraph,
         bundle_infos: Vec<Element>,
         base_path: PathBuf,
-    ) -> Result<bool, AppError> {
+    ) -> Result<bool, CliError> {
         {
             let mut errors = self.errors.lock().unwrap();
             errors.busy = Busy::Validation;
