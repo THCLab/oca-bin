@@ -65,7 +65,7 @@ impl SavedData {
     pub fn changes(&self) -> Vec<Change> {
         self.saved
             .iter()
-            .filter_map(|(path, said)| match fs::read_to_string(&path) {
+            .filter_map(|(path, said)| match fs::read_to_string(path) {
                 Ok(contents) => {
                     let current_said =
                         HashFunction::from(HashFunctionCode::SHA2_256).derive(contents.as_bytes());
@@ -93,7 +93,7 @@ impl SavedData {
                 Change::Modified(path) => {
                     let (name, _) = parse_name(&path).unwrap();
                     let change_line = ["MODIFIED", path.to_str().unwrap()].join(": ");
-                    if let None = name {
+                    if name.is_none() {
                         return TreeItem::new_leaf(index.current(), change_line);
                     };
                     match format_ancestor_tree(name.as_ref().unwrap(), &self.graph) {
@@ -133,11 +133,6 @@ impl ChangesWindow {
     //     let window = self.changes.lock().unwrap();
     //     window.show_changes()
     // }
-
-    pub fn update(&self) {
-        let mut window = self.changes.lock().unwrap();
-        window.load();
-    }
 
     // pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
     //     Paragraph::new(self.changes_locked())
@@ -194,13 +189,13 @@ fn changes_tree(
                 let children = changes_tree(index, ancestor_graph, full_graph, i);
                 TreeItem::new(
                     i.current(),
-                    format!("{}", path.path.to_str().unwrap()),
+                    path.path.to_str().unwrap().to_string(),
                     children,
                 )
                 .unwrap()
             } else {
                 let p = full_graph.node(index);
-                TreeItem::new_leaf(i.current(), format!("{}", p.path.to_str().unwrap()))
+                TreeItem::new_leaf(i.current(), p.path.to_str().unwrap().to_string())
             }
         })
         .collect()

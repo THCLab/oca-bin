@@ -145,13 +145,9 @@ fn saids_to_publish(
     for said in saids {
         to_publish.insert(said.clone());
         let dep_said = dependant_saids(facade.clone(), said);
-
-        match dep_said {
-            Some(deps) => {
-                let more_deps = saids_to_publish(facade.clone(), &deps);
-                to_publish.extend(more_deps);
-            }
-            None => (),
+        if let Some(deps) = dep_said {
+            let more_deps = saids_to_publish(facade.clone(), &deps);
+            to_publish.extend(more_deps);
         };
     }
     to_publish
@@ -282,11 +278,11 @@ fn main() -> Result<(), CliError> {
             let graph = match DependencyGraph::from_paths(&base_dir, paths) {
                 Ok(graph) => graph,
                 Err(GraphError::NodeParsingError(e)) => {
-                    println!("{}", e.to_string());
+                    println!("{}", e);
                     return Ok(());
                 }
                 Err(e) => {
-                    println!("{}", e.to_string());
+                    println!("{}", e);
                     return Ok(());
                 }
             };
@@ -366,7 +362,7 @@ fn main() -> Result<(), CliError> {
                     let saids_to_publish = saids_to_publish(facade.clone(), &[said.clone()]);
                     let remote_repo_url = match (repository_url, remote_repo_url_from_config) {
                         (None, None) => {
-                            println!("Error: {}", CliError::UnknownRemoteRepoUrl.to_string());
+                            println!("Error: {}", CliError::UnknownRemoteRepoUrl);
                             return Ok(());
                         }
                         (None, Some(config_url)) => {
@@ -393,7 +389,7 @@ fn main() -> Result<(), CliError> {
                             match publish_oca_file_for(
                                 facade.clone(),
                                 said.clone(),
-                                &timeout,
+                                timeout,
                                 remote_repo_url.clone(),
                             ) {
                                 Ok(_) => {
@@ -622,7 +618,7 @@ fn main() -> Result<(), CliError> {
                     all_oca_files,
                     facade,
                     remote_repo_url_from_config,
-                    timeout.clone(),
+                    *timeout,
                 )
                 .unwrap_or_else(|err| {
                     eprintln!("{err}");

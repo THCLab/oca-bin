@@ -63,7 +63,7 @@ impl BundleList {
         let state = TreeState::default();
         let out = Self {
             state,
-            items: items,
+            items,
         };
         Ok(out)
     }

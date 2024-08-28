@@ -91,7 +91,7 @@ pub fn get_oca_bundle_by_said(
         .map(|(refn, _s)| -> Result<_, CliError> {
             let oca_bun = f
                 .get_oca_bundle(said.clone(), false)
-                .map_err(|e| CliError::OcaBundleAstError(e))?;
+                .map_err(CliError::OcaBundleAstError)?;
             Ok((refn, oca_bun.bundle))
         })
         .ok_or(CliError::OCABundleSAIDNotFound(said.clone()))?

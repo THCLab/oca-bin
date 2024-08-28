@@ -76,7 +76,7 @@ impl<T: Display> GenericElement<T> {
     }
 
     pub fn path(&self) -> &Path {
-        &self.path.as_path()
+        self.path.as_path()
     }
 }
 
@@ -410,7 +410,7 @@ fn handle_reference_type<'a>(
             })
         }
         RefValue::Name(refn) => get_oca_bundle(refn, facade.clone()).and_then(|bundle| {
-            { graph.oca_file_path(&refn).map(|path| (path, bundle)) }.map_err(CliError::GraphError)
+            { graph.oca_file_path(refn).map(|path| (path, bundle)) }.map_err(CliError::GraphError)
         }),
     };
     match path_and_bundle {

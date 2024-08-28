@@ -20,7 +20,6 @@ use tui_widget_list::{List, ListState};
 use crate::{
     dependency_graph::{parse_name, MutableGraph},
     error::CliError,
-    tui::app::AppError,
     validate::validate_directory,
 };
 
@@ -203,7 +202,7 @@ pub fn update_errors(
     errors.update(messages, source_path);
 }
 
-pub fn push_message(errs: Arc<Mutex<MessageList>>, message: Message) {
+pub fn _push_message(errs: Arc<Mutex<MessageList>>, message: Message) {
     let mut messages_list = errs.lock().unwrap();
     messages_list.append(message);
 }

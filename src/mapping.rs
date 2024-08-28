@@ -26,8 +26,7 @@ pub fn mapping(
         .capture_base
         .attributes
         .into_iter()
-        .map(|(name, attr)| handle_attr(name, attr, facade, dep_graph))
-        .flatten()
+        .flat_map(|(name, attr)| handle_attr(name, attr, facade, dep_graph))
         .for_each(|key| {
             attribute_mapping.insert(key, Value::String("".to_string()));
         });
@@ -73,13 +72,12 @@ fn handle_reference(
 
     attributes
         .into_iter()
-        .map(|(inside_name, attr)| {
-            handle_attr(inside_name.clone(), attr, &facade, dep_graph)
+        .flat_map(|(inside_name, attr)| {
+            handle_attr(inside_name.clone(), attr, facade, dep_graph)
                 .iter()
-                .map(|attribute| [name, ".", &attribute].concat())
+                .map(|attribute| [name, ".", attribute].concat())
                 .collect::<Vec<_>>()
         })
-        .flatten()
         .collect()
 }
 

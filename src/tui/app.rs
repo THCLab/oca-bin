@@ -94,7 +94,7 @@ impl App {
             output: OutputWindow::new(size),
             active_window: Window::Bundles,
             graph: mut_graph,
-            facade: facade,
+            facade,
             base,
             remote_repository: remote_repo_url,
             changes,
@@ -123,10 +123,6 @@ impl App {
         }
 
         true
-    }
-
-    fn update_changes(&self) {
-        self.changes.update();
     }
 
     fn handle_input(&mut self) -> bool {
@@ -275,7 +271,7 @@ impl App {
                             (parse_name(path.as_path()).unwrap().0, path, errors.index())
                         }
                     };
-                    if let Some(_) = name {
+                    if name.is_some() {
                         updated_nodes.push(path);
                     };
                     match build(name.clone(), facade.clone(), &mut graph, errs.clone()) {
@@ -357,7 +353,7 @@ impl App {
                                                 remote_repository.as_ref()
                                             )));
                                             let mut items = list.lock().unwrap();
-                                            if let Some(index) = said_index_map.get(&said) {
+                                            if let Some(index) = said_index_map.get(said) {
                                                 items.update_state(index);
                                             };
                                         }

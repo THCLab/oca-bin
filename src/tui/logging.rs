@@ -16,12 +16,11 @@ lazy_static! {
 }
 
 pub fn get_data_dir() -> PathBuf {
-    let directory = if let Some(s) = DATA_FOLDER.clone() {
+    if let Some(s) = DATA_FOLDER.clone() {
         s
     } else {
         PathBuf::from(".").join(".logs")
-    };
-    directory
+    }
 }
 
 pub fn initialize_logging() -> Result<()> {
