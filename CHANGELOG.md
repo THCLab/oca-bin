@@ -2,11 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.5] - 2024-08-28
+
+### 🐛 Bug Fixes
+
+- *(tui)* Notify user of missing config fields
+- *(tui)* Notify user about any error in tui
+
+### ⚙️ Miscellaneous Tasks
+
+- Fix clippy warnings
+
 ## [0.4.4] - 2024-08-23
 
 ### 🚀 Features
 
 - Add handling for BundleElement::Transformation to build transformation files
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.4.4 version
 
 ## [0.4.3] - 2024-08-20
 
