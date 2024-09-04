@@ -84,9 +84,9 @@ fn handle_reference(
 #[cfg(test)]
 mod tests {
     use crate::{dependency_graph::DependencyGraph, get_oca_facade, mapping::mapping};
-    use std::{fs::File, io::Write};
-    use oca_rs::facade::bundle::BundleElement;
     use oca_bundle_semantics::state::oca::OCABundle;
+    use oca_rs::facade::bundle::BundleElement;
+    use std::{fs::File, io::Write};
 
     fn extract_mechanics(element: BundleElement) -> OCABundle {
         match element {

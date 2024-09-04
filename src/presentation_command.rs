@@ -13,7 +13,11 @@ use oca_presentation::{
 };
 use oca_rs::Facade;
 use recursion::{CollapsibleExt, ExpandableExt};
-use said::{sad::{SAD, SerializationFormats}, derivation::HashFunctionCode, SelfAddressingIdentifier};
+use said::{
+    derivation::HashFunctionCode,
+    sad::{SerializationFormats, SAD},
+    SelfAddressingIdentifier,
+};
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -263,9 +267,9 @@ mod tests {
     use std::collections::BTreeMap;
 
     use isolang::Language;
+    use oca_bundle_semantics::state::oca::OCABundle;
     use oca_presentation::{page::PageElement, presentation::AttrType};
     use oca_rs::facade::bundle::BundleElement;
-    use oca_bundle_semantics::state::oca::OCABundle;
 
     use crate::{get_oca_facade, presentation_command::handle_generate};
 

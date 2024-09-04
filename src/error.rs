@@ -19,9 +19,9 @@ pub enum CliError {
     CurrentDirFailed(std::io::Error),
     #[error("Error writing file: {0}")]
     WriteFileFailed(std::io::Error),
-    #[error("Error reading file: {0}")]
-    ReadFileFailed(std::io::Error),
-    #[error("Oca bundle ast errors: {0:?}i")]
+    #[error("Error reading file: {0}. Kind: {1}")]
+    ReadFileFailed(PathBuf, std::io::Error),
+    #[error("Oca bundle ast errors: {0:?}")]
     OcaBundleAstError(Vec<String>),
     #[error("Invalid said: {0}")]
     InvalidSaid(#[from] said::error::Error),

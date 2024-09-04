@@ -11,12 +11,13 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::{env, fs, fs::File, io::Write, path::PathBuf, process, str::FromStr};
+use utils::parse_url;
 
 use clap::Parser as ClapParser;
 use clap::Subcommand;
 use oca_rs::{
-    facade::bundle::BundleElement, repositories::SQLiteConfig, EncodeBundle,
-    Facade, HashFunctionCode, SerializationFormats,
+    facade::bundle::BundleElement, repositories::SQLiteConfig, EncodeBundle, Facade,
+    HashFunctionCode, SerializationFormats,
 };
 use url::Url;
 
@@ -295,21 +296,16 @@ fn main() -> Result<(), CliError> {
                 match graph.oca_file_path(&node.refn) {
                     Ok(path) => {
                         let unparsed_file = fs::read_to_string(&path)
-                            .map_err(CliError::ReadFileFailed)?;
+                            .map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
                         let oca_bundle_element = facade
                             .build_from_ocafile(unparsed_file)
                             .map_err(|e| CliError::BuildingError(path, e))?;
                         match oca_bundle_element {
                             BundleElement::Mechanics(oca_bundle) => {
                                 let refs = facade.fetch_all_refs().unwrap();
-                                let schema_name =
-                                    refs.iter().find(|&(_, v)| {
-                                        *v == oca_bundle
-                                            .said
-                                            .clone()
-                                            .unwrap()
-                                            .to_string()
-                                    });
+                                let schema_name = refs.iter().find(|&(_, v)| {
+                                    *v == oca_bundle.said.clone().unwrap().to_string()
+                                });
                                 if let Some((refs, _)) = schema_name {
                                     println!(
                                         "OCA bundle created in local repository with SAID: {} and name: {}",
@@ -323,19 +319,14 @@ fn main() -> Result<(), CliError> {
                                     );
                                 };
                             }
-                            BundleElement::Transformation(
-                                transformation_file,
-                            ) => {
+                            BundleElement::Transformation(transformation_file) => {
                                 let code = HashFunctionCode::Blake3_256;
                                 let format = SerializationFormats::JSON;
                                 let transformation_file_json =
-                                    transformation_file
-                                        .encode(&code, &format)
-                                        .unwrap();
+                                    transformation_file.encode(&code, &format).unwrap();
                                 println!(
                                     "{}",
-                                    String::from_utf8(transformation_file_json)
-                                        .unwrap()
+                                    String::from_utf8(transformation_file_json).unwrap()
                                 );
                             }
                         }
@@ -365,22 +356,8 @@ fn main() -> Result<(), CliError> {
                             println!("Error: {}", CliError::UnknownRemoteRepoUrl);
                             return Ok(());
                         }
-                        (None, Some(config_url)) => {
-                            let url = if !config_url.ends_with("/") { 
-                                let mut tmp = config_url.clone();
-                                tmp.push('/');
-                                tmp
-                            } else {config_url};
-                            url::Url::parse(&url)?
-                        },
-                        (Some(repo_url), _) => {
-                            let url = if !repo_url.ends_with("/") { 
-                                let mut tmp = repo_url.clone();
-                                tmp.push('/');
-                                tmp
-                            } else {repo_url.clone()};
-                            url::Url::parse(&url)?
-                        },
+                        (None, Some(config_url)) => parse_url(config_url)?,
+                        (Some(repo_url), _) => parse_url(repo_url.clone())?,
                     };
                     // Make post request for all saids
                     let res: Vec<_> = saids_to_publish
@@ -532,8 +509,8 @@ fn main() -> Result<(), CliError> {
                         }
                     }?;
 
-                    let file_contents =
-                        fs::read_to_string(from_file).map_err(CliError::ReadFileFailed)?;
+                    let file_contents = fs::read_to_string(from_file)
+                        .map_err(|e| CliError::ReadFileFailed(from_file.clone(), e))?;
                     let pres: WrappedPresentation = match extension {
                         Format::JSON => serde_json::from_str(&file_contents).unwrap(),
                         Format::YAML => serde_yaml::from_str(&file_contents).unwrap(),

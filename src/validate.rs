@@ -28,7 +28,8 @@ pub fn validate_directory(
         .into_iter()
         .map(|node| {
             let path = graph.oca_file_path(&node.refn)?;
-            let unparsed_file = fs::read_to_string(&path).map_err(CliError::ReadFileFailed)?;
+            let unparsed_file =
+                fs::read_to_string(&path).map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
             let (name, _) = parse_name(&path).unwrap();
             if let Some(name) = name {
                 if name.ne(&node.refn) {
@@ -71,7 +72,7 @@ pub fn build(
         .map(|node| {
             let path = graph.oca_file_path(&node.refn).unwrap();
             let unparsed_file = fs::read_to_string(&path)
-                .map_err(CliError::ReadFileFailed)
+                .map_err(|e| CliError::ReadFileFailed(path.clone(), e))
                 .unwrap();
             let (name, _) = parse_name(&path).unwrap();
             if let Some(name) = name {

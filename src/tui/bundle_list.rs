@@ -61,10 +61,7 @@ impl BundleList {
         )));
         // let tree_items = items.to_tree_items(facade.clone(), &graph);
         let state = TreeState::default();
-        let out = Self {
-            state,
-            items,
-        };
+        let out = Self { state, items };
         Ok(out)
     }
 

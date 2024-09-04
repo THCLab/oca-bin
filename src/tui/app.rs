@@ -27,7 +27,12 @@ use thiserror::Error;
 use url::Url;
 
 use crate::{
-    dependency_graph::{parse_name, DependencyGraph, MutableGraph, Node, NodeParsingError}, error::CliError, publish_oca_file_for, saids_to_publish, tui::{get_oca_bundle_by_said, output_window::message_list::Message}, validate::build
+    dependency_graph::{parse_name, DependencyGraph, MutableGraph, Node, NodeParsingError},
+    error::CliError,
+    publish_oca_file_for, saids_to_publish,
+    tui::{get_oca_bundle_by_said, output_window::message_list::Message},
+    utils::parse_url,
+    validate::build,
 };
 
 use super::{
@@ -131,8 +136,8 @@ impl App {
                 Ok(_) => {
                     self.active_window = Window::Bundles;
                     Ok(true)
-                },
-                Err(e) => Err(CliError::Input(e))
+                }
+                Err(e) => Err(CliError::Input(e)),
             }
         } else {
             match event::read() {
@@ -218,7 +223,7 @@ impl App {
                     _ => true,
                 }),
                 Ok(_) => Ok(true),
-                Err(e) => Err(CliError::Input(e))
+                Err(e) => Err(CliError::Input(e)),
             }
         };
         match output {
@@ -228,7 +233,7 @@ impl App {
                 let mut out = output_window.lock().unwrap();
                 out.append(Message::Error(er));
                 true
-            },
+            }
         }
     }
 
@@ -307,7 +312,12 @@ impl App {
         info!("Handling publish");
         let current_path = self.output.current_path();
         let errs = self.output.error_list_mut();
-        let remote_repository: Url = self.remote_repository.as_ref().ok_or(CliError::UnknownRemoteRepoUrl)?.parse()?;
+        let remote_repository: Url = parse_url(
+            self.remote_repository
+                .as_ref()
+                .ok_or(CliError::UnknownRemoteRepoUrl)?
+                .clone(),
+        )?;
         self.output.mark_publish();
         let timeout = self.publish_timeout;
         let list = self.bundles.items.clone();

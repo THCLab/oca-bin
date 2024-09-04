@@ -3,6 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use url::Url;
 use walkdir::WalkDir;
 
 use crate::error::CliError;
@@ -62,4 +63,15 @@ pub fn visit_current_dir(dir: &Path) -> Result<Vec<PathBuf>, CliError> {
         }
     }
     Ok(paths)
+}
+
+pub fn parse_url(url: String) -> Result<Url, CliError> {
+    let url = if !url.ends_with("/") {
+        let mut tmp = url.clone();
+        tmp.push('/');
+        tmp
+    } else {
+        url
+    };
+    Ok(url::Url::parse(&url)?)
 }
