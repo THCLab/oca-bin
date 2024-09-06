@@ -7,7 +7,8 @@ use oca_rs::Facade;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    widgets::{Block, Scrollbar, ScrollbarOrientation, StatefulWidget},
+    text::{Span, Text},
+    widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, StatefulWidget, Widget},
 };
 
 use thiserror::Error;
@@ -31,6 +32,7 @@ pub enum BundleListError {
 }
 
 pub struct BundleList {
+    path: PathBuf,
     pub state: TreeState<String>,
     pub items: Arc<Mutex<Items>>,
 }
@@ -53,6 +55,7 @@ impl BundleList {
         to_show: I,
         facade: Arc<Mutex<Facade>>,
         graph: Arc<DependencyGraph>,
+        directory: PathBuf,
     ) -> Result<Self, BundleListError> {
         let items = Arc::new(Mutex::new(Items::new_items(
             to_show,
@@ -61,7 +64,11 @@ impl BundleList {
         )));
         // let tree_items = items.to_tree_items(facade.clone(), &graph);
         let state = TreeState::default();
-        let out = Self { state, items };
+        let out = Self {
+            state,
+            items,
+            path: directory,
+        };
         Ok(out)
     }
 
@@ -96,23 +103,28 @@ impl BundleList {
     }
 
     pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
-        let widget = Tree::new(self.items())
-            .expect("all item identifiers are unique")
+        let items = self.items();
+        if items.is_empty() {
+            Paragraph::new(Text::from(format!(
+                "There are no ocafile files in the specified directory: ({})",
+                std::fs::canonicalize(&self.path).unwrap().to_str().unwrap()
+            )))
+            .centered()
             .block(Block::bordered().title("OCA Bundles"))
-            .experimental_scrollbar(Some(
-                Scrollbar::new(ScrollbarOrientation::VerticalRight)
-                    .begin_symbol(None)
-                    .track_symbol(None)
-                    .end_symbol(None),
-            ))
-            // .highlight_style(
-            //     Style::new()
-            //         .fg(Color::Black)
-            //         .bg(Color::LightGreen)
-            //         .add_modifier(Modifier::BOLD),
-            // )
-            .highlight_symbol("> ");
+            .render(area, buf);
+        } else {
+            let widget = Tree::new(self.items())
+                .expect("all item identifiers are unique")
+                .block(Block::bordered().title("OCA Bundles"))
+                .experimental_scrollbar(Some(
+                    Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                        .begin_symbol(None)
+                        .track_symbol(None)
+                        .end_symbol(None),
+                ))
+                .highlight_symbol("> ");
 
-        StatefulWidget::render(widget, area, buf, &mut self.state);
+            StatefulWidget::render(widget, area, buf, &mut self.state);
+        }
     }
 }

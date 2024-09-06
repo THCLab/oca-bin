@@ -13,7 +13,9 @@ pub fn load_ocafiles_all(
     dir_path: Option<&PathBuf>,
 ) -> Result<(Vec<PathBuf>, PathBuf), CliError> {
     Ok(match (file_path, dir_path) {
-        (None, None) => panic!("No file or directory provided"),
+        (None, None) => panic!(
+            "Specify the base working directory where you keep your ocafiles or path to ocafile"
+        ),
         (None, Some(dir)) => (visit_dirs_recursive(dir)?, dir.clone()),
         (Some(oca_file), None) => (
             vec![oca_file.clone()],

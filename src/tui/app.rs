@@ -89,7 +89,7 @@ impl App {
             Err(e) => Err(AppError::BundleList(BundleListError::GraphError(e))),
         }?;
         let mut_graph = MutableGraph::new(&base, &paths);
-        let list = BundleList::from_nodes(to_show, facade.clone(), graph)?;
+        let list = BundleList::from_nodes(to_show, facade.clone(), graph, base.clone())?;
 
         App::setup_panic_hooks()?;
         let changes = ChangesWindow::new(&base, mut_graph.clone());

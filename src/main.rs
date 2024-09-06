@@ -603,7 +603,7 @@ fn main() -> Result<(), CliError> {
                 });
                 Ok(())
             } else {
-                eprintln!("No file or directory provided");
+                eprintln!("Specify the base working directory where you keep your ocafiles, e.g., oca tui -d ./my-ocafiles-repo");
                 process::exit(1);
             }
         }
