@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     fs,
     path::{Path, PathBuf},
 };
@@ -76,4 +77,15 @@ pub fn parse_url(url: String) -> Result<Url, CliError> {
         url
     };
     Ok(url::Url::parse(&url)?)
+}
+
+pub fn handle_panic(panic: Box<dyn Any + Send>) -> CliError {
+    let err = if let Some(panic_message) = panic.downcast_ref::<&str>() {
+        CliError::Panic(panic_message.to_string())
+    } else if let Some(panic_message) = panic.downcast_ref::<String>() {
+        CliError::Panic(panic_message.clone())
+    } else {
+        CliError::Panic("Caught an unknown panic".to_string())
+    };
+    err
 }

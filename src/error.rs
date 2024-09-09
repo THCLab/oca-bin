@@ -61,6 +61,8 @@ pub enum CliError {
     UrlError(#[from] url::ParseError),
     #[error("No repository path set. You can set it by adding `repository_url` to config file.")]
     UnknownRemoteRepoUrl,
+    #[error("Unexpected error occurred: {0}")]
+    Panic(String),
 }
 
 impl From<BundleListError> for CliError {

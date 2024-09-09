@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     io,
+    panic::AssertUnwindSafe,
     path::PathBuf,
     sync::{Arc, Mutex},
     thread,
@@ -9,10 +10,7 @@ use std::{
 
 pub use super::bundle_list::BundleListError;
 use anyhow::Result;
-use crossterm::{
-    event::{self, poll, Event, KeyCode, KeyModifiers, MouseEventKind},
-    terminal::{disable_raw_mode, LeaveAlternateScreen},
-};
+use crossterm::event::{self, poll, Event, KeyCode, KeyModifiers, MouseEventKind};
 use oca_rs::Facade;
 use ratatui::{
     backend::Backend,
@@ -31,7 +29,7 @@ use crate::{
     error::CliError,
     publish_oca_file_for, saids_to_publish,
     tui::{get_oca_bundle_by_said, output_window::message_list::Message},
-    utils::parse_url,
+    utils::{handle_panic, parse_url},
     validate::build,
 };
 
@@ -261,34 +259,44 @@ impl App {
 
         thread::spawn(move || {
             let mut updated_nodes: Vec<PathBuf> = vec![];
-            let res: Vec<_> = selected_bundle
-                .iter()
-                .flat_map(|el| {
-                    let (name, path, index) = match el {
-                        Element::Ok(oks) => (
-                            Some(oks.get().refn.clone()),
-                            oks.path().to_path_buf(),
-                            oks.index(),
-                        ),
-                        Element::Error(errors) => {
-                            let mut path = base_path.clone();
-                            path.push(errors.path());
-                            (parse_name(path.as_path()).unwrap().0, path, errors.index())
+            let unwind_res = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                selected_bundle
+                    .iter()
+                    .flat_map(|el| {
+                        let (name, path, index) = match el {
+                            Element::Ok(oks) => (
+                                Some(oks.get().refn.clone()),
+                                oks.path().to_path_buf(),
+                                oks.index(),
+                            ),
+                            Element::Error(errors) => {
+                                let mut path = base_path.clone();
+                                path.push(errors.path());
+                                (parse_name(path.as_path()).unwrap().0, path, errors.index())
+                            }
+                        };
+                        if name.is_some() {
+                            updated_nodes.push(path);
+                        };
+                        match build(name.clone(), facade.clone(), &mut graph, errs.clone()) {
+                            Ok(_) => {
+                                let mut items = list.lock().unwrap();
+                                items.update_state(&index.unwrap());
+                                vec![]
+                            }
+                            Err(errs) => errs,
                         }
-                    };
-                    if name.is_some() {
-                        updated_nodes.push(path);
-                    };
-                    match build(name.clone(), facade.clone(), &mut graph, errs.clone()) {
-                        Ok(_) => {
-                            let mut items = list.lock().unwrap();
-                            items.update_state(&index.unwrap());
-                            vec![]
-                        }
-                        Err(errs) => errs,
-                    }
-                })
-                .collect();
+                    })
+                    .collect::<Vec<_>>()
+            }));
+
+            let res = match unwind_res {
+                Ok(err) => err,
+                Err(panic) => {
+                    vec![handle_panic(panic)]
+                }
+            };
+
             if res.is_empty() {
                 update_errors(errs.clone(), vec![], &current_path);
                 rebuild_items(list, &to_show_dir, facade, graph);
@@ -305,7 +313,7 @@ impl App {
     }
 
     pub fn handle_publish(
-        &mut self,
+        &self,
         selected_bundle: Vec<Element>,
         facade: Arc<Mutex<Facade>>,
     ) -> Result<bool, CliError> {
@@ -344,41 +352,52 @@ impl App {
                     // Find dependant saids for said. Returns set of unique saids that need to be published.
                     let saids_to_publish = saids_to_publish(facade.clone(), &saids);
                     // Make post request for all saids
-                    let res: Vec<_> = saids_to_publish
-                        .iter()
-                        .flat_map(|said| {
-                            match publish_oca_file_for(
-                                facade.clone(),
-                                said.clone(),
-                                &timeout,
-                                remote_repository.clone(),
-                            ) {
-                                Ok(_) => {
-                                    match get_oca_bundle_by_said(said, facade.clone()) {
-                                        Ok((name, _bundle)) => {
-                                            let mut i = errs.lock().unwrap();
-                                            i.append(Message::Info(format!(
-                                                "Published {} to {}",
-                                                name,
-                                                remote_repository.as_ref()
-                                            )));
-                                            let mut items = list.lock().unwrap();
-                                            if let Some(index) = said_index_map.get(said) {
-                                                items.update_state(index);
-                                            };
-                                        }
-                                        Err(e) => {
-                                            let mut i = errs.lock().unwrap();
-                                            i.append(Message::Error(e));
-                                        }
-                                    };
+                    let unwind_res = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                        saids_to_publish
+                            .iter()
+                            .flat_map(|said| {
+                                match publish_oca_file_for(
+                                    facade.clone(),
+                                    said.clone(),
+                                    &timeout,
+                                    remote_repository.clone(),
+                                ) {
+                                    Ok(_) => {
+                                        match get_oca_bundle_by_said(said, facade.clone()) {
+                                            Ok((name, _bundle)) => {
+                                                {
+                                                    let mut i = errs.lock().unwrap();
+                                                    i.append(Message::Info(format!(
+                                                        "Published {} to {}",
+                                                        name,
+                                                        remote_repository.as_ref()
+                                                    )));
+                                                }
+                                                {
+                                                    let mut items = list.lock().unwrap();
+                                                    if let Some(index) = said_index_map.get(said) {
+                                                        items.update_state(index);
+                                                    };
+                                                }
+                                            }
+                                            Err(e) => {
+                                                let mut i = errs.lock().unwrap();
+                                                i.append(Message::Error(e));
+                                            }
+                                        };
 
-                                    vec![]
+                                        vec![]
+                                    }
+                                    Err(err) => vec![err],
                                 }
-                                Err(err) => vec![err],
-                            }
-                        })
-                        .collect();
+                            })
+                            .collect::<Vec<_>>()
+                    }));
+                    info!("{:?}", unwind_res);
+                    let res = match unwind_res {
+                        Ok(res) => res,
+                        Err(panic) => vec![handle_panic(panic)],
+                    };
                     update_errors(errs.clone(), res, &current_path);
                 }
                 Err(AppError::BundleList(e)) => {
@@ -479,19 +498,8 @@ impl Widget for &mut App {
 }
 
 impl App {
-    fn setup_panic_hooks() -> io::Result<()> {
-        let original_hook = std::panic::take_hook();
-
-        let reset_terminal = || -> io::Result<()> {
-            disable_raw_mode()?;
-            crossterm::execute!(io::stdout(), LeaveAlternateScreen)?;
-            Ok(())
-        };
-
-        std::panic::set_hook(Box::new(move |panic| {
-            let _ = reset_terminal();
-            original_hook(panic);
-        }));
+    pub fn setup_panic_hooks() -> io::Result<()> {
+        std::panic::set_hook(Box::new(move |panic| error!("{:?}", panic)));
         Ok(())
     }
 

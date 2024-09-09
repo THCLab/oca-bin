@@ -1,6 +1,7 @@
 pub mod message_list;
 
 use std::{
+    panic::AssertUnwindSafe,
     path::PathBuf,
     sync::{Arc, Mutex},
     thread,
@@ -20,6 +21,7 @@ use tui_widget_list::{List, ListState};
 use crate::{
     dependency_graph::{parse_name, MutableGraph},
     error::CliError,
+    utils::handle_panic,
     validate::validate_directory,
 };
 
@@ -140,7 +142,7 @@ impl OutputWindow {
     }
 
     pub fn handle_validate(
-        &mut self,
+        &self,
         facade: Arc<Mutex<Facade>>,
         graph: MutableGraph,
         bundle_infos: Vec<Element>,
@@ -167,7 +169,15 @@ impl OutputWindow {
                             parse_name(path.as_path()).unwrap().0
                         }
                     };
-                    validate_directory(facade.clone(), &mut graph.clone(), name).unwrap()
+                    let res = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                        validate_directory(facade.clone(), &mut graph.clone(), name).unwrap()
+                    }));
+                    match res {
+                        Ok(err) => err,
+                        Err(panic) => {
+                            vec![handle_panic(panic)]
+                        }
+                    }
                 })
                 .collect();
             update_errors(err_list.clone(), errs, &path);
