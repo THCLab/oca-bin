@@ -37,13 +37,15 @@ impl DetailsWindow {
                             node.path.to_str().unwrap()
                         ))
                     })
-                    .collect();
+                    .collect::<Vec<_>>();
                 let mut lines = vec![
                     Line::from(format!("name: {}", &details.name)),
                     Line::from(format!("id: {}", &details.id)),
-                    Line::from("Dependent files: "),
                 ];
-                lines.append(&mut dependencies);
+                if !dependencies.is_empty() {
+                    lines.push(Line::from("Dependent files: "));
+                    lines.append(&mut dependencies);
+                }
                 Paragraph::new(lines).block(Block::bordered().title("OCA bundle details"))
             }
             None => Paragraph::new(vec![]).block(Block::bordered().title("OCA bundle details")),

@@ -3,10 +3,12 @@ use config::create_or_open_local_storage;
 use config::OCA_CACHE_DB_DIR;
 use config::OCA_INDEX_DIR;
 use config::OCA_REPOSITORY_DIR;
+use dependency_graph::parse_name;
 use dependency_graph::GraphError;
 use error::CliError;
 use oca_presentation::presentation::Presentation;
 use presentation_command::PresentationCommand;
+use utils::visit_dirs_recursive;
 use std::collections::HashSet;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
@@ -129,6 +131,15 @@ enum Commands {
     Mapping {
         #[arg(short, long)]
         said: String,
+    },
+    /// Returns list of oca objects that uses provided ocafile as dependency
+    Deps {
+        /// Specify ocafile
+        #[arg(short = 'f', long)]
+        ocafile: PathBuf,
+        /// Directory that contains dependent oca files (recursive)
+        #[arg(short, long)]
+        directory: PathBuf,
     },
 }
 
@@ -627,6 +638,16 @@ fn main() -> Result<(), CliError> {
 
                 let actual_json = serde_json::to_string_pretty(&o).unwrap();
                 println!("{}", actual_json);
+                Ok(())
+            }
+            Some(Commands::Deps { ocafile, directory }) => {
+                let paths = visit_dirs_recursive(&directory)?;
+                let graph = MutableGraph::new(directory, paths);
+                let (name, _) = parse_name(&ocafile).map_err(|_e| CliError::MissingRefn(ocafile.clone()))?;
+                let out = graph.get_ancestors(&name.unwrap()).map_err(CliError::GraphError)?;
+                for item in out {
+                    println!("name: {}, path: {}", item.refn, item.path.to_str().unwrap());
+                };
                 Ok(())
             }
             None => Ok(()),
