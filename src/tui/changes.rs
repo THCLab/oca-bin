@@ -53,11 +53,6 @@ impl SavedData {
                 fs::read_to_string(&path).expect("Should have been able to read the file");
             let current_said =
                 HashFunction::from(HashFunctionCode::SHA2_256).derive(contents.as_bytes());
-            info!(
-                "Insering change in file: {} and said: {}",
-                &path.to_str().unwrap(),
-                &current_said
-            );
             self.saved.insert(path, current_said);
         }
     }

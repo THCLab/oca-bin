@@ -8,7 +8,6 @@ use dependency_graph::GraphError;
 use error::CliError;
 use oca_presentation::presentation::Presentation;
 use presentation_command::PresentationCommand;
-use utils::visit_dirs_recursive;
 use std::collections::HashSet;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
@@ -17,6 +16,7 @@ use std::{env, fs, fs::File, io::Write, path::PathBuf, process, str::FromStr};
 use tui::app::App;
 use utils::handle_panic;
 use utils::parse_url;
+use utils::visit_dirs_recursive;
 
 use clap::Parser as ClapParser;
 use clap::Subcommand;
@@ -643,11 +643,14 @@ fn main() -> Result<(), CliError> {
             Some(Commands::Deps { ocafile, directory }) => {
                 let paths = visit_dirs_recursive(&directory)?;
                 let graph = MutableGraph::new(directory, paths);
-                let (name, _) = parse_name(&ocafile).map_err(|_e| CliError::MissingRefn(ocafile.clone()))?;
-                let out = graph.get_ancestors(&name.unwrap()).map_err(CliError::GraphError)?;
+                let (name, _) =
+                    parse_name(&ocafile).map_err(|_e| CliError::MissingRefn(ocafile.clone()))?;
+                let out = graph
+                    .get_ancestors(&name.unwrap())
+                    .map_err(CliError::GraphError)?;
                 for item in out {
                     println!("name: {}, path: {}", item.refn, item.path.to_str().unwrap());
-                };
+                }
                 Ok(())
             }
             None => Ok(()),

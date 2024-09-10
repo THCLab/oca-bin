@@ -283,6 +283,7 @@ impl App {
 
         thread::spawn(move || {
             let mut updated_nodes: Vec<PathBuf> = vec![];
+            let mut cache = vec![];
             let unwind_res = std::panic::catch_unwind(AssertUnwindSafe(|| {
                 selected_bundle
                     .iter()
@@ -302,8 +303,16 @@ impl App {
                         if name.is_some() {
                             updated_nodes.push(path);
                         };
-                        match build(name.clone(), facade.clone(), &mut graph, errs.clone()) {
-                            Ok(_) => {
+                        info!("{:?}", &cache);
+                        match build(
+                            name.clone(),
+                            facade.clone(),
+                            &mut graph,
+                            errs.clone(),
+                            &cache,
+                        ) {
+                            Ok(mut cached) => {
+                                cache.append(&mut cached);
                                 let mut items = list.lock().unwrap();
                                 items.update_state(&index.unwrap());
                                 vec![]

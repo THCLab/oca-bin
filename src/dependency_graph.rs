@@ -340,7 +340,6 @@ impl MutableGraph {
         Ok(h)
     }
 
-
     pub fn get_ancestors(&self, refn: &str) -> Result<Vec<Node>, GraphError> {
         let g = self.graph.lock().unwrap();
         let start_node = g.get_index(refn)?;
@@ -351,24 +350,21 @@ impl MutableGraph {
         // First element is the starting node, so remove it.
         sorted_ancestors.next();
 
-        Ok(sorted_ancestors
-            .map(|i| g.graph[i].clone())
-            .collect())
+        Ok(sorted_ancestors.map(|i| g.graph[i].clone()).collect())
     }
 
     pub fn get_descendants(&self, refn: &str) -> Result<Vec<Node>, GraphError> {
         let g = self.graph.lock().unwrap();
         let start_node = g.get_index(refn)?;
         let h = MutableGraph::descendants_graph(start_node, &g)?;
-        
-        let mut sorted = toposort(&h, None).map_err(|_e| GraphError::Cycle)?.into_iter();
+
+        let mut sorted = toposort(&h, None)
+            .map_err(|_e| GraphError::Cycle)?
+            .into_iter();
         // First element is the starting node, so remove it.
         sorted.next();
 
-        Ok(sorted
-            .rev()
-            .map(|i| g.graph[i].clone())
-            .collect())
+        Ok(sorted.rev().map(|i| g.graph[i].clone()).collect())
     }
 }
 
@@ -443,7 +439,6 @@ fn test_ancestors() -> anyhow::Result<()> {
 
     Ok(())
 }
-
 
 #[test]
 fn test_descendants() -> anyhow::Result<()> {

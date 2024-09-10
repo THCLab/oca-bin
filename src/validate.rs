@@ -55,7 +55,8 @@ pub fn build(
     facade: Arc<Mutex<Facade>>,
     graph: &mut MutableGraph,
     infos: Arc<Mutex<MessageList>>,
-) -> Result<(), Vec<CliError>> {
+    cache: &[String],
+) -> Result<Vec<String>, Vec<CliError>> {
     let dependent_nodes = match selected_bundle {
         Some(refn) => {
             let mut nodes = graph
@@ -70,22 +71,29 @@ pub fn build(
     // Warning. This updates names in `refn` -> `said` mapping.
     let (oks, errs): (Vec<_>, _) = dependent_nodes
         .iter()
-        .map(|node| {
-            let path = graph.oca_file_path(&node.refn).unwrap();
-            let unparsed_file = fs::read_to_string(&path)
-                .map_err(|e| CliError::ReadFileFailed(path.clone(), e))
-                .unwrap();
-            let (name, _) = parse_name(&path).unwrap();
-            if let Some(name) = name {
-                if name.ne(&node.refn) {
-                    // Name changed. Update refn in graph
-                    graph.update_refn(&node.refn, name).unwrap();
+        .filter_map(|node| {
+            if cache.contains(&node.refn) {
+                info!("{} already processed. Skipping", &node.refn);
+                None
+            } else {
+                let path = graph.oca_file_path(&node.refn).unwrap();
+                let unparsed_file = fs::read_to_string(&path)
+                    .map_err(|e| CliError::ReadFileFailed(path.clone(), e))
+                    .unwrap();
+                let (name, _) = parse_name(&path).unwrap();
+                if let Some(name) = name {
+                    if name.ne(&node.refn) {
+                        // Name changed. Update refn in graph
+                        graph.update_refn(&node.refn, name).unwrap();
+                    }
                 }
+                let mut f = facade.lock().unwrap();
+                Some(
+                    f.validate_ocafile(unparsed_file)
+                        .map(|ok| (path.clone(), ok))
+                        .map_err(|b| (path.clone(), b)),
+                )
             }
-            let mut f = facade.lock().unwrap();
-            f.validate_ocafile(unparsed_file)
-                .map(|ok| (path.clone(), ok))
-                .map_err(|b| (path.clone(), b))
         })
         .partition(Result::is_ok);
 
@@ -101,6 +109,7 @@ pub fn build(
     }
 
     // If no validation errors, update local oca database.
+    let mut out_cache = vec![];
     let (_building_oks, building_errs): (Vec<_>, Vec<_>) = oks
         .into_iter()
         .map(|oca_build| {
@@ -113,6 +122,7 @@ pub fn build(
                         .iter()
                         .find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
                     let msg = if let Some((refs, _)) = schema_name {
+                        out_cache.push(refs.clone());
                         format!(
                             "OCA bundle created in local repository with SAID: {} and name: {}",
                             oca_bundle.said.unwrap(),
@@ -133,7 +143,7 @@ pub fn build(
         })
         .partition(Result::is_ok);
     if building_errs.is_empty() {
-        Ok(())
+        Ok(out_cache)
     } else {
         Err(building_errs.into_iter().map(Result::unwrap_err).collect())
     }
