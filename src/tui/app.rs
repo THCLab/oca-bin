@@ -28,7 +28,7 @@ use crate::{
     dependency_graph::{parse_name, DependencyGraph, MutableGraph, Node, NodeParsingError},
     error::CliError,
     publish_oca_file_for, saids_to_publish,
-    tui::{get_oca_bundle_by_said, output_window::message_list::Message},
+    tui::{details::Details, get_oca_bundle_by_said, output_window::message_list::Message},
     utils::{handle_panic, parse_url},
     validate::build,
 };
@@ -36,6 +36,7 @@ use crate::{
 use super::{
     bundle_list::BundleList,
     changes::ChangesWindow,
+    details::DetailsWindow,
     item::{rebuild_items, Element},
     output_window::{update_errors, OutputWindow},
 };
@@ -62,6 +63,7 @@ pub struct App {
     base: PathBuf,
     remote_repository: Option<String>,
     changes: ChangesWindow,
+    details: DetailsWindow,
     publish_timeout: Option<u64>,
 }
 
@@ -91,6 +93,7 @@ impl App {
 
         App::setup_panic_hooks()?;
         let changes = ChangesWindow::new(&base, mut_graph.clone());
+        let details = DetailsWindow::new();
 
         Ok(App {
             bundles: list,
@@ -102,6 +105,7 @@ impl App {
             remote_repository: remote_repo_url,
             changes,
             publish_timeout,
+            details,
         })
     }
 }
@@ -138,7 +142,7 @@ impl App {
                 Err(e) => Err(CliError::Input(e)),
             }
         } else {
-            match event::read() {
+            let output = match event::read() {
                 Ok(event::Event::Key(key)) => {
                     let items = self.bundles.items();
                     let state = match self.active_window {
@@ -222,7 +226,15 @@ impl App {
                 }),
                 Ok(_) => Ok(true),
                 Err(e) => Err(CliError::Input(e)),
-            }
+            };
+            match self.bundles.currently_pointed() {
+                Some(pointed) => self.details.set(Details {
+                    id: pointed.oca_bundle.said.unwrap(),
+                    name: pointed.refn,
+                }),
+                None => self.details.clear(),
+            };
+            output
         };
         match output {
             Ok(out) => out,
@@ -486,12 +498,13 @@ impl Widget for &mut App {
             let vertical = Layout::vertical([Constraint::Percentage(70), Constraint::Min(0)]);
             let [list_area, output_area] = vertical.areas(rest_area);
             let horizontal = Layout::horizontal([Constraint::Percentage(70), Constraint::Min(0)]);
-            let [list_area, changes_area] = horizontal.areas(list_area);
+            let [list_area, details_area] = horizontal.areas(list_area);
 
             self.render_title(header_area, buf, "OCA tool");
             self.bundles.render(list_area, buf);
             self.output.render(output_area, buf);
-            self.changes.render(changes_area, buf);
+            // self.changes.render(changes_area, buf);
+            self.details.render(details_area, buf);
             self.render_footer(footer_area, buf);
         }
     }

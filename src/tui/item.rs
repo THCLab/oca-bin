@@ -11,6 +11,7 @@ use oca_rs::Facade;
 use ratatui::{
     style::{Color, Modifier, Style},
     text::{Line, Span},
+    widgets::ListItem,
 };
 use tui_tree_widget::TreeItem;
 
@@ -335,12 +336,13 @@ impl Items {
             .collect::<Vec<_>>();
     }
 
-    pub fn _bundle_info(&self, k: &str) -> Option<BundleInfo> {
+    /// Returns the `BundleInfo` corresponding to the given index in the list.
+    pub fn bundle_info(&self, k: &str) -> Option<BundleInfo> {
         self.nodes.iter().find_map(|node| match &node.bundle {
             Element::Ok(bi) => {
                 let bundle = bi.get();
                 bi.index
-                    .clone()
+                    .as_ref()
                     .and_then(|i| if i.eq(k) { Some(bundle.clone()) } else { None })
             }
             Element::Error(_) => None,

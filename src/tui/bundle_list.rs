@@ -16,8 +16,8 @@ use tui_tree_widget::{Tree, TreeItem, TreeState};
 
 use crate::dependency_graph::{DependencyGraph, GraphError, Node, NodeParsingError};
 
-use super::item::Element;
 use super::item::Items;
+use super::{bundle_info::BundleInfo, item::Element};
 
 #[derive(Error, Debug, Clone)]
 pub enum BundleListError {
@@ -125,6 +125,15 @@ impl BundleList {
                 .highlight_symbol("> ");
 
             StatefulWidget::render(widget, area, buf, &mut self.state);
+        }
+    }
+
+    pub fn currently_pointed(&self) -> Option<BundleInfo> {
+        let current = self.state.selected();
+        let i = self.items.lock().unwrap();
+        match current.first() {
+            Some(current) => i.bundle_info(current),
+            None => None,
         }
     }
 }
