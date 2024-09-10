@@ -228,13 +228,25 @@ impl App {
                 Err(e) => Err(CliError::Input(e)),
             };
             match self.bundles.currently_pointed() {
-                Some(pointed) => self.details.set(Details {
-                    id: pointed.oca_bundle.said.unwrap(),
-                    name: pointed.refn,
-                }),
-                None => self.details.clear(),
-            };
-            output
+                Some(pointed) => {
+                    let dependent = self.graph.get_ancestors(&pointed.refn);
+                    match dependent {
+                        Ok(dependent) => {
+                            self.details.set(Details {
+                                id: pointed.oca_bundle.said.unwrap(),
+                                name: pointed.refn,
+                                dependent,
+                            });
+                            output
+                        }
+                        Err(e) => Err(CliError::GraphError(e)),
+                    }
+                }
+                None => {
+                    self.details.clear();
+                    output
+                }
+            }
         };
         match output {
             Ok(out) => out,

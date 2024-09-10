@@ -18,7 +18,8 @@ pub fn validate_directory(
 ) -> Result<Vec<CliError>, CliError> {
     let dependent_nodes = match selected_bundle {
         Some(refn) => {
-            let mut nodes = graph.get_dependent_nodes(&refn).unwrap();
+            let mut nodes = graph.get_descendants(&refn).unwrap();
+            // Append starting node
             nodes.push(graph.node(&refn).unwrap());
             nodes
         }
@@ -58,7 +59,7 @@ pub fn build(
     let dependent_nodes = match selected_bundle {
         Some(refn) => {
             let mut nodes = graph
-                .get_dependent_nodes(&refn)
+                .get_descendants(&refn)
                 .map_err(|e| vec![CliError::GraphError(e)])?;
             nodes.push(graph.node(&refn).unwrap());
             nodes

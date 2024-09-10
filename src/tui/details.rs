@@ -6,10 +6,13 @@ use ratatui::{
 };
 use said::SelfAddressingIdentifier;
 
+use crate::dependency_graph::Node;
+
 pub struct Details {
     pub id: SelfAddressingIdentifier,
     // path: PathBuf,
     pub name: String,
+    pub dependent: Vec<Node>,
 }
 
 pub struct DetailsWindow {
@@ -24,10 +27,23 @@ impl DetailsWindow {
     pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
         let widget = match &self.details {
             Some(details) => {
-                let lines = vec![
+                let mut dependencies = details
+                    .dependent
+                    .iter()
+                    .map(|node| {
+                        Line::from(format!(
+                            "      name: {}, path: {}",
+                            node.refn,
+                            node.path.to_str().unwrap()
+                        ))
+                    })
+                    .collect();
+                let mut lines = vec![
                     Line::from(format!("name: {}", &details.name)),
                     Line::from(format!("id: {}", &details.id)),
+                    Line::from("Dependent files: "),
                 ];
+                lines.append(&mut dependencies);
                 Paragraph::new(lines).block(Block::bordered().title("OCA bundle details"))
             }
             None => Paragraph::new(vec![]).block(Block::bordered().title("OCA bundle details")),

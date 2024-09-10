@@ -321,23 +321,10 @@ impl MutableGraph {
         Ok(h)
     }
 
-    pub fn get_ancestors(&self, refn: &str) -> Result<Vec<Node>, GraphError> {
-        let g = self.graph.lock().unwrap();
-        let start_node = g.get_index(refn)?;
-        let h = MutableGraph::ancestor_graph(start_node, &g)?;
-
-        let sorted = toposort(&h, None).map_err(|_e| GraphError::Cycle)?;
-        let sorted_ancestors = sorted.into_iter();
-
-        Ok(sorted_ancestors
-            .into_iter()
-            .map(|i| g.graph[i].clone())
-            .collect())
-    }
-
-    pub fn get_dependent_nodes(&self, refn: &str) -> Result<Vec<Node>, GraphError> {
-        let g = self.graph.lock().unwrap();
-        let start_node = g.get_index(refn)?;
+    pub fn descendants_graph(
+        start_node: NodeIndex,
+        g: &DependencyGraph,
+    ) -> Result<GraphMap<NodeIndex, (), Directed>, GraphError> {
         let mut h = DiGraphMap::new();
         depth_first_search(&g.graph, Some(start_node), |event| {
             use petgraph::visit::DfsEvent::*;
@@ -350,9 +337,35 @@ impl MutableGraph {
                 Discover(_, _) | Finish(_, _) => {}
             }
         });
+        Ok(h)
+    }
+
+
+    pub fn get_ancestors(&self, refn: &str) -> Result<Vec<Node>, GraphError> {
+        let g = self.graph.lock().unwrap();
+        let start_node = g.get_index(refn)?;
+        let h = MutableGraph::ancestor_graph(start_node, &g)?;
+
         let sorted = toposort(&h, None).map_err(|_e| GraphError::Cycle)?;
+        let mut sorted_ancestors = sorted.into_iter();
+        // First element is the starting node, so remove it.
+        sorted_ancestors.next();
+
+        Ok(sorted_ancestors
+            .map(|i| g.graph[i].clone())
+            .collect())
+    }
+
+    pub fn get_descendants(&self, refn: &str) -> Result<Vec<Node>, GraphError> {
+        let g = self.graph.lock().unwrap();
+        let start_node = g.get_index(refn)?;
+        let h = MutableGraph::descendants_graph(start_node, &g)?;
+        
+        let mut sorted = toposort(&h, None).map_err(|_e| GraphError::Cycle)?.into_iter();
+        // First element is the starting node, so remove it.
+        sorted.next();
+
         Ok(sorted
-            .into_iter()
             .rev()
             .map(|i| g.graph[i].clone())
             .collect())
@@ -427,6 +440,60 @@ fn test_ancestors() -> anyhow::Result<()> {
         .map(|node| node.refn)
         .collect::<Vec<_>>();
     assert_eq!(fourth_anc, vec!["fourth", "fifth"]);
+
+    Ok(())
+}
+
+
+#[test]
+fn test_descendants() -> anyhow::Result<()> {
+    use std::{fs::File, io::Write};
+    use tempdir::TempDir;
+
+    let tmp_dir = TempDir::new("example")?;
+
+    let first_ocafile_str = "-- name=first\nADD ATTRIBUTE d=Text i=Text passed=Boolean";
+    let second_ocafile_str = "-- name=second\nADD ATTRIBUTE list=Array[Text] el=Text";
+    let third_ocafile_str = "-- name=third\nADD ATTRIBUTE first=refn:first";
+    let fourth_ocafile_str = "-- name=fourth\nADD ATTRIBUTE whatever=Text";
+    let fifth_ocafile_str = "-- name=fifth\nADD ATTRIBUTE third=refn:third four=refn:fourth";
+
+    let list = [
+        ("first.ocafile", first_ocafile_str),
+        ("second.ocafile", second_ocafile_str),
+        ("third.ocafile", third_ocafile_str),
+        ("fourth.ocafile", fourth_ocafile_str),
+        ("fifth.ocafile", fifth_ocafile_str),
+    ];
+
+    let mut paths = vec![];
+    for (name, contents) in list {
+        let path = tmp_dir.path().join(name);
+        let mut tmp_file = File::create(&path)?;
+        writeln!(tmp_file, "{}", contents)?;
+        paths.push(path)
+    }
+
+    let petgraph = MutableGraph::new(tmp_dir.path(), paths);
+
+    let fifth_desc = petgraph
+        .get_descendants("fifth")
+        .unwrap()
+        .into_iter()
+        .map(|node| node.refn)
+        .collect::<Vec<_>>();
+    assert_eq!(fifth_desc.len(), 3);
+    assert!(fifth_desc.contains(&String::from("first")));
+    assert!(fifth_desc.contains(&String::from("third")));
+    assert!(fifth_desc.contains(&String::from("fourth")));
+
+    let fourth_desc = petgraph
+        .get_descendants("fourth")
+        .unwrap()
+        .into_iter()
+        .map(|node| node.refn)
+        .collect::<Vec<_>>();
+    assert_eq!(fourth_desc, Vec::<String>::new());
 
     Ok(())
 }
