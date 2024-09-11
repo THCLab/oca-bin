@@ -157,6 +157,7 @@ impl OutputWindow {
         let path = self.current_path();
 
         thread::spawn(move || {
+            let mut cache = vec![];
             let errs = bundle_infos
                 .iter()
                 .flat_map(|bundle_info| {
@@ -165,12 +166,16 @@ impl OutputWindow {
                         Element::Error(errors) => {
                             let mut path = base_path.clone();
                             path.push(errors.path());
-                            info!("Building path: {:?}", &path);
+                            info!("Validating path: {:?}", &path);
                             parse_name(path.as_path()).unwrap().0
                         }
                     };
                     let res = std::panic::catch_unwind(AssertUnwindSafe(|| {
-                        validate_directory(facade.clone(), &mut graph.clone(), name).unwrap()
+                        let (mut to_cache, validation_errors) =
+                            validate_directory(facade.clone(), &mut graph.clone(), name, &cache)
+                                .unwrap();
+                        cache.append(&mut to_cache);
+                        validation_errors
                     }));
                     match res {
                         Ok(err) => err,

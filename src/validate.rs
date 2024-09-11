@@ -15,39 +15,62 @@ pub fn validate_directory(
     facade: Arc<Mutex<Facade>>,
     graph: &mut MutableGraph,
     selected_bundle: Option<String>,
-) -> Result<Vec<CliError>, CliError> {
+    cache: &[String],
+) -> Result<(Vec<String>, Vec<CliError>), CliError> {
     let dependent_nodes = match selected_bundle {
         Some(refn) => {
             let mut nodes = graph.get_descendants(&refn).unwrap();
             // Append starting node
-            nodes.push(graph.node(&refn).unwrap());
+            nodes.push(graph.node(&refn)?);
             nodes
         }
         None => graph.sort()?,
     };
+    let mut out_cached = vec![];
     let errs = dependent_nodes
         .into_iter()
-        .map(|node| {
-            let path = graph.oca_file_path(&node.refn)?;
-            let unparsed_file =
-                fs::read_to_string(&path).map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
-            let (name, _) = parse_name(&path).unwrap();
-            if let Some(name) = name {
-                if name.ne(&node.refn) {
-                    // Name changed. Update refn in graph
-                    graph.update_refn(&node.refn, name)?
+        .filter_map(|node| {
+            info!("Validating {}", &node.refn);
+            let path = match graph.oca_file_path(&node.refn) {
+                Ok(path) => path,
+                Err(e) => return Some(Err(CliError::GraphError(e))),
+            };
+            let file_contents = match fs::read_to_string(&path) {
+                Ok(file_content) => file_content,
+                Err(e) => return Some(Err(CliError::ReadFileFailed(path, e))),
+            };
+            match parse_name(&path) {
+                Ok((Some(ref refn), _)) => {
+                    if refn.ne(&node.refn) {
+                        // Name changed. Update refn in graph
+                        graph.update_refn(&node.refn, refn.clone()).unwrap();
+                    }
+                    // Skip already processed refn
+                    if cache.contains(&refn) {
+                        return None;
+                    };
                 }
+                Ok((None, _)) => {
+                    return Some(Err(CliError::MissingRefn(path)));
+                }
+                Err(e) => return Some(Err(CliError::GraphError(e.into()))),
             }
+
             let facade = facade.lock().unwrap();
-            match facade.validate_ocafile_with_external_references(unparsed_file, graph) {
-                Ok(_) => Ok(node),
-                Err(e) => Err(CliError::GrammarError(node.path.clone(), e)),
-            }
+            Some(
+                match facade.validate_ocafile_with_external_references(file_contents, graph) {
+                    Ok(_) => {
+                        out_cached.push(node.refn.clone());
+                        Ok(node)
+                    }
+                    Err(e) => Err(CliError::GrammarError(node.path.clone(), e)),
+                },
+            )
         })
         .filter_map(|e| if let Err(e) = e { Some(e) } else { None })
         .collect::<Vec<_>>();
 
-    Ok(errs)
+    Ok((out_cached, errs))
 }
 
 pub fn build(
