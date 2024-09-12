@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.6-rc.2] - 2024-09-12
+
+### 🚀 Features
+
+- Allow building multiple ocafiles
+
+### 🐛 Bug Fixes
+
+- Allow both arguments in build command
+- Avoid building the same ocafile twice
+
 ## [0.4.6-rc.1] - 2024-09-12
 
 ### 🚀 Features
@@ -17,6 +28,10 @@ All notable changes to this project will be documented in this file.
 - Fix loading repository url from config file
 - Better error messages
 - Catch unexpected errors
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.4.6-rc.1 version
 
 ## [0.4.5] - 2024-08-28
 
