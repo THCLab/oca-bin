@@ -67,7 +67,7 @@ enum Commands {
     /// Show configuration where data are stored
     Config {},
     /// Build oca objects out of ocafile
-    #[clap(group = clap::ArgGroup::new("build").required(true).args(&["ocafile", "directory"]))]
+    #[clap(group = clap::ArgGroup::new("build").multiple(true).required(true).args(&["ocafile", "directory"]))]
     Build {
         /// Specify ocafile to build from
         #[arg(short = 'f', long, group = "build")]
@@ -289,66 +289,62 @@ fn main() -> Result<(), CliError> {
                 Ok(())
             }
             Some(Commands::Build { ocafile, directory }) => {
-                let (paths, base_dir) = load_ocafiles_all(ocafile.as_ref(), directory.as_ref())?;
-
-                let mut facade = get_oca_facade(local_repository_path);
-                let graph = match DependencyGraph::from_paths(&base_dir, paths) {
-                    Ok(graph) => graph,
-                    Err(GraphError::NodeParsingError(e)) => {
-                        println!("{}", e);
-                        return Ok(());
+                let (nodes_to_build, base_dir) = match (ocafile, directory) {
+                    (None, None) => unreachable!("At least one argument needed"),
+                    (None, Some(base_dir)) => {
+                        let paths = visit_dirs_recursive(&base_dir)?;
+                        let graph = MutableGraph::new(&base_dir, paths);
+                        (graph.sort()?, base_dir.to_owned())
                     }
-                    Err(e) => {
-                        println!("{}", e);
-                        return Ok(());
+                    (Some(oca_file), None) => {
+                        let base_dir = oca_file.parent().unwrap().to_path_buf();
+                        let (node, _) = parse_node(&base_dir, &oca_file).map_err(|e| CliError::GraphError(GraphError::NodeParsingError(e)))?;
+                        (vec![node], base_dir)
+                    }
+                    (Some(oca_file), Some(base_dir)) => {
+                        let paths = visit_dirs_recursive(&base_dir)?;
+                        let graph = MutableGraph::new(&base_dir, paths);
+                        let (node, _) = parse_node(&base_dir, &oca_file).map_err(|e| CliError::GraphError(GraphError::NodeParsingError(e)))?;
+                        let mut desc = graph.get_descendants(&node.refn)?;
+                        desc.push(node);
+                        (desc, base_dir.to_owned())
                     }
                 };
-
-                let sorted_graph = graph.sort().unwrap();
-
-                info!("Sorted: {:?}", sorted_graph);
-                for node in sorted_graph {
-                    info!("Processing: {}", node.refn);
-                    match graph.oca_file_path(&node.refn) {
-                        Ok(path) => {
-                            let unparsed_file = fs::read_to_string(&path)
-                                .map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
-                            let oca_bundle_element = facade
-                                .build_from_ocafile(unparsed_file)
-                                .map_err(|e| CliError::BuildingError(path, e))?;
-                            match oca_bundle_element {
-                                BundleElement::Mechanics(oca_bundle) => {
-                                    let refs = facade.fetch_all_refs().unwrap();
-                                    let schema_name = refs.iter().find(|&(_, v)| {
-                                        *v == oca_bundle.said.clone().unwrap().to_string()
-                                    });
-                                    if let Some((refs, _)) = schema_name {
-                                        println!(
+                let mut facade = get_oca_facade(local_repository_path);
+                info!("Sorted: {:?}", nodes_to_build);
+                for node in nodes_to_build {
+                    info!("Processing: {:?}", node);
+                    let path = base_dir.join(node.path);
+                    let unparsed_file = fs::read_to_string(&path)
+                        .map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
+                    let oca_bundle_element = facade
+                        .build_from_ocafile(unparsed_file)
+                        .map_err(|e| CliError::BuildingError(path, e))?;
+                    match oca_bundle_element {
+                        BundleElement::Mechanics(oca_bundle) => {
+                            let refs = facade.fetch_all_refs().unwrap();
+                            let schema_name = refs
+                                .iter()
+                                .find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
+                            if let Some((refs, _)) = schema_name {
+                                println!(
                                         "OCA bundle created in local repository with SAID: {} and name: {}",
                                         oca_bundle.said.unwrap(),
                                         refs
                                     );
-                                    } else {
-                                        println!(
-                                        "OCA bundle created in local repository with SAID: {:?}",
-                                        oca_bundle.said.unwrap()
-                                    );
-                                    };
-                                }
-                                BundleElement::Transformation(transformation_file) => {
-                                    let code = HashFunctionCode::Blake3_256;
-                                    let format = SerializationFormats::JSON;
-                                    let transformation_file_json =
-                                        transformation_file.encode(&code, &format).unwrap();
-                                    println!(
-                                        "{}",
-                                        String::from_utf8(transformation_file_json).unwrap()
-                                    );
-                                }
-                            }
+                            } else {
+                                println!(
+                                    "OCA bundle created in local repository with SAID: {:?}",
+                                    oca_bundle.said.unwrap()
+                                );
+                            };
                         }
-                        _ => {
-                            println!("RefN not found in graph: {}", node.refn);
+                        BundleElement::Transformation(transformation_file) => {
+                            let code = HashFunctionCode::Blake3_256;
+                            let format = SerializationFormats::JSON;
+                            let transformation_file_json =
+                                transformation_file.encode(&code, &format).unwrap();
+                            println!("{}", String::from_utf8(transformation_file_json).unwrap());
                         }
                     }
                 }

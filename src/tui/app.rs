@@ -5,7 +5,7 @@ use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 pub use super::bundle_list::BundleListError;
@@ -282,6 +282,7 @@ impl App {
         let changes = self.changes.changes();
 
         thread::spawn(move || {
+            let start = Instant::now();
             let mut updated_nodes: Vec<PathBuf> = vec![];
             let mut cache = vec![];
             let unwind_res = std::panic::catch_unwind(AssertUnwindSafe(|| {
@@ -322,6 +323,9 @@ impl App {
                     })
                     .collect::<Vec<_>>()
             }));
+            let elapsed = start.elapsed();
+    
+            info!("Building time: {} seconds", elapsed.as_secs());
 
             let res = match unwind_res {
                 Ok(err) => err,
