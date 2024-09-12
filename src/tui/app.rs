@@ -324,7 +324,7 @@ impl App {
                     .collect::<Vec<_>>()
             }));
             let elapsed = start.elapsed();
-    
+
             info!("Building time: {} seconds", elapsed.as_secs());
 
             let res = match unwind_res {

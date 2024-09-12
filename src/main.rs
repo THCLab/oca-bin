@@ -1,4 +1,5 @@
 use crate::mapping::mapping;
+use common_path::common_path;
 use config::create_or_open_local_storage;
 use config::OCA_CACHE_DB_DIR;
 use config::OCA_INDEX_DIR;
@@ -7,6 +8,7 @@ use dependency_graph::parse_name;
 use dependency_graph::GraphError;
 use error::CliError;
 use oca_presentation::presentation::Presentation;
+use petgraph::graph;
 use presentation_command::PresentationCommand;
 use std::collections::HashSet;
 use std::panic::AssertUnwindSafe;
@@ -71,7 +73,7 @@ enum Commands {
     Build {
         /// Specify ocafile to build from
         #[arg(short = 'f', long, group = "build")]
-        ocafile: Option<PathBuf>,
+        ocafile: Option<Vec<PathBuf>>,
         /// Build oca objects from directory (recursive)
         #[arg(short, long, group = "build")]
         directory: Option<PathBuf>,
@@ -297,16 +299,28 @@ fn main() -> Result<(), CliError> {
                         (graph.sort()?, base_dir.to_owned())
                     }
                     (Some(oca_file), None) => {
-                        let base_dir = oca_file.parent().unwrap().to_path_buf();
-                        let (node, _) = parse_node(&base_dir, &oca_file).map_err(|e| CliError::GraphError(GraphError::NodeParsingError(e)))?;
-                        (vec![node], base_dir)
+                        let common_path = oca_file.into_iter().cloned().reduce(|acc, path| {
+                            let comm = common_path(&acc, &path);
+                            match comm {
+                                Some(com) => com,
+                                None => acc.to_path_buf(),
+                            }
+                        }).unwrap();
+                        let graph = MutableGraph::new(&common_path, oca_file);
+                        (graph.sort()?, common_path)
                     }
                     (Some(oca_file), Some(base_dir)) => {
                         let paths = visit_dirs_recursive(&base_dir)?;
                         let graph = MutableGraph::new(&base_dir, paths);
-                        let (node, _) = parse_node(&base_dir, &oca_file).map_err(|e| CliError::GraphError(GraphError::NodeParsingError(e)))?;
-                        let mut desc = graph.get_descendants(&node.refn)?;
-                        desc.push(node);
+
+                        let mut desc = vec![];
+                        for ocafile in oca_file {
+                            let (node, _) = parse_node(&base_dir, &ocafile).map_err(|e| {
+                                CliError::GraphError(GraphError::NodeParsingError(e))
+                            })?;
+                            desc.append(&mut graph.get_descendants(&node.refn)?);
+                            desc.push(node);
+                        }
                         (desc, base_dir.to_owned())
                     }
                 };
