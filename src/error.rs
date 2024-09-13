@@ -43,8 +43,8 @@ pub enum CliError {
     AllRefnUnknown(PathBuf),
     #[error("Validation error: file: {0}, reason: {1:?}")]
     GrammarError(PathBuf, Vec<ValidationError>),
-    #[error("Building error: file: {0}, reason: {1:?}")]
-    BuildingError(PathBuf, Vec<oca_rs::facade::build::Error>),
+    #[error("Error while building file: {0}, reason: {1}")]
+    BuildingError(PathBuf, BuildingFailures),
     #[error(transparent)]
     GraphError(#[from] GraphError),
     #[error("Publishing error: file: {0}, reason: {1:?}")]
@@ -63,6 +63,30 @@ pub enum CliError {
     UnknownRemoteRepoUrl,
     #[error("Unexpected error occurred: {0}")]
     Panic(String),
+}
+
+impl From<Vec<oca_rs::facade::build::Error>> for BuildingFailures {
+    fn from(value: Vec<oca_rs::facade::build::Error>) -> Self {
+        Self(value)
+    }
+}
+
+#[derive(Debug)]
+pub struct BuildingFailures(pub(crate) Vec<oca_rs::facade::build::Error>);
+impl std::fmt::Display for BuildingFailures {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let errs = self
+            .0
+            .iter()
+            .map(|e| match e {
+                oca_rs::facade::build::Error::ValidationError(valdation_errors) => {
+                    valdation_errors.iter().map(|e| e.to_string())
+                }
+            })
+            .flatten()
+            .collect::<Vec<_>>();
+        write!(f, "{}", errs.join("\n"))
+    }
 }
 
 impl From<BundleListError> for CliError {

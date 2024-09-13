@@ -146,6 +146,7 @@ impl<'a> MessageLine<'a> {
                 })
                 .collect::<Vec<_>>(),
             Message::Error(CliError::BuildingError(file, errors)) => errors
+                .0
                 .iter()
                 .flat_map(|err| match err {
                     oca_rs::facade::build::Error::ValidationError(ve) => {

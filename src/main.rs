@@ -299,17 +299,18 @@ fn main() -> Result<(), CliError> {
                         (graph.sort()?, base_dir.to_owned())
                     }
                     (Some(oca_file), None) => {
-                        let common_path = oca_file
-                            .into_iter()
-                            .cloned()
-                            .reduce(|acc, path| {
-                                let comm = common_path(&acc, &path);
-                                match comm {
-                                    Some(com) => com,
-                                    None => acc.to_path_buf(),
-                                }
-                            })
-                            .unwrap();
+                        let first_parent = oca_file[0].parent().unwrap().to_path_buf();
+                        let common_path =
+                            oca_file
+                                .into_iter()
+                                .cloned()
+                                .fold(first_parent, |acc, path| {
+                                    let comm = common_path(&acc, &path);
+                                    match comm {
+                                        Some(com) => com,
+                                        None => acc.to_path_buf(),
+                                    }
+                                });
                         let graph = MutableGraph::new(&common_path, oca_file);
                         (graph.sort()?, common_path)
                     }
@@ -343,7 +344,7 @@ fn main() -> Result<(), CliError> {
                                 cached_refns.push(node.refn);
                                 el
                             })
-                            .map_err(|e| CliError::BuildingError(path, e))?;
+                            .map_err(|e| CliError::BuildingError(path, e.into()))?;
 
                         match oca_bundle_element {
                             BundleElement::Mechanics(oca_bundle) => {

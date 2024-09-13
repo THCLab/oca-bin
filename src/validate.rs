@@ -161,7 +161,7 @@ pub fn build(
                     i.append(Message::Info(msg));
                     Ok(())
                 }
-                Err(e) => Err(CliError::BuildingError(path.clone(), e)),
+                Err(e) => Err(CliError::BuildingError(path.clone(), e.into())),
             }
         })
         .partition(Result::is_ok);
