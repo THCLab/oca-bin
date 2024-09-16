@@ -143,7 +143,7 @@ mod tests {
 
             paths.push(path)
         }
-        let dependency_graph = DependencyGraph::from_paths(tmp_dir.path(), paths).unwrap();
+        let dependency_graph = DependencyGraph::from_paths(paths).unwrap();
         let o = mapping(digest2, &facade, &dependency_graph).unwrap();
 
         let expected_json = r#"{
@@ -205,7 +205,7 @@ mod tests {
             paths.push(path)
         }
 
-        let dependency_graph = DependencyGraph::from_paths(tmp_dir.path(), paths).unwrap();
+        let dependency_graph = DependencyGraph::from_paths(paths).unwrap();
         let o = mapping(
             many_person_bundle_digest.clone(),
             &facade,

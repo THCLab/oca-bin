@@ -84,11 +84,12 @@ impl App {
         remote_repo_url: Option<String>,
         publish_timeout: Option<u64>,
     ) -> Result<App, AppError> {
-        let graph = match DependencyGraph::from_paths(&base, &paths) {
+        let graph = match DependencyGraph::from_paths(&paths) {
             Ok(graph) => Ok(Arc::new(graph)),
             Err(e) => Err(AppError::BundleList(BundleListError::GraphError(e))),
         }?;
-        let mut_graph = MutableGraph::new(&base, &paths);
+        let mut_graph = MutableGraph::new(&paths)
+            .map_err(|e| AppError::BundleList(BundleListError::GraphError(e)))?;
         let list = BundleList::from_nodes(to_show, facade.clone(), graph, base.clone())?;
 
         App::setup_panic_hooks()?;
@@ -196,7 +197,6 @@ impl App {
                                 self.facade.clone(),
                                 self.graph.clone(),
                                 selected,
-                                self.base.clone(),
                             )
                         }
                         KeyCode::Char('b') => {
@@ -278,7 +278,6 @@ impl App {
         let errs = self.output.error_list_mut();
         let list = self.bundles.items.clone();
         let to_show_dir = Arc::new(self.base.clone());
-        let base_path = self.base.clone();
         let changes = self.changes.changes();
 
         thread::spawn(move || {
@@ -296,8 +295,7 @@ impl App {
                                 oks.index(),
                             ),
                             Element::Error(errors) => {
-                                let mut path = base_path.clone();
-                                path.push(errors.path());
+                                let path = errors.path().to_path_buf();
                                 (parse_name(path.as_path()).unwrap().0, path, errors.index())
                             }
                         };

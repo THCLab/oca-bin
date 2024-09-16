@@ -39,8 +39,8 @@ pub enum GraphError {
 
 #[derive(Error, Debug, Clone)]
 pub enum NodeParsingError {
-    #[error("File parsing error: {0}")]
-    FileParsing(PathBuf),
+    #[error("File parsing error: {0}, {1}")]
+    FileParsing(PathBuf, std::io::ErrorKind),
     #[error("OCA file doesn't contain bundle name: {0}. Insert `--name=<name>` on the first line of the file.")]
     MissingRefn(PathBuf),
     #[error("Reference '{0}' in file {1} contains an invalid character. Only alphanumeric characters, '-' or '_' are allowed.")]
@@ -55,13 +55,12 @@ pub struct Node {
 }
 
 pub struct DependencyGraph {
-    base_dir: PathBuf,
     graph: Graph<Node, ()>,
     key_set: HashMap<String, PathBuf>,
 }
 
 impl DependencyGraph {
-    pub fn from_paths<I, P>(base_dir: &Path, file_paths: I) -> Result<Self, GraphError>
+    pub fn from_paths<I, P>(file_paths: I) -> Result<Self, GraphError>
     where
         P: AsRef<Path>,
         I: IntoIterator<Item = P>,
@@ -71,13 +70,12 @@ impl DependencyGraph {
         // should have connection with node of given refn.
         let mut edges_to_save = HashMap::new();
         let mut graph = DependencyGraph {
-            base_dir: base_dir.to_path_buf(),
             graph: Graph::<Node, ()>::new(),
             key_set: HashMap::new(),
         };
         let file_paths = file_paths
             .into_iter()
-            .map(|path| parse_node(base_dir, path.as_ref()))
+            .map(|path| parse_node(path.as_ref()))
             .collect::<Result<Vec<_>, NodeParsingError>>()?;
 
         for (node, dependencies) in file_paths {
@@ -91,7 +89,7 @@ impl DependencyGraph {
                 }
                 None => {
                     graph.key_set.insert(node.refn.clone(), node.path.clone());
-                    let index = graph.insert_node(node, &mut edges_to_save);
+                    let index = graph.insert_node(node.clone(), &mut edges_to_save);
                     for dep in dependencies {
                         let edges = edges_to_save.get_mut(&dep);
                         match edges {
@@ -116,6 +114,28 @@ impl DependencyGraph {
             }
         }
         Ok(graph)
+    }
+
+    pub fn insert(&mut self, node: Node, dependencies: Vec<String>) -> Result<(), GraphError> {
+        match self.key_set.get(&node.refn) {
+            Some(key) => {
+                return Err(GraphError::DuplicateKey {
+                    refn: node.refn.clone(),
+                    first_path: key.clone(),
+                    second_path: node.path,
+                });
+            }
+            None => {
+                self.key_set.insert(node.refn.clone(), node.path.clone());
+                let index = self.graph.add_node(node.clone());
+
+                for dep in dependencies {
+                    let dep_index = self.get_index(&dep).unwrap();
+                    self.graph.add_edge(index, dep_index, ());
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn sort(&self) -> Result<Vec<Node>, GraphError> {
@@ -150,9 +170,7 @@ impl DependencyGraph {
     pub fn oca_file_path(&self, refn: &str) -> Result<PathBuf, GraphError> {
         let index = self.get_index(refn)?;
         let relative_path = self.graph[index].path.clone();
-        let mut path = self.base_dir.clone();
-        path.push(relative_path);
-        Ok(path)
+        Ok(relative_path)
     }
 
     pub fn get_said(&self, refn: &str) -> Result<SelfAddressingIdentifier, GraphError> {
@@ -215,14 +233,14 @@ impl DependencyGraph {
     }
 }
 
-pub fn parse_node(base: &Path, file_path: &Path) -> Result<(Node, Vec<String>), NodeParsingError> {
+pub fn parse_node(file_path: &Path) -> Result<(Node, Vec<String>), NodeParsingError> {
     let (name, lines) = parse_name(file_path)?;
     match name {
         Some(name_part) => {
             let ref_name = name_part.trim_matches('"').to_string();
             let ref_node = Node {
                 refn: ref_name,
-                path: file_path.strip_prefix(base).unwrap().into(),
+                path: file_path.into(),
                 said: None,
             };
             Ok((ref_node, DependencyGraph::find_refn(&lines)))
@@ -233,11 +251,11 @@ pub fn parse_node(base: &Path, file_path: &Path) -> Result<(Node, Vec<String>), 
 
 pub fn parse_name(file_path: &Path) -> Result<(Option<String>, Vec<String>), NodeParsingError> {
     let content = fs::read_to_string(file_path)
-        .map_err(|_e| NodeParsingError::FileParsing(file_path.to_path_buf()))?;
+        .map_err(|e| NodeParsingError::FileParsing(file_path.to_path_buf(), e.kind()))?;
     let lines: Vec<String> = content.lines().map(|l| l.to_string()).collect();
     let ref_name_line = lines
         .first()
-        .ok_or(NodeParsingError::FileParsing(file_path.to_path_buf()))?;
+        .ok_or(NodeParsingError::MissingRefn(file_path.to_path_buf()))?;
     let name = ref_name_line.split("name=").nth(1).map(|n| n.to_string());
     if let Some(name) = &name {
         if name
@@ -260,21 +278,21 @@ pub struct MutableGraph {
 }
 
 impl MutableGraph {
-    pub fn new<I, P>(base_dir: &Path, file_paths: I) -> Self
+    pub fn new<I, P>(file_paths: I) -> Result<Self, GraphError>
     where
         P: AsRef<Path>,
         I: IntoIterator<Item = P>,
     {
-        let g = DependencyGraph::from_paths(base_dir, file_paths).unwrap();
-        Self {
+        let g = DependencyGraph::from_paths(file_paths)?;
+        Ok(Self {
             graph: Arc::new(Mutex::new(g)),
-        }
+        })
     }
 
     pub fn reload(&mut self, base_dir: &Path) -> Result<(), GraphError> {
         let file_paths = visit_current_dir(base_dir).unwrap();
 
-        let g = DependencyGraph::from_paths(base_dir, file_paths)?;
+        let g = DependencyGraph::from_paths(file_paths)?;
         self.graph = Arc::new(Mutex::new(g));
         Ok(())
     }
@@ -298,6 +316,12 @@ impl MutableGraph {
         let g = self.graph.lock().unwrap();
         let start_node = g.get_index(refn)?;
         Ok(g.graph[start_node].clone())
+    }
+
+    pub fn insert_node(&self, node: Node, dependencies: Vec<String>) -> Result<(), GraphError> {
+        let mut g = self.graph.lock().unwrap();
+        g.insert(node, dependencies)?;
+        Ok(())
     }
 
     pub fn ancestor_graph(
@@ -419,7 +443,7 @@ fn test_ancestors() -> anyhow::Result<()> {
         paths.push(path)
     }
 
-    let petgraph = MutableGraph::new(tmp_dir.path(), paths);
+    let petgraph = MutableGraph::new(paths)?;
 
     let first_anc = petgraph
         .get_ancestors("first")
@@ -469,7 +493,7 @@ fn test_descendants() -> anyhow::Result<()> {
         paths.push(path)
     }
 
-    let petgraph = MutableGraph::new(tmp_dir.path(), paths);
+    let petgraph = MutableGraph::new(paths)?;
 
     let fifth_desc = petgraph
         .get_descendants("fifth")

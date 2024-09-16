@@ -146,7 +146,6 @@ impl OutputWindow {
         facade: Arc<Mutex<Facade>>,
         graph: MutableGraph,
         bundle_infos: Vec<Element>,
-        base_path: PathBuf,
     ) -> Result<bool, CliError> {
         {
             let mut errors = self.errors.lock().unwrap();
@@ -164,9 +163,7 @@ impl OutputWindow {
                     let name = match bundle_info {
                         Element::Ok(oks_elements) => Some(oks_elements.get().refn.clone()),
                         Element::Error(errors) => {
-                            let mut path = base_path.clone();
-                            path.push(errors.path());
-                            info!("Validating path: {:?}", &path);
+                            let path = errors.path().to_path_buf();
                             parse_name(path.as_path()).unwrap().0
                         }
                     };

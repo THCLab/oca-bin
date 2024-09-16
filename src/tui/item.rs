@@ -257,11 +257,18 @@ impl Items {
                 BundleListError::RefnMissing(path.clone()),
                 path,
             )),
-            Err(NodeParsingError::FileParsing(path))
-            | Err(NodeParsingError::WrongCharacterRefn(_, path)) => {
+            Err(NodeParsingError::FileParsing(path, kind)) => {
                 self.nodes.push(ListElement::new_error(
                     BundleListError::GraphError(GraphError::NodeParsingError(
-                        NodeParsingError::FileParsing(path.clone()),
+                        NodeParsingError::FileParsing(path.clone(), kind),
+                    )),
+                    path,
+                ))
+            }
+            Err(NodeParsingError::WrongCharacterRefn(e, path)) => {
+                self.nodes.push(ListElement::new_error(
+                    BundleListError::GraphError(GraphError::NodeParsingError(
+                        NodeParsingError::WrongCharacterRefn(e, path.clone()),
                     )),
                     path,
                 ))
@@ -373,7 +380,7 @@ pub fn rebuild_items(
     let to_show_list = visit_current_dir(to_show_dir)
         .unwrap()
         .into_iter()
-        .map(|of| parse_node(to_show_dir, &of).map(|(node, _)| node));
+        .map(|of| parse_node(&of).map(|(node, _)| node));
     let mut items = items.lock().unwrap();
     items.rebuild(to_show_list, facade, &graph);
 }

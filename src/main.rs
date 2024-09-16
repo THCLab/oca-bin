@@ -291,42 +291,43 @@ fn main() -> Result<(), CliError> {
                 Ok(())
             }
             Some(Commands::Build { ocafile, directory }) => {
-                let (nodes_to_build, base_dir) = match (ocafile, directory) {
+                let nodes_to_build = match (ocafile, directory) {
                     (None, None) => unreachable!("At least one argument needed"),
                     (None, Some(base_dir)) => {
                         let paths = visit_dirs_recursive(&base_dir)?;
-                        let graph = MutableGraph::new(&base_dir, paths);
-                        (graph.sort()?, base_dir.to_owned())
+                        let graph = MutableGraph::new(paths)?;
+                        graph.sort()?
                     }
                     (Some(oca_file), None) => {
-                        let first_parent = oca_file[0].parent().unwrap().to_path_buf();
-                        let common_path =
-                            oca_file
-                                .into_iter()
-                                .cloned()
-                                .fold(first_parent, |acc, path| {
-                                    let comm = common_path(&acc, &path);
-                                    match comm {
-                                        Some(com) => com,
-                                        None => acc.to_path_buf(),
-                                    }
-                                });
-                        let graph = MutableGraph::new(&common_path, oca_file);
-                        (graph.sort()?, common_path)
+                        let graph = MutableGraph::new(oca_file)?;
+                        graph.sort()?
                     }
                     (Some(oca_file), Some(base_dir)) => {
                         let paths = visit_dirs_recursive(&base_dir)?;
-                        let graph = MutableGraph::new(&base_dir, paths);
+                        let graph = MutableGraph::new(paths).unwrap();
 
                         let mut desc = vec![];
                         for ocafile in oca_file {
-                            let (node, _) = parse_node(&base_dir, &ocafile).map_err(|e| {
+                            let (node, dependencies) = parse_node(&ocafile).map_err(|e| {
                                 CliError::GraphError(GraphError::NodeParsingError(e))
                             })?;
-                            desc.append(&mut graph.get_descendants(&node.refn)?);
+                            match graph.insert_node(node.clone(), dependencies) {
+                                Ok(_) => (),
+                                Err(GraphError::DuplicateKey {
+                                    refn,
+                                    first_path,
+                                    second_path,
+                                }) => {
+                                    info!("Saving node skipped because it's already in graph: name: {}, paths: {:?}, {:?}", refn, first_path, second_path,);
+                                    ()
+                                }
+                                Err(e) => return Err(e.into()),
+                            };
+                            let mut graph_desc = graph.get_descendants(&node.refn)?;
+                            desc.append(&mut graph_desc);
                             desc.push(node);
                         }
-                        (desc, base_dir.to_owned())
+                        desc
                     }
                 };
                 let mut facade = get_oca_facade(local_repository_path);
@@ -334,7 +335,7 @@ fn main() -> Result<(), CliError> {
                 info!("Sorted: {:?}", nodes_to_build);
                 for node in nodes_to_build {
                     info!("Processing: {:?}", node);
-                    let path = base_dir.join(node.path);
+                    let path = node.path;
                     let unparsed_file = fs::read_to_string(&path)
                         .map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
                     if !cached_refns.contains(&node.refn) {
@@ -547,7 +548,6 @@ fn main() -> Result<(), CliError> {
                                 )),
                             },
                             None => {
-                                // CliError::ExtensionError("Missing file extension".to_string())
                                 warn!("Missing input file extension. Using JSON");
                                 Ok(Format::JSON)
                             }
@@ -613,11 +613,11 @@ fn main() -> Result<(), CliError> {
                 }
             }
             Some(Commands::Validate { ocafile, directory }) => {
-                let (paths, base_dir) = load_ocafiles_all(ocafile.as_ref(), directory.as_ref())?;
+                let (paths, _) = load_ocafiles_all(ocafile.as_ref(), directory.as_ref())?;
 
                 let facade = get_oca_facade(local_repository_path);
                 let facade = Arc::new(Mutex::new(facade));
-                let mut graph = MutableGraph::new(&base_dir, paths);
+                let mut graph = MutableGraph::new(paths)?;
                 let (_cache, errs) = validate::validate_directory(facade, &mut graph, None, &[])?;
                 for err in errs {
                     println!("{}", err)
@@ -635,7 +635,7 @@ fn main() -> Result<(), CliError> {
 
                     let to_show = visit_current_dir(directory)?
                         .into_iter()
-                        .map(|of| parse_node(directory, &of).map(|(node, _)| node));
+                        .map(|of| parse_node(&of).map(|(node, _)| node));
                     tui::draw(
                         directory.clone(),
                         to_show,
@@ -660,7 +660,7 @@ fn main() -> Result<(), CliError> {
 
                 let facade = get_oca_facade(local_repository_path);
 
-                let graph = DependencyGraph::from_paths(&base_dir, paths).unwrap();
+                let graph = DependencyGraph::from_paths(paths).unwrap();
 
                 let o = mapping(said, &facade, &graph).unwrap();
 
@@ -670,7 +670,7 @@ fn main() -> Result<(), CliError> {
             }
             Some(Commands::Deps { ocafile, directory }) => {
                 let paths = visit_dirs_recursive(&directory)?;
-                let graph = MutableGraph::new(directory, paths);
+                let graph = MutableGraph::new(paths)?;
                 let (name, _) =
                     parse_name(&ocafile).map_err(|_e| CliError::MissingRefn(ocafile.clone()))?;
                 let out = graph
