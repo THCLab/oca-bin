@@ -7,22 +7,66 @@ use std::{
 use url::Url;
 use walkdir::WalkDir;
 
-use crate::error::CliError;
+use crate::{
+    dependency_graph::{parse_node, GraphError, MutableGraph, Node},
+    error::CliError,
+};
 
 pub fn load_ocafiles_all(
     file_path: Option<&PathBuf>,
     dir_path: Option<&PathBuf>,
-) -> Result<(Vec<PathBuf>, PathBuf), CliError> {
+) -> Result<Vec<PathBuf>, CliError> {
     Ok(match (file_path, dir_path) {
         (None, None) => panic!(
             "Specify the base working directory where you keep your ocafiles or path to ocafile"
         ),
-        (None, Some(dir)) => (visit_dirs_recursive(dir)?, dir.clone()),
-        (Some(oca_file), None) => (
-            vec![oca_file.clone()],
-            oca_file.parent().unwrap().to_path_buf(),
-        ),
-        (Some(oca_file), Some(dir)) => (vec![oca_file.clone()], dir.clone()),
+        (None, Some(dir)) => visit_dirs_recursive(dir)?,
+        (Some(oca_file), None) => vec![oca_file.clone()],
+        (Some(oca_file), Some(_dir)) => vec![oca_file.clone()],
+    })
+}
+
+pub fn load_nodes(
+    file_path: Option<Vec<PathBuf>>,
+    dir_path: Option<&PathBuf>,
+) -> Result<Vec<Node>, CliError> {
+    Ok(match (file_path, dir_path) {
+        (None, None) => unreachable!("At least one argument needed"),
+        (None, Some(base_dir)) => {
+            let paths = visit_dirs_recursive(&base_dir)?;
+            let graph = MutableGraph::new(paths)?;
+            graph.sort()?
+        }
+        (Some(oca_file), None) => {
+            let graph = MutableGraph::new(oca_file)?;
+            graph.sort()?
+        }
+        (Some(oca_file), Some(base_dir)) => {
+            let paths = visit_dirs_recursive(&base_dir)?;
+            let graph = MutableGraph::new(paths).unwrap();
+
+            let mut desc = vec![];
+            for ocafile in oca_file {
+                let (node, dependencies) = parse_node(&ocafile)
+                    .map_err(|e| CliError::GraphError(GraphError::NodeParsingError(e)))?;
+                match graph.insert_node(node.clone(), dependencies) {
+                    Ok(_) => (),
+                    Err(GraphError::DuplicateKey {
+                        refn,
+                        first_path,
+                        second_path,
+                    }) => {
+                        info!("Saving node skipped because it's already in graph: name: {}, paths: {:?}, {:?}", refn, first_path, second_path,);
+                        ()
+                    }
+                    Err(e) => return Err(e.into()),
+                };
+                let mut graph_desc = graph.get_descendants(&node.refn)?;
+                desc.append(&mut graph_desc);
+                desc.push(node);
+            }
+            desc
+        }
     })
 }
 

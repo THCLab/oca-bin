@@ -1,14 +1,11 @@
 use crate::mapping::mapping;
-use common_path::common_path;
 use config::create_or_open_local_storage;
 use config::OCA_CACHE_DB_DIR;
 use config::OCA_INDEX_DIR;
 use config::OCA_REPOSITORY_DIR;
 use dependency_graph::parse_name;
-use dependency_graph::GraphError;
 use error::CliError;
 use oca_presentation::presentation::Presentation;
-use petgraph::graph;
 use presentation_command::PresentationCommand;
 use std::collections::HashSet;
 use std::panic::AssertUnwindSafe;
@@ -17,6 +14,7 @@ use std::sync::Mutex;
 use std::{env, fs, fs::File, io::Write, path::PathBuf, process, str::FromStr};
 use tui::app::App;
 use utils::handle_panic;
+use utils::load_nodes;
 use utils::parse_url;
 use utils::visit_dirs_recursive;
 
@@ -79,7 +77,7 @@ enum Commands {
         directory: Option<PathBuf>,
     },
     /// Validate oca objects out of ocafile
-    #[clap(group = clap::ArgGroup::new("build").required(true).args(&["ocafile", "directory"]))]
+    #[clap(group = clap::ArgGroup::new("build").multiple(true).required(true).args(&["ocafile", "directory"]))]
     Validate {
         /// Specify ocafile to validate from
         #[arg(short = 'f', long, group = "build")]
@@ -291,45 +289,7 @@ fn main() -> Result<(), CliError> {
                 Ok(())
             }
             Some(Commands::Build { ocafile, directory }) => {
-                let nodes_to_build = match (ocafile, directory) {
-                    (None, None) => unreachable!("At least one argument needed"),
-                    (None, Some(base_dir)) => {
-                        let paths = visit_dirs_recursive(&base_dir)?;
-                        let graph = MutableGraph::new(paths)?;
-                        graph.sort()?
-                    }
-                    (Some(oca_file), None) => {
-                        let graph = MutableGraph::new(oca_file)?;
-                        graph.sort()?
-                    }
-                    (Some(oca_file), Some(base_dir)) => {
-                        let paths = visit_dirs_recursive(&base_dir)?;
-                        let graph = MutableGraph::new(paths).unwrap();
-
-                        let mut desc = vec![];
-                        for ocafile in oca_file {
-                            let (node, dependencies) = parse_node(&ocafile).map_err(|e| {
-                                CliError::GraphError(GraphError::NodeParsingError(e))
-                            })?;
-                            match graph.insert_node(node.clone(), dependencies) {
-                                Ok(_) => (),
-                                Err(GraphError::DuplicateKey {
-                                    refn,
-                                    first_path,
-                                    second_path,
-                                }) => {
-                                    info!("Saving node skipped because it's already in graph: name: {}, paths: {:?}, {:?}", refn, first_path, second_path,);
-                                    ()
-                                }
-                                Err(e) => return Err(e.into()),
-                            };
-                            let mut graph_desc = graph.get_descendants(&node.refn)?;
-                            desc.append(&mut graph_desc);
-                            desc.push(node);
-                        }
-                        desc
-                    }
-                };
+                let nodes_to_build = load_nodes(ocafile.clone(), directory.as_ref())?;
                 let mut facade = get_oca_facade(local_repository_path);
                 let mut cached_refns = vec![];
                 info!("Sorted: {:?}", nodes_to_build);
@@ -613,7 +573,7 @@ fn main() -> Result<(), CliError> {
                 }
             }
             Some(Commands::Validate { ocafile, directory }) => {
-                let (paths, _) = load_ocafiles_all(ocafile.as_ref(), directory.as_ref())?;
+                let paths = load_ocafiles_all(ocafile.as_ref(), directory.as_ref())?;
 
                 let facade = get_oca_facade(local_repository_path);
                 let facade = Arc::new(Mutex::new(facade));
@@ -626,8 +586,8 @@ fn main() -> Result<(), CliError> {
             }
             Some(Commands::Tui { dir, timeout }) => {
                 if let Some(directory) = dir.as_ref() {
-                    let (all_oca_files, _base_dir) = load_ocafiles_all(None, Some(directory))
-                        .unwrap_or_else(|err| {
+                    let all_oca_files =
+                        load_ocafiles_all(None, Some(directory)).unwrap_or_else(|err| {
                             eprintln!("{err}");
                             process::exit(1);
                         });
@@ -656,7 +616,7 @@ fn main() -> Result<(), CliError> {
             }
             Some(Commands::Mapping { said }) => {
                 let said = SelfAddressingIdentifier::from_str(said)?;
-                let (paths, base_dir) = load_ocafiles_all(None, Some(&local_repository_path))?;
+                let paths = load_ocafiles_all(None, Some(&local_repository_path))?;
 
                 let facade = get_oca_facade(local_repository_path);
 
