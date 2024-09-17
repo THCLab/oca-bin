@@ -82,7 +82,7 @@ enum Commands {
     Validate {
         /// Specify ocafile to validate from
         #[arg(short = 'f', long, group = "build")]
-        ocafile: Option<PathBuf>,
+        ocafile: Option<Vec<PathBuf>>,
         /// Validate oca objects from directory (recursive)
         #[arg(short, long, group = "build")]
         directory: Option<PathBuf>,
@@ -577,34 +577,41 @@ fn main() -> Result<(), CliError> {
                 let paths = match (ocafile, directory) {
                     (None, None) => unreachable!("At least one argument expected"),
                     (_, Some(dir)) => visit_dirs_recursive(dir)?,
-                    (Some(oca_file), None) => vec![oca_file.clone()],
+                    (Some(oca_file), None) => oca_file.clone(),
                 };
 
                 let facade = get_oca_facade(local_repository_path);
                 let facade = Arc::new(Mutex::new(facade));
                 let mut graph = MutableGraph::new(paths)?;
-                let errs = match ocafile {
+                match ocafile {
                     Some(oca_file) => {
-                        // Insert ocafile to graph, if not present
-                        let (node, dependencies) =
-                            parse_node(&oca_file).map_err(|e| CliError::GraphError(e.into()))?;
-                        match graph.insert_node(node.clone(), dependencies) {
-                            Ok(_) => (),
-                            // node already in graph
-                            Err(GraphError::DuplicateKey {
-                                refn: _,
-                                first_path: _,
-                                second_path: _,
-                            }) => (),
-                            Err(e) => return Err(e.into()),
-                        };
-                        let (_cache, errs) = validate::validate_directory(
-                            facade,
-                            &mut graph,
-                            Some(node.refn),
-                            &HashSet::new(),
-                        )?;
-                        errs
+                        let mut cache = HashSet::new();
+                        for file in oca_file {
+                            // Insert ocafile to graph, if not present
+                            let (node, dependencies) =
+                                parse_node(&file).map_err(|e| CliError::GraphError(e.into()))?;
+                            match graph.insert_node(node.clone(), dependencies) {
+                                Ok(_) => (),
+                                // node already in graph
+                                Err(GraphError::DuplicateKey {
+                                    refn: _,
+                                    first_path: _,
+                                    second_path: _,
+                                }) => (),
+                                Err(e) => return Err(e.into()),
+                            };
+                            println!("Validating {}", &node.refn);
+                            let (out_cache, errs) = validate::validate_directory(
+                                facade.clone(),
+                                &mut graph,
+                                Some(node.refn),
+                                &cache,
+                            )?;
+                            cache.extend(out_cache);
+                            for err in errs {
+                                println!("{}", err)
+                            }
+                        }
                     }
                     None => {
                         let (_cache, errs) = validate::validate_directory(
@@ -613,13 +620,13 @@ fn main() -> Result<(), CliError> {
                             None,
                             &HashSet::new(),
                         )?;
-                        errs
+
+                        for err in errs {
+                            println!("{}", err)
+                        }
                     }
                 };
 
-                for err in errs {
-                    println!("{}", err)
-                }
                 Ok(())
             }
             Some(Commands::Tui { dir, timeout }) => {

@@ -48,6 +48,7 @@ pub fn validate_directory(
                     }
                     // Skip already processed refn
                     if cache.contains(refn) {
+                        info!("Skipping already processed refn: {}", &node.refn);
                         return None;
                     };
                 }
