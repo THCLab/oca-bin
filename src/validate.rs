@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     fs,
     sync::{Arc, Mutex},
 };
@@ -15,8 +16,8 @@ pub fn validate_directory(
     facade: Arc<Mutex<Facade>>,
     graph: &mut MutableGraph,
     selected_bundle: Option<String>,
-    cache: &[String],
-) -> Result<(Vec<String>, Vec<CliError>), CliError> {
+    cache: &HashSet<String>,
+) -> Result<(HashSet<String>, Vec<CliError>), CliError> {
     let dependent_nodes = match selected_bundle {
         Some(refn) => {
             let mut nodes = graph.get_descendants(&refn).unwrap();
@@ -26,7 +27,7 @@ pub fn validate_directory(
         }
         None => graph.sort()?,
     };
-    let mut out_cached = vec![];
+    let mut out_cached = HashSet::new();
     let errs = dependent_nodes
         .into_iter()
         .filter_map(|node| {
@@ -46,7 +47,7 @@ pub fn validate_directory(
                         graph.update_refn(&node.refn, refn.clone()).unwrap();
                     }
                     // Skip already processed refn
-                    if cache.contains(&refn) {
+                    if cache.contains(refn) {
                         return None;
                     };
                 }
@@ -60,7 +61,7 @@ pub fn validate_directory(
             Some(
                 match facade.validate_ocafile_with_external_references(file_contents, graph) {
                     Ok(_) => {
-                        out_cached.push(node.refn.clone());
+                        out_cached.insert(node.refn.clone());
                         Ok(node)
                     }
                     Err(e) => Err(CliError::GrammarError(node.path.clone(), e)),

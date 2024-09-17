@@ -1,6 +1,7 @@
 pub mod message_list;
 
 use std::{
+    collections::HashSet,
     panic::AssertUnwindSafe,
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -156,7 +157,7 @@ impl OutputWindow {
         let path = self.current_path();
 
         thread::spawn(move || {
-            let mut cache = vec![];
+            let mut cache = HashSet::new();
             let errs = bundle_infos
                 .iter()
                 .flat_map(|bundle_info| {
@@ -168,10 +169,11 @@ impl OutputWindow {
                         }
                     };
                     let res = std::panic::catch_unwind(AssertUnwindSafe(|| {
-                        let (mut to_cache, validation_errors) =
+                        let (to_cache, validation_errors) =
                             validate_directory(facade.clone(), &mut graph.clone(), name, &cache)
                                 .unwrap();
-                        cache.append(&mut to_cache);
+                        cache.extend(to_cache);
+
                         validation_errors
                     }));
                     match res {

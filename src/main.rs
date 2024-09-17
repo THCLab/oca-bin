@@ -4,6 +4,7 @@ use config::OCA_CACHE_DB_DIR;
 use config::OCA_INDEX_DIR;
 use config::OCA_REPOSITORY_DIR;
 use dependency_graph::parse_name;
+use dependency_graph::GraphError;
 use error::CliError;
 use oca_presentation::presentation::Presentation;
 use presentation_command::PresentationCommand;
@@ -573,12 +574,49 @@ fn main() -> Result<(), CliError> {
                 }
             }
             Some(Commands::Validate { ocafile, directory }) => {
-                let paths = load_ocafiles_all(ocafile.as_ref(), directory.as_ref())?;
+                let paths = match (ocafile, directory) {
+                    (None, None) => unreachable!("At least one argument expected"),
+                    (_, Some(dir)) => visit_dirs_recursive(dir)?,
+                    (Some(oca_file), None) => vec![oca_file.clone()],
+                };
 
                 let facade = get_oca_facade(local_repository_path);
                 let facade = Arc::new(Mutex::new(facade));
                 let mut graph = MutableGraph::new(paths)?;
-                let (_cache, errs) = validate::validate_directory(facade, &mut graph, None, &[])?;
+                let errs = match ocafile {
+                    Some(oca_file) => {
+                        // Insert ocafile to graph, if not present
+                        let (node, dependencies) =
+                            parse_node(&oca_file).map_err(|e| CliError::GraphError(e.into()))?;
+                        match graph.insert_node(node.clone(), dependencies) {
+                            Ok(_) => (),
+                            // node already in graph
+                            Err(GraphError::DuplicateKey {
+                                refn: _,
+                                first_path: _,
+                                second_path: _,
+                            }) => (),
+                            Err(e) => return Err(e.into()),
+                        };
+                        let (_cache, errs) = validate::validate_directory(
+                            facade,
+                            &mut graph,
+                            Some(node.refn),
+                            &HashSet::new(),
+                        )?;
+                        errs
+                    }
+                    None => {
+                        let (_cache, errs) = validate::validate_directory(
+                            facade,
+                            &mut graph,
+                            None,
+                            &HashSet::new(),
+                        )?;
+                        errs
+                    }
+                };
+
                 for err in errs {
                     println!("{}", err)
                 }

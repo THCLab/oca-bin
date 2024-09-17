@@ -22,7 +22,9 @@ pub fn load_ocafiles_all(
         ),
         (None, Some(dir)) => visit_dirs_recursive(dir)?,
         (Some(oca_file), None) => vec![oca_file.clone()],
-        (Some(oca_file), Some(_dir)) => vec![oca_file.clone()],
+        (Some(oca_file), Some(_dir)) => {
+            vec![oca_file.clone()]
+        }
     })
 }
 
