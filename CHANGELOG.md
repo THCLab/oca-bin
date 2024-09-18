@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.6-rc.3] - 2024-09-18
+
+### 🚀 Features
+
+- Allow validate multiple files
+
+### 🐛 Bug Fixes
+
+- Save full path in graph nodes
+- Allow both arguments in validate command
+
+### 🚜 Refactor
+
+- Improve formatting of build error display
+- Reformat and remove unused code
+
 ## [0.4.6-rc.2] - 2024-09-12
 
 ### 🚀 Features
@@ -12,6 +28,10 @@ All notable changes to this project will be documented in this file.
 
 - Allow both arguments in build command
 - Avoid building the same ocafile twice
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.4.6-rc.2 version
 
 ## [0.4.6-rc.1] - 2024-09-12
 

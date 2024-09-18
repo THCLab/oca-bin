@@ -1314,7 +1314,7 @@ dependencies = [
 
 [[package]]
 name = "oca"
-version = "0.4.6-rc.2"
+version = "0.4.6-rc.3"
 dependencies = [
  "anyhow",
  "clap 4.5.2",
