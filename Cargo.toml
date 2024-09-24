@@ -47,6 +47,8 @@ lazy_static = "1.4.0"
 color-eyre = "0.6.3"
 url = "2.5.2"
 common-path = "1.0.0"
+sha2 = "0.10" 
+base64 = "0.21" 
 
 [dev-dependencies]
 tempdir = "0.3.7"

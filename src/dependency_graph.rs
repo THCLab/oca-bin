@@ -47,7 +47,7 @@ pub enum NodeParsingError {
     WrongCharacterRefn(String, PathBuf),
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Node {
     pub refn: String,
     pub path: PathBuf,

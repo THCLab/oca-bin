@@ -1,4 +1,6 @@
 use crate::mapping::mapping;
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use config::create_or_open_local_storage;
 use config::OCA_CACHE_DB_DIR;
 use config::OCA_INDEX_DIR;
@@ -8,6 +10,8 @@ use dependency_graph::GraphError;
 use error::CliError;
 use oca_presentation::presentation::Presentation;
 use presentation_command::PresentationCommand;
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
@@ -15,7 +19,6 @@ use std::sync::Mutex;
 use std::{env, fs, fs::File, io::Write, path::PathBuf, process, str::FromStr};
 use tui::app::App;
 use utils::handle_panic;
-use utils::load_nodes;
 use utils::parse_url;
 use utils::visit_dirs_recursive;
 
@@ -290,20 +293,91 @@ fn main() -> Result<(), CliError> {
                 Ok(())
             }
             Some(Commands::Build { ocafile, directory }) => {
-                let nodes_to_build = load_nodes(ocafile.clone(), directory.as_ref())?;
-                let mut facade = get_oca_facade(local_repository_path);
-                let mut cached_refns = vec![];
-                info!("Sorted: {:?}", nodes_to_build);
-                for node in nodes_to_build {
-                    info!("Processing: {:?}", node);
-                    let path = node.path;
-                    let unparsed_file = fs::read_to_string(&path)
-                        .map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
-                    if !cached_refns.contains(&node.refn) {
+                let mut cache_path = directory.as_ref().unwrap().clone();
+                cache_path.push(".oca-bin");
+                info!("Cache path: {:?}", &cache_path);
+                let all_paths = visit_dirs_recursive(directory.as_ref().unwrap())?;
+
+                let contents = fs::read_to_string(&cache_path).unwrap_or_default();
+                let mut cached_digests: HashMap<PathBuf, String> = if contents.is_empty() {
+                    HashMap::new()
+                } else {
+                    serde_json::from_str(&contents).unwrap()
+                };
+
+                // Filter already build elements (compare saved digest with actual ones.)
+                let mut new_hashes = HashMap::new();
+                let mut filtered_paths = all_paths
+                    .clone()
+                    .into_iter()
+                    .filter_map(|path| {
+                        let unparsed_file = fs::read_to_string(&path)
+                            .map_err(|e| CliError::ReadFileFailed(path.clone(), e))
+                            .unwrap();
+                        let mut hasher = Sha256::new();
+                        hasher.update(unparsed_file.as_bytes());
+                        let hash = hasher.finalize();
+                        let hash = BASE64_STANDARD.encode(hash);
+
+                        match cached_digests.get(path.as_path()) {
+                            Some(cache) if hash.eq(cache) => {
+                                info!("Already built: {:?}. Skipping", &path);
+                                None
+                            }
+                            Some(_) => {
+                                info!("File changed: {:?}", &path);
+                                new_hashes.insert(path.clone(), hash);
+                                Some(path)
+                            }
+                            None => {
+                                info!("New ocafile: {:?}", &path);
+                                new_hashes.insert(path.clone(), hash);
+                                Some(path)
+                            }
+                        }
+                    })
+                    .peekable();
+
+
+                if let None = filtered_paths.peek() {
+                    println!("No changes detected")
+                } else {
+                    let graph = MutableGraph::new(&all_paths)?;
+                    // For each updated file find files that depends on it. They need to be updated due to said change.
+                    let nodes_to_build = filtered_paths
+                        .fold(HashSet::new(), |mut acc, path| {
+                            let (node, _) = parse_node(&path).unwrap();
+                            let ancestors = graph.get_ancestors(&node.refn).unwrap();
+                            println!(
+                                "The file {:?} has been modified and requires rebuilding. The following dependent files will also be rebuilt:",
+                                &path,
+                            );
+                            acc.insert(node);
+                            for node in ancestors {
+                                println!("\t• {:?}", &node.path);
+                                acc.insert(node);
+                            }
+                            acc
+                        })
+                        .into_iter();
+
+                    let mut facade = get_oca_facade(local_repository_path);
+
+                    for node in nodes_to_build {
+                        info!("Processing: {:?}", node);
+                        let path = node.path;
+                        let unparsed_file = fs::read_to_string(&path)
+                            .map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
+
+                        println!("Building {:?}", &path);
                         let oca_bundle_element = facade
-                            .build_from_ocafile(unparsed_file)
+                            .build_from_ocafile(unparsed_file.clone())
                             .map(|el| {
-                                cached_refns.push(node.refn);
+                                let hash = new_hashes.get(&path);
+                                if let Some(hash) = hash {
+                                    cached_digests.insert(path.clone(), hash.to_owned());
+                                    info!("Inserting to cache: {:?}", &path);
+                                };
                                 el
                             })
                             .map_err(|e| CliError::BuildingError(path, e.into()))?;
@@ -338,10 +412,14 @@ fn main() -> Result<(), CliError> {
                                 );
                             }
                         }
-                    } else {
-                        info!("Already built: {}. Skipping", node.refn);
                     }
+
+                    let mut file = File::create(cache_path)?;
+                    info!("Saving {} elements to cache", cached_digests.len());
+
+                    file.write_all(&serde_json::to_vec(&cached_digests).unwrap())?;
                 }
+
                 Ok(())
             }
 
