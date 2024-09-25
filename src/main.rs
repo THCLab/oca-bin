@@ -1,4 +1,5 @@
 use crate::mapping::mapping;
+use build::{changed_files, compute_hash, join_with_dependencies};
 use config::create_or_open_local_storage;
 use config::OCA_CACHE_DB_DIR;
 use config::OCA_INDEX_DIR;
@@ -16,10 +17,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::{env, fs, fs::File, io::Write, path::PathBuf, process, str::FromStr};
 use tui::app::App;
-use utils::changed_files;
-use utils::compute_hash;
 use utils::handle_panic;
-use utils::join_with_dependencies;
 use utils::load_nodes;
 use utils::parse_url;
 use utils::visit_dirs_recursive;
@@ -47,6 +45,7 @@ extern crate dirs;
 #[macro_use]
 extern crate log;
 
+mod build;
 mod config;
 mod dependency_graph;
 pub mod error;
