@@ -308,14 +308,18 @@ fn main() -> Result<(), CliError> {
 
                         match load_nodes_to_build(&cache_path, &paths) {
                             Ok((cache, nodes)) => {
-                                let paths_to_rebuild = nodes.iter().map(|node| {
-                                    node.path.to_str().unwrap()
-                                }).join("\n\t•");
+                                let paths_to_rebuild = nodes
+                                    .iter()
+                                    .map(|node| node.path.to_str().unwrap())
+                                    .join("\n\t•");
                                 if !paths_to_rebuild.is_empty() {
-                                    println!("The following files will be rebuilt: \n\t• {}", paths_to_rebuild);
+                                    println!(
+                                        "The following files will be rebuilt: \n\t• {}",
+                                        paths_to_rebuild
+                                    );
                                 };
                                 (cache, nodes, Some(cache_path))
-                            },
+                            }
                             Err(CacheError::EmptyCache) | Err(CacheError::PathError(_)) => {
                                 (HashMap::<PathBuf, String>::new(), nodes, Some(cache_path))
                             }
@@ -339,12 +343,10 @@ fn main() -> Result<(), CliError> {
 
                     let oca_bundle_element = facade
                         .build_from_ocafile(unparsed_file.clone())
-                        .map(|el| {
-                            let hash = compute_hash(&unparsed_file.trim());
-
+                        .inspect(|_| {
+                            let hash = compute_hash(unparsed_file.trim());
                             cached_digests.insert(path.clone(), hash);
                             info!("Inserting to cache: {:?}", &path);
-                            el
                         })
                         .map_err(|e| CliError::BuildingError(path, e.into()))?;
 
@@ -377,17 +379,13 @@ fn main() -> Result<(), CliError> {
                     }
                 }
 
-                match cache_path {
-                    Some(path) => {
-                        let mut file = File::create(path)?;
-                        info!("Saving {} elements to cache", cached_digests.len());
+                if let Some(path) = cache_path {
+                    let mut file = File::create(path)?;
+                    info!("Saving {} elements to cache", cached_digests.len());
 
-                        file.write_all(
-                            &serde_json::to_vec(&cached_digests)
-                                .map_err(|e| CacheError::CacheFormat(e))?,
-                        )?;
-                    }
-                    None => (),
+                    file.write_all(
+                        &serde_json::to_vec(&cached_digests).map_err(CacheError::CacheFormat)?,
+                    )?;
                 }
 
                 Ok(())
@@ -637,7 +635,7 @@ fn main() -> Result<(), CliError> {
                         for file in oca_file {
                             // Insert ocafile to graph, if not present
                             let (node, dependencies) =
-                                parse_node(&file).map_err(|e| CliError::GraphError(e.into()))?;
+                                parse_node(file).map_err(|e| CliError::GraphError(e.into()))?;
                             match graph.insert_node(node.clone(), dependencies) {
                                 Ok(_) => (),
                                 // node already in graph
@@ -722,10 +720,10 @@ fn main() -> Result<(), CliError> {
                 Ok(())
             }
             Some(Commands::Deps { ocafile, directory }) => {
-                let paths = visit_dirs_recursive(&directory)?;
+                let paths = visit_dirs_recursive(directory)?;
                 let graph = MutableGraph::new(paths)?;
                 let (name, _) =
-                    parse_name(&ocafile).map_err(|_e| CliError::MissingRefn(ocafile.clone()))?;
+                    parse_name(ocafile).map_err(|_e| CliError::MissingRefn(ocafile.clone()))?;
                 let out = graph
                     .get_ancestors([name.unwrap().as_str()], false)
                     .map_err(CliError::GraphError)?;

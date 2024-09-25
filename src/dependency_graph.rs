@@ -379,8 +379,8 @@ impl MutableGraph {
             let h = MutableGraph::ancestor_graph(start_node, &g)?;
             let edges = h.all_edges();
             for edge in edges {
-                let (source, target, weight) = edge;
-                out_graph.add_edge(source, target, weight.clone());
+                let (source, target, _weight) = edge;
+                out_graph.add_edge(source, target, ());
             }
         }
 

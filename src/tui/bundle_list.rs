@@ -7,7 +7,7 @@ use oca_rs::Facade;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    text::{Span, Text},
+    text::Text,
     widgets::{Block, Paragraph, Scrollbar, ScrollbarOrientation, StatefulWidget, Widget},
 };
 

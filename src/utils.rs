@@ -35,7 +35,7 @@ pub fn load_nodes(
     Ok(match (file_path, dir_path) {
         (None, None) => unreachable!("At least one argument needed"),
         (None, Some(base_dir)) => {
-            let paths = visit_dirs_recursive(&base_dir)?;
+            let paths = visit_dirs_recursive(base_dir)?;
             let graph = MutableGraph::new(paths)?;
             graph.sort()?
         }
@@ -44,7 +44,7 @@ pub fn load_nodes(
             graph.sort()?
         }
         (Some(oca_file), Some(base_dir)) => {
-            let paths = visit_dirs_recursive(&base_dir)?;
+            let paths = visit_dirs_recursive(base_dir)?;
             let graph = MutableGraph::new(paths).unwrap();
 
             let mut desc = vec![];
@@ -59,7 +59,6 @@ pub fn load_nodes(
                         second_path,
                     }) => {
                         info!("Saving node skipped because it's already in graph: name: {}, paths: {:?}, {:?}", refn, first_path, second_path,);
-                        ()
                     }
                     Err(e) => return Err(e.into()),
                 };

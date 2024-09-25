@@ -80,12 +80,11 @@ impl std::fmt::Display for BuildingFailures {
         let errs = self
             .0
             .iter()
-            .map(|e| match e {
+            .flat_map(|e| match e {
                 oca_rs::facade::build::Error::ValidationError(valdation_errors) => {
                     valdation_errors.iter().map(|e| e.to_string())
                 }
             })
-            .flatten()
             .collect::<Vec<_>>();
         write!(f, "{}", errs.join("\n"))
     }

@@ -11,7 +11,6 @@ use oca_rs::Facade;
 use ratatui::{
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::ListItem,
 };
 use tui_tree_widget::TreeItem;
 

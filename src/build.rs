@@ -37,8 +37,8 @@ pub fn load_nodes_to_build(
         .into_iter()
         .peekable();
 
-    if let None = filtered_paths.peek() {
-        return Err(CacheError::NoChanges);
+    if filtered_paths.peek().is_none() {
+        Err(CacheError::NoChanges)
     } else {
         let graph = MutableGraph::new(all_paths)?;
         // Find files that filtered files depends on
@@ -47,7 +47,7 @@ pub fn load_nodes_to_build(
 }
 
 fn load_cache(cache_path: &Path) -> Result<HashMap<PathBuf, String>, CacheError> {
-    let cache_contents = fs::read_to_string(&cache_path)?;
+    let cache_contents = fs::read_to_string(cache_path)?;
     if cache_contents.is_empty() {
         Err(CacheError::EmptyCache)
     } else {
@@ -62,24 +62,24 @@ fn changed_files<'a>(
 ) -> Vec<&'a PathBuf> {
     all_paths
         .into_iter()
-        .filter_map(|path| {
-            let unparsed_file = fs::read_to_string(&path)
+        .filter(|path| {
+            let unparsed_file = fs::read_to_string(path)
                 .map_err(|e| CliError::ReadFileFailed(path.to_path_buf(), e))
                 .unwrap();
-            let hash = compute_hash(&unparsed_file.trim());
+            let hash = compute_hash(unparsed_file.trim());
 
-            match hashes_cache.get(path) {
+            match hashes_cache.get(*path) {
                 Some(cache) if hash.eq(cache) => {
                     info!("Already built: {:?}. Skipping", &path);
-                    None
+                    false
                 }
                 Some(_) => {
                     info!("File changed: {:?}", &path);
-                    Some(path)
+                    true
                 }
                 None => {
                     info!("New ocafile: {:?}", &path);
-                    Some(path)
+                    true
                 }
             }
         })
@@ -101,11 +101,7 @@ pub fn join_with_dependencies<'a>(
     // For each updated file find files that depends on it. They need to be updated due to said change.
     let start_nodes = paths
         .into_iter()
-        .map(|path| {
-            parse_node(&path)
-                .map(|(node, _)| node)
-                .map_err(|e| e.into())
-        })
+        .map(|path| parse_node(path).map(|(node, _)| node).map_err(|e| e.into()))
         .collect::<Result<Vec<_>, CacheError>>()?;
     let refns = start_nodes.iter().map(|node| node.refn.as_str());
     Ok(graph.get_ancestors(refns, include_starting_node)?)
