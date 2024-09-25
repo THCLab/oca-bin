@@ -374,6 +374,7 @@ impl MutableGraph {
         let mut start_nodes = vec![];
         for refn in refns {
             let start_node = g.get_index(refn)?;
+            out_graph.add_node(start_node);
             start_nodes.push(start_node);
             let h = MutableGraph::ancestor_graph(start_node, &g)?;
             let edges = h.all_edges();

@@ -1,13 +1,13 @@
 use crate::mapping::mapping;
-use build::{changed_files, compute_hash, join_with_dependencies};
+use build::{compute_hash, load_nodes_to_build, CacheError};
 use config::create_or_open_local_storage;
 use config::OCA_CACHE_DB_DIR;
 use config::OCA_INDEX_DIR;
 use config::OCA_REPOSITORY_DIR;
 use dependency_graph::parse_name;
 use dependency_graph::GraphError;
-use dependency_graph::Node;
 use error::CliError;
+use itertools::Itertools;
 use oca_presentation::presentation::Presentation;
 use presentation_command::PresentationCommand;
 use std::collections::HashMap;
@@ -294,34 +294,39 @@ fn main() -> Result<(), CliError> {
                 Ok(())
             }
             Some(Commands::Build { ocafile, directory }) => {
-                let mut cache_path = directory.as_ref().unwrap().clone();
-                cache_path.push(".oca-bin");
-                info!("Cache path: {:?}", &cache_path);
-                let all_paths = visit_dirs_recursive(directory.as_ref().unwrap())?;
+                let nodes = load_nodes(ocafile.clone(), directory.as_ref())?;
+                // Load cache if exists
+                let (mut cached_digests, nodes_to_build, cache_path) = match directory.as_ref() {
+                    Some(cache_path) => {
+                        let paths = nodes
+                            .iter()
+                            .map(|node| node.path.clone())
+                            .collect::<Vec<_>>();
+                        let mut cache_path = cache_path.clone();
+                        cache_path.push(".oca-bin");
+                        info!("Cache path: {:?}", &cache_path);
 
-                let cache_contents = fs::read_to_string(&cache_path).unwrap_or_default();
-                let mut cached_digests: HashMap<PathBuf, String> = if cache_contents.is_empty() {
-                    HashMap::new()
-                } else {
-                    serde_json::from_str(&cache_contents).unwrap()
-                };
-                let nodes_to_build: Box<dyn Iterator<Item = Node>> = if cached_digests.is_empty() {
-                    // No cache, load everything
-                    Box::new(load_nodes(ocafile.clone(), directory.as_ref())?.into_iter())
-                } else {
-                    // Filter already build elements. Returns paths of changed or new files.
-                    let mut filtered_paths = changed_files(all_paths.iter(), &cached_digests)
-                        .into_iter()
-                        .peekable();
-
-                    if let None = filtered_paths.peek() {
-                        println!("No changes detected");
-                        return Ok(());
-                    } else {
-                        let graph = MutableGraph::new(&all_paths)?;
-                        // Find files that filtered files depends on
-                        join_with_dependencies(&graph, filtered_paths, true)
+                        match load_nodes_to_build(&cache_path, &paths) {
+                            Ok((cache, nodes)) => {
+                                let paths_to_rebuild = nodes.iter().map(|node| {
+                                    node.path.to_str().unwrap()
+                                }).join("\n\t•");
+                                if !paths_to_rebuild.is_empty() {
+                                    println!("The following files will be rebuilt: \n\t• {}", paths_to_rebuild);
+                                };
+                                (cache, nodes, Some(cache_path))
+                            },
+                            Err(CacheError::EmptyCache) | Err(CacheError::PathError(_)) => {
+                                (HashMap::<PathBuf, String>::new(), nodes, Some(cache_path))
+                            }
+                            Err(CacheError::NoChanges) => {
+                                println!("No changes detected");
+                                return Ok(());
+                            }
+                            Err(e) => return Err(e.into()),
+                        }
                     }
+                    None => (HashMap::<PathBuf, String>::new(), nodes, None),
                 };
 
                 let mut facade = get_oca_facade(local_repository_path);
@@ -372,10 +377,18 @@ fn main() -> Result<(), CliError> {
                     }
                 }
 
-                let mut file = File::create(cache_path)?;
-                info!("Saving {} elements to cache", cached_digests.len());
+                match cache_path {
+                    Some(path) => {
+                        let mut file = File::create(path)?;
+                        info!("Saving {} elements to cache", cached_digests.len());
 
-                file.write_all(&serde_json::to_vec(&cached_digests).unwrap())?;
+                        file.write_all(
+                            &serde_json::to_vec(&cached_digests)
+                                .map_err(|e| CacheError::CacheFormat(e))?,
+                        )?;
+                    }
+                    None => (),
+                }
 
                 Ok(())
             }

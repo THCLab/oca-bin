@@ -5,7 +5,7 @@ use said::SelfAddressingIdentifier;
 use thiserror::Error;
 
 use crate::{
-    dependency_graph::GraphError, presentation_command::PresentationError,
+    build::CacheError, dependency_graph::GraphError, presentation_command::PresentationError,
     tui::bundle_list::BundleListError,
 };
 
@@ -63,6 +63,8 @@ pub enum CliError {
     UnknownRemoteRepoUrl,
     #[error("Unexpected error occurred: {0}")]
     Panic(String),
+    #[error("Cache error: {0}")]
+    CacheError(#[from] CacheError),
 }
 
 impl From<Vec<oca_rs::facade::build::Error>> for BuildingFailures {

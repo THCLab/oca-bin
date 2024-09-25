@@ -85,7 +85,7 @@ pub fn init_or_read_config() -> Config {
                 if ask_for_confirmation("OCA config not found do you want to initialize it in your home directory? (y/N)") {
                 write_default_config(&p).unwrap()
              } else {
-                println!("Consider runing oca init in this directory to initialize local repository");
+                println!("Consider running oca init in this directory to initialize local repository");
                 process::exit(1)
              }
             }
