@@ -229,7 +229,7 @@ impl App {
             };
             match self.bundles.currently_pointed() {
                 Some(pointed) => {
-                    let dependent = self.graph.get_ancestors(&pointed.refn);
+                    let dependent = self.graph.get_ancestors([pointed.refn.as_str()], false);
                     match dependent {
                         Ok(dependent) => {
                             self.details.set(Details {

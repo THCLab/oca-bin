@@ -364,17 +364,35 @@ impl MutableGraph {
         Ok(h)
     }
 
-    pub fn get_ancestors(&self, refn: &str) -> Result<Vec<Node>, GraphError> {
+    pub fn get_ancestors<'a>(
+        &self,
+        refns: impl IntoIterator<Item = &'a str>,
+        include_starting_node: bool,
+    ) -> Result<Vec<Node>, GraphError> {
         let g = self.graph.lock().unwrap();
-        let start_node = g.get_index(refn)?;
-        let h = MutableGraph::ancestor_graph(start_node, &g)?;
+        let mut out_graph = DiGraphMap::new();
+        let mut start_nodes = vec![];
+        for refn in refns {
+            let start_node = g.get_index(refn)?;
+            start_nodes.push(start_node);
+            let h = MutableGraph::ancestor_graph(start_node, &g)?;
+            let edges = h.all_edges();
+            for edge in edges {
+                let (source, target, weight) = edge;
+                out_graph.add_edge(source, target, weight.clone());
+            }
+        }
 
-        let sorted = toposort(&h, None).map_err(|_e| GraphError::Cycle)?;
-        let mut sorted_ancestors = sorted.into_iter();
-        // First element is the starting node, so remove it.
-        sorted_ancestors.next();
-
-        Ok(sorted_ancestors.map(|i| g.graph[i].clone()).collect())
+        let sorted = toposort(&out_graph, None).map_err(|_e| GraphError::Cycle)?;
+        if include_starting_node {
+            Ok(sorted.into_iter().map(|i| g.graph[i].clone()).collect())
+        } else {
+            Ok(sorted
+                .into_iter()
+                .filter(|ind| !start_nodes.contains(ind))
+                .map(|i| g.graph[i].clone())
+                .collect())
+        }
     }
 
     pub fn get_descendants(&self, refn: &str) -> Result<Vec<Node>, GraphError> {
@@ -446,7 +464,7 @@ fn test_ancestors() -> anyhow::Result<()> {
     let petgraph = MutableGraph::new(paths)?;
 
     let first_anc = petgraph
-        .get_ancestors("first")
+        .get_ancestors(["first"], false)
         .unwrap()
         .into_iter()
         .map(|node| node.refn)
@@ -454,12 +472,28 @@ fn test_ancestors() -> anyhow::Result<()> {
     assert_eq!(first_anc, vec!["third", "fifth"]);
 
     let fourth_anc = petgraph
-        .get_ancestors("fourth")
+        .get_ancestors(["fourth"], false)
         .unwrap()
         .into_iter()
         .map(|node| node.refn)
         .collect::<Vec<_>>();
     assert_eq!(fourth_anc, vec!["fifth"]);
+
+    let third_or_fourth_anc = petgraph
+        .get_ancestors(["third", "fourth"], false)
+        .unwrap()
+        .into_iter()
+        .map(|node| node.refn)
+        .collect::<Vec<_>>();
+    assert_eq!(third_or_fourth_anc, vec!["fifth"]);
+
+    let second_or_fourth_anc = petgraph
+        .get_ancestors(["second", "fourth"], false)
+        .unwrap()
+        .into_iter()
+        .map(|node| node.refn)
+        .collect::<Vec<_>>();
+    assert_eq!(second_or_fourth_anc, vec!["third", "fifth"]);
 
     Ok(())
 }
