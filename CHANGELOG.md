@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.6-rc.4] - 2024-09-26
+
+### 🚀 Features
+
+- Cache built files
+- Add publish flag to build command
+
+### 🐛 Bug Fixes
+
+- Ensure ancestors are in correct order
+
+### 🚜 Refactor
+
+- Add build submodule
+- Remove unwraps
+- Fix clippy warnings
+
 ## [0.4.6-rc.3] - 2024-09-18
 
 ### 🚀 Features
@@ -17,6 +34,10 @@ All notable changes to this project will be documented in this file.
 
 - Improve formatting of build error display
 - Reformat and remove unused code
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.4.6-rc.3 version
 
 ## [0.4.6-rc.2] - 2024-09-12
 
