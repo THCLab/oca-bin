@@ -4,6 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use said::SelfAddressingIdentifier;
 use url::Url;
 use walkdir::WalkDir;
 
@@ -133,4 +134,46 @@ pub fn handle_panic(panic: Box<dyn Any + Send>) -> CliError {
         CliError::Panic("Caught an unknown panic".to_string())
     };
     err
+}
+
+pub fn load_remote_repo_url(
+    repository_url: &Option<String>,
+    remote_repo_url_from_config: Option<String>,
+) -> Result<Url, CliError> {
+    match (repository_url, remote_repo_url_from_config) {
+        (None, None) => Err(CliError::UnknownRemoteRepoUrl),
+        (None, Some(config_url)) => parse_url(config_url),
+        (Some(repo_url), _) => parse_url(repo_url.clone()),
+    }
+}
+
+pub fn send_to_repo(repository_url: &Url, ocafile: String, timeout: u64) -> Result<(), CliError> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(timeout))
+        .build()
+        .expect("Failed to create reqwest client");
+    let url = repository_url.join("oca-bundles")?;
+    info!("Publish OCA bundle to: {} with payload: {}", url, ocafile);
+    match client.post(url).body(ocafile).send() {
+        Ok(v) => match v.error_for_status() {
+            Ok(v) => {
+                info!("{},{}", v.status(), v.text().unwrap());
+                Ok(())
+            }
+            Err(er) => {
+                info!("error: {:?}", er);
+                Err(CliError::PublishError(
+                    SelfAddressingIdentifier::default(),
+                    vec![er.to_string()],
+                ))
+            }
+        },
+        Err(e) => {
+            info!("Error while uploading OCAFILE: {}", e);
+            Err(CliError::PublishError(
+                SelfAddressingIdentifier::default(),
+                vec![format!("Sending error: {}", e)],
+            ))
+        }
+    }
 }

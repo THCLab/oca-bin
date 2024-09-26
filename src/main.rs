@@ -19,7 +19,8 @@ use std::{env, fs, fs::File, io::Write, path::PathBuf, process, str::FromStr};
 use tui::app::App;
 use utils::handle_panic;
 use utils::load_nodes;
-use utils::parse_url;
+use utils::load_remote_repo_url;
+use utils::send_to_repo;
 use utils::visit_dirs_recursive;
 
 use clap::Parser as ClapParser;
@@ -80,6 +81,9 @@ enum Commands {
         /// Build oca objects from directory (recursive)
         #[arg(short, long, group = "build")]
         directory: Option<PathBuf>,
+        /// Publish build ocafiles
+        #[clap(long, short, action)]
+        publish: bool,
     },
     /// Validate oca objects out of ocafile
     #[clap(group = clap::ArgGroup::new("build").multiple(true).required(true).args(&["ocafile", "directory"]))]
@@ -209,33 +213,7 @@ fn publish_oca_file_for(
     let facade = facade.lock().unwrap();
 
     match facade.get_oca_bundle_ocafile(said.clone(), false) {
-        Ok(ocafile) => {
-            let client = reqwest::blocking::Client::builder()
-                .timeout(std::time::Duration::from_secs(timeout))
-                .build()
-                .expect("Failed to create reqwest client");
-            let url = repository_url.join("oca-bundles")?;
-            info!("Publish OCA bundle to: {} with payload: {}", url, ocafile);
-            match client.post(url).body(ocafile).send() {
-                Ok(v) => match v.error_for_status() {
-                    Ok(v) => {
-                        info!("{},{}", v.status(), v.text().unwrap());
-                        Ok(())
-                    }
-                    Err(er) => {
-                        info!("error: {:?}", er);
-                        Err(CliError::PublishError(said, vec![er.to_string()]))
-                    }
-                },
-                Err(e) => {
-                    info!("Error while uploading OCAFILE: {}", e);
-                    Err(CliError::PublishError(
-                        said,
-                        vec![format!("Sending error: {}", e)],
-                    ))
-                }
-            }
-        }
+        Ok(ocafile) => send_to_repo(&repository_url, ocafile, timeout),
         Err(errors) => Err(CliError::PublishError(said, errors)),
     }
 }
@@ -293,7 +271,11 @@ fn main() -> Result<(), CliError> {
                 println!("Index DB: {:?}", local_repository_path.join(OCA_INDEX_DIR));
                 Ok(())
             }
-            Some(Commands::Build { ocafile, directory }) => {
+            Some(Commands::Build {
+                ocafile,
+                directory,
+                publish,
+            }) => {
                 let nodes = load_nodes(ocafile.clone(), directory.as_ref())?;
                 // Load cache if exists
                 let (mut cached_digests, nodes_to_build, cache_path) = match directory.as_ref() {
@@ -324,7 +306,7 @@ fn main() -> Result<(), CliError> {
                                 (HashMap::<PathBuf, String>::new(), nodes, Some(cache_path))
                             }
                             Err(CacheError::NoChanges) => {
-                                println!("No changes detected");
+                                println!("Up to date");
                                 return Ok(());
                             }
                             Err(e) => return Err(e.into()),
@@ -335,9 +317,10 @@ fn main() -> Result<(), CliError> {
 
                 let mut facade = get_oca_facade(local_repository_path);
 
-                for node in nodes_to_build {
+                let mut oca_files_to_publish = Vec::new();
+                for node in nodes_to_build.iter() {
                     info!("Building: {:?}", node);
-                    let path = node.path;
+                    let path = &node.path;
                     let unparsed_file = fs::read_to_string(&path)
                         .map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
 
@@ -348,7 +331,7 @@ fn main() -> Result<(), CliError> {
                             cached_digests.insert(path.clone(), hash);
                             info!("Inserting to cache: {:?}", &path);
                         })
-                        .map_err(|e| CliError::BuildingError(path, e.into()))?;
+                        .map_err(|e| CliError::BuildingError(path.clone(), e.into()))?;
 
                     match oca_bundle_element {
                         BundleElement::Mechanics(oca_bundle) => {
@@ -376,8 +359,17 @@ fn main() -> Result<(), CliError> {
                                 transformation_file.encode(&code, &format).unwrap();
                             println!("{}", String::from_utf8(transformation_file_json).unwrap());
                         }
-                    }
+                    };
+                    oca_files_to_publish.push(unparsed_file);
                 }
+
+                if *publish {
+                    let remote_repo_url = load_remote_repo_url(&None, remote_repo_url_from_config)?;
+                    println!("Publishing to {}", &remote_repo_url);
+                    for to_publish in oca_files_to_publish {
+                        send_to_repo(&remote_repo_url, to_publish, 666)?;
+                    }
+                };
 
                 if let Some(path) = cache_path {
                     let mut file = File::create(path)?;
@@ -403,14 +395,8 @@ fn main() -> Result<(), CliError> {
                     Ok(said) => {
                         // Find dependant saids for said.
                         let saids_to_publish = saids_to_publish(facade.clone(), &[said.clone()]);
-                        let remote_repo_url = match (repository_url, remote_repo_url_from_config) {
-                            (None, None) => {
-                                println!("Error: {}", CliError::UnknownRemoteRepoUrl);
-                                return Ok(());
-                            }
-                            (None, Some(config_url)) => parse_url(config_url)?,
-                            (Some(repo_url), _) => parse_url(repo_url.clone())?,
-                        };
+                        let remote_repo_url =
+                            load_remote_repo_url(repository_url, remote_repo_url_from_config)?;
                         // Make post request for all saids
                         let res: Vec<_> = saids_to_publish
                             .iter()
