@@ -1,4 +1,5 @@
 use crate::mapping::mapping;
+use build::{changed_files, load_cache};
 use build::{compute_hash, load_nodes_to_build, CacheError};
 use config::create_or_open_local_storage;
 use config::OCA_CACHE_DB_DIR;
@@ -96,11 +97,16 @@ enum Commands {
         directory: Option<PathBuf>,
     },
     /// Publish oca objects into online repository
+    #[clap(group = clap::ArgGroup::new("publish").required(true).multiple(false).args(&["said", "directory","dirty"]))]
     Publish {
         #[arg(short, long)]
         repository_url: Option<String>,
-        #[arg(short, long)]
-        said: String,
+        #[arg(short, long, group = "publish")]
+        said: Option<String>,
+        #[arg(long, group = "publish", action)]
+        dirty: bool,
+        #[arg(short, long, group = "publish")]
+        directory: Option<PathBuf>,
         #[arg(short, long)]
         timeout: Option<u64>,
     },
@@ -387,45 +393,50 @@ fn main() -> Result<(), CliError> {
                 repository_url,
                 said,
                 timeout,
-            }) => {
-                info!("Publish OCA bundle to repository");
-                let facade = get_oca_facade(local_repository_path);
-                let facade = Arc::new(Mutex::new(facade));
-                match SelfAddressingIdentifier::from_str(said) {
-                    Ok(said) => {
-                        // Find dependant saids for said.
-                        let saids_to_publish = saids_to_publish(facade.clone(), &[said.clone()]);
-                        let remote_repo_url =
-                            load_remote_repo_url(repository_url, remote_repo_url_from_config)?;
-                        // Make post request for all saids
-                        let res: Vec<_> = saids_to_publish
-                            .iter()
-                            .flat_map(|said| {
-                                match publish_oca_file_for(
-                                    facade.clone(),
-                                    said.clone(),
-                                    timeout,
-                                    remote_repo_url.clone(),
-                                ) {
-                                    Ok(_) => {
-                                        vec![]
-                                    }
-                                    Err(err) => vec![err.to_string()],
-                                }
-                            })
-                            .collect();
-                        if res.is_empty() {
+                dirty,
+                directory,
+            }) => match (said, directory) {
+                (Some(said), None) => {
+                    info!("Publish OCA bundle to repository");
+                    let facade = get_oca_facade(local_repository_path);
+                    let facade = Arc::new(Mutex::new(facade));
+                    match SelfAddressingIdentifier::from_str(said) {
+                        Ok(said) => {
+                            let remote_repo_url =
+                                load_remote_repo_url(repository_url, remote_repo_url_from_config)?;
+
+                            publish_oca_file_for(
+                                facade.clone(),
+                                said.clone(),
+                                timeout,
+                                remote_repo_url.clone(),
+                            )?;
                             Ok(())
-                        } else {
-                            Err(CliError::PublishError(said, res))
+                        }
+                        Err(err) => {
+                            println!("Invalid SAID: {}", err);
+                            Err(err.into())
                         }
                     }
-                    Err(err) => {
-                        println!("Invalid SAID: {}", err);
-                        Err(err.into())
-                    }
                 }
-            }
+                (None, Some(directory)) => {
+                    let mut cache_path = directory.clone();
+                    cache_path.push(".oca-bin");
+                    let cache = load_cache(&cache_path)?;
+                    let all_paths = visit_dirs_recursive(directory)?;
+
+                    let changes = changed_files(all_paths.iter(), &cache);
+                    if !changes.is_empty() {
+                        println!("There are changes in following files, that wasn't build yet: ");
+                        println!("\t•{}", changes.into_iter().map(|path| path.to_str().unwrap()).join("\n\t• "))
+                        println!("They won't be published.");
+                    }
+                    
+                    
+                    todo!()
+                },
+                _ => todo!()
+            },
             Some(Commands::List {}) => {
                 info!(
                     "List OCA object from local repository: {:?}",

@@ -46,7 +46,7 @@ pub fn load_nodes_to_build(
     }
 }
 
-fn load_cache(cache_path: &Path) -> Result<HashMap<PathBuf, String>, CacheError> {
+pub fn load_cache(cache_path: &Path) -> Result<HashMap<PathBuf, String>, CacheError> {
     let cache_contents = fs::read_to_string(cache_path)?;
     if cache_contents.is_empty() {
         Err(CacheError::EmptyCache)
@@ -56,7 +56,7 @@ fn load_cache(cache_path: &Path) -> Result<HashMap<PathBuf, String>, CacheError>
 }
 
 // Filter already build elements, basing on provided cache
-fn changed_files<'a>(
+pub fn changed_files<'a>(
     all_paths: impl IntoIterator<Item = &'a PathBuf>,
     hashes_cache: &HashMap<PathBuf, String>,
 ) -> Vec<&'a PathBuf> {
