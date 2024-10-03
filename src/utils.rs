@@ -29,6 +29,14 @@ pub fn load_ocafiles_all(
     })
 }
 
+/// Loads elements (nodes) from the provided file(s) or directory, and returns
+/// them sorted by their references. Each element comes after the ones it
+/// depends on.
+/// 
+/// This function handles the following cases:
+/// - If `file_path` is provided, it loads nodes from the specified file(s).
+/// - If `dir_path` is provided, it recursively loads all nodes from the specified directory.
+/// - If both `file_path` and `dir_path` are provided, it combines nodes from both the file(s) and directory.
 pub fn load_nodes(
     file_path: Option<Vec<PathBuf>>,
     dir_path: Option<&PathBuf>,

@@ -1,16 +1,17 @@
 use std::{
     collections::HashMap,
-    fs,
+    fs::{self, File},
     path::{Path, PathBuf},
 };
 
 use base64::{prelude::BASE64_STANDARD, Engine};
+use oca_rs::{facade::bundle::BundleElement, Facade, HashFunctionCode, SerializationFormats};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    dependency_graph::{parse_node, GraphError, MutableGraph, Node, NodeParsingError},
-    error::CliError,
+    cache::{PathCache, SaidCache}, dependency_graph::{parse_node, GraphError, MutableGraph, Node, NodeParsingError}, error::CliError
 };
+use oca_rs::EncodeBundle;
 
 #[derive(thiserror::Error, Debug)]
 pub enum CacheError {
@@ -28,12 +29,12 @@ pub enum CacheError {
     NodeError(#[from] NodeParsingError),
 }
 
-pub fn load_nodes_to_build(
-    cache_path: &Path,
+pub fn load_changed_nodes(
+    cache_path: &PathCache,
     all_paths: &[PathBuf],
-) -> Result<(HashMap<PathBuf, String>, Vec<Node>), CacheError> {
-    let cache = load_cache(cache_path)?;
-    let mut filtered_paths = changed_files(all_paths.iter(), &cache)
+) -> Result<Vec<Node>, CacheError> {
+    // let cache = load_cache(cache_path)?;
+    let mut filtered_paths = changed_files(all_paths.iter(), &cache_path)
         .into_iter()
         .peekable();
 
@@ -42,7 +43,7 @@ pub fn load_nodes_to_build(
     } else {
         let graph = MutableGraph::new(all_paths)?;
         // Find files that filtered files depends on
-        Ok((cache, join_with_dependencies(&graph, filtered_paths, true)?))
+        Ok(join_with_dependencies(&graph, filtered_paths, true)?)
     }
 }
 
@@ -58,7 +59,7 @@ pub fn load_cache(cache_path: &Path) -> Result<HashMap<PathBuf, String>, CacheEr
 // Filter already build elements, basing on provided cache
 pub fn changed_files<'a>(
     all_paths: impl IntoIterator<Item = &'a PathBuf>,
-    hashes_cache: &HashMap<PathBuf, String>,
+    hashes_cache: &PathCache,
 ) -> Vec<&'a PathBuf> {
     all_paths
         .into_iter()
@@ -68,8 +69,8 @@ pub fn changed_files<'a>(
                 .unwrap();
             let hash = compute_hash(unparsed_file.trim());
 
-            match hashes_cache.get(*path) {
-                Some(cache) if hash.eq(cache) => {
+            match hashes_cache.get(*path).unwrap() {
+                Some(cache) if hash.eq(&cache) => {
                     info!("Already built: {:?}. Skipping", &path);
                     false
                 }
@@ -84,6 +85,59 @@ pub fn changed_files<'a>(
             }
         })
         .collect()
+}
+
+/// Build node. If caches provided, save change there. Returns list of contents
+/// of successfully built ocafiles that can be published in next step.
+pub fn build(facade: &mut Facade, node: &Node, said_cache: Option<&SaidCache>,
+path_cache: Option<&PathCache>) -> Result<Vec<String>, CliError> {
+    info!("Building: {:?}", node);
+    let mut oca_files_to_publish = vec![];
+    let path = &node.path;
+    let unparsed_file = fs::read_to_string(&path)
+        .map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
+    let hash = compute_hash(unparsed_file.trim());
+
+    let oca_bundle_element = facade
+        .build_from_ocafile(unparsed_file.clone())
+        .map_err(|e| CliError::BuildingError(path.clone(), e.into()))?;
+    if let Some(path_cache) = path_cache {
+            path_cache.insert(path.clone(), hash.clone())?;
+            info!("Inserting to cache: {:?}", &path);
+    };
+
+    match oca_bundle_element {
+        BundleElement::Mechanics(oca_bundle) => {
+            if let Some(said_cache) = said_cache {
+                said_cache.insert(hash, oca_bundle.said.as_ref().unwrap().clone())?;
+            };
+            let refs = facade.fetch_all_refs().unwrap();
+            let schema_name = refs
+                .iter()
+                .find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
+            if let Some((refs, _)) = schema_name {
+                println!(
+                    "OCA bundle created in local repository with SAID: {} and name: {}",
+                    oca_bundle.said.unwrap(),
+                    refs
+                );
+            } else {
+                println!(
+                    "OCA bundle created in local repository with SAID: {:?}",
+                    oca_bundle.said.unwrap()
+                );
+            };
+        }
+        BundleElement::Transformation(transformation_file) => {
+            let code = HashFunctionCode::Blake3_256;
+            let format = SerializationFormats::JSON;
+            let transformation_file_json =
+                transformation_file.encode(&code, &format).unwrap();
+            println!("{}", String::from_utf8(transformation_file_json).unwrap());
+        }
+    };
+    oca_files_to_publish.push(unparsed_file);
+    Ok(oca_files_to_publish)
 }
 
 pub fn compute_hash(content: &str) -> String {
@@ -105,6 +159,36 @@ pub fn join_with_dependencies<'a>(
         .collect::<Result<Vec<_>, CacheError>>()?;
     let refns = start_nodes.iter().map(|node| node.refn.as_str());
     Ok(graph.get_ancestors(refns, include_starting_node)?)
+}
+
+/// Returns nodes that need to be updated
+pub fn handle_cache(directory_path: &Path, all_nodes: &[Node]) -> Result<(PathCache, SaidCache, Vec<Node>), CacheError> {
+    // Load cache if exists
+    let mut said_cache_path = directory_path.to_path_buf();
+    said_cache_path.push(".oca-saids");
+    let _file = File::create(&said_cache_path).unwrap();
+    let cache_said = SaidCache::new(said_cache_path.clone());
+
+    let mut cache_path = directory_path.to_path_buf();
+    cache_path.push(".oca-bin");
+    info!("Cache path: {:?}", &cache_path);
+    let cache_paths = PathCache::new(cache_path);
+
+    let all_paths = all_nodes
+        .iter()
+        .map(|node| node.path.clone())
+        .collect::<Vec<_>>();
+
+    
+    match load_changed_nodes(&cache_paths, &all_paths) {
+        Ok(nodes) => {
+            Ok((cache_paths, cache_said, nodes))
+        }
+        Err(CacheError::EmptyCache) | Err(CacheError::PathError(_)) => {
+            Ok((cache_paths, cache_said, all_nodes.to_vec()))
+        }
+        Err(e) => return Err(e.into()),
+    }
 }
 
 #[test]
@@ -142,19 +226,11 @@ pub fn test_cache() -> anyhow::Result<()> {
         .map(|(_path, content)| compute_hash(content))
         .collect::<Vec<_>>();
 
-    // create temporary cache file
-    let mut cache_map = HashMap::new();
-    cache_map.insert(paths[0].clone(), hashes[0].clone());
-
     let cache_path = tmp_dir.path().join(".oca-bin");
-    let mut cache_tmp_file = File::create(&cache_path)?;
-    writeln!(
-        cache_tmp_file,
-        "{}",
-        serde_json::to_string(&cache_map).unwrap()
-    )?;
+    let cache = PathCache::new(cache_path);
+    cache.insert(paths[0].clone(), hashes[0].clone()).unwrap();
 
-    let (_cache_before_change, nodes) = load_nodes_to_build(cache_path.as_path(), &paths)?;
+    let nodes = load_changed_nodes(&cache, &paths)?;
     assert_eq!(
         nodes
             .iter()
@@ -171,7 +247,7 @@ pub fn test_cache() -> anyhow::Result<()> {
     writeln!(tmp_file, "{}", edited_first_ocafile_str)?;
     tmp_file.flush().unwrap();
 
-    let (_cache_after_change, nodes) = load_nodes_to_build(cache_path.as_path(), &paths)?;
+    let nodes = load_changed_nodes(&cache, &paths)?;
     assert_eq!(
         nodes
             .iter()
@@ -183,20 +259,11 @@ pub fn test_cache() -> anyhow::Result<()> {
     // Add all files to cache
     // update first element hash
     hashes[0] = compute_hash(&edited_first_ocafile_str);
-    let mut cache_map = HashMap::new();
     for (path, hash) in paths.clone().into_iter().zip(hashes) {
-        cache_map.insert(path.clone(), hash.clone());
+        cache.insert(path.clone(), hash.clone()).unwrap();
     }
-    let cache_path = tmp_dir.path().join(".oca-bin");
-    let mut cache_tmp_file = File::create(&cache_path)?;
-    writeln!(
-        cache_tmp_file,
-        "{}",
-        serde_json::to_string(&cache_map).unwrap()
-    )?;
-    cache_tmp_file.flush().unwrap();
 
-    let nodes = load_nodes_to_build(cache_path.as_path(), &paths).unwrap_err();
+    let nodes = load_changed_nodes(&cache, &paths).unwrap_err();
     assert!(matches!(CacheError::NoChanges, nodes));
 
     // Edit fifth file
@@ -207,7 +274,7 @@ pub fn test_cache() -> anyhow::Result<()> {
     writeln!(tmp_file, "{}", edited_fifth_ocafile_str)?;
     tmp_file.flush().unwrap();
 
-    let (_cache_after_change, nodes) = load_nodes_to_build(cache_path.as_path(), &paths)?;
+    let nodes = load_changed_nodes(&cache, &paths)?;
     assert_eq!(
         nodes
             .iter()
@@ -248,11 +315,11 @@ pub fn test_build_utils() -> anyhow::Result<()> {
         paths.push(path)
     }
 
-    let mut cache = HashMap::new();
+    let cache = crate::Cache::new(tmp_dir.path().to_path_buf());
 
     let fifth_hash = compute_hash(fifth_ocafile_str);
     let path = tmp_dir.path().join("fifth.ocafile");
-    cache.insert(path.clone(), fifth_hash);
+    cache.insert(path.clone(), fifth_hash).unwrap();
 
     let nodes = changed_files(paths.iter(), &cache);
     assert!(!nodes.contains(&&path));
@@ -260,7 +327,7 @@ pub fn test_build_utils() -> anyhow::Result<()> {
 
     let second_hash = compute_hash(second_ocafile_str);
     let second_path = tmp_dir.path().join("second.ocafile");
-    cache.insert(second_path.clone(), second_hash);
+    cache.insert(second_path.clone(), second_hash).unwrap();
 
     let nodes = changed_files(paths.iter(), &cache);
     assert!(!nodes.contains(&&path));
