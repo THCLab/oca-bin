@@ -1,6 +1,6 @@
 use crate::mapping::mapping;
-use build::{changed_files, handle_cache, load_cache};
 use build::CacheError;
+use build::{build_and_publish, changed_files, handle_cache, load_cache};
 use cache::{Cache, PathCache};
 use config::create_or_open_local_storage;
 use config::OCA_CACHE_DB_DIR;
@@ -26,9 +26,7 @@ use utils::visit_dirs_recursive;
 
 use clap::Parser as ClapParser;
 use clap::Subcommand;
-use oca_rs::{
-    repositories::SQLiteConfig, Facade,
-};
+use oca_rs::{repositories::SQLiteConfig, Facade};
 use url::Url;
 
 use crate::config::{init_or_read_config, write_config, Config, OCA_DIR_NAME};
@@ -47,6 +45,7 @@ extern crate dirs;
 extern crate log;
 
 mod build;
+mod cache;
 mod config;
 mod dependency_graph;
 pub mod error;
@@ -55,7 +54,6 @@ pub mod presentation_command;
 mod tui;
 mod utils;
 mod validate;
-mod cache;
 
 #[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
@@ -283,56 +281,24 @@ fn main() -> Result<(), CliError> {
                 publish,
             }) => {
                 let nodes = load_nodes(ocafile.clone(), directory.as_ref())?;
-                
-                let (cached_digests, cache_said, nodes_to_build) = match directory.as_ref() {
-                    // Handle cache. Returns nodes that need to be updated.
-                    Some(cache_path) => {
-                        match handle_cache(&cache_path, &nodes) {
-                            Ok((cache, cache2, nodes_to_update)) => {
-                                let paths_to_rebuild = nodes_to_update
-                                    .iter()
-                                    .map(|node| node.path.to_str().unwrap())
-                                    .join("\n\t•");
-                                if !paths_to_rebuild.is_empty() {
-                                    println!(
-                                        "The following files will be rebuilt: \n\t• {}",
-                                        paths_to_rebuild
-                                    );
-                                };
-                            
-                                (Some(cache), Some(cache2), nodes_to_update)
-                            },
-                            Err(CacheError::NoChanges) => {
-                                println!("Up to date");
-                                return Ok(());
-                            },
-                            Err(e) => return Err(e.into()),
-                        }
-                    }
-                    None => (None, None, nodes)
-                };
-
-                // Handle build
                 let mut facade = get_oca_facade(local_repository_path);
-                let mut oca_files_to_publish = Vec::new();
-                for node in nodes_to_build.iter() {
-                    let mut to_publish = build::build(&mut facade, node, cache_said.as_ref(), cached_digests.as_ref())?;
-                    oca_files_to_publish.append(&mut to_publish);
-                }
 
-                // Handle publish 
                 if *publish {
                     let remote_repo_url = load_remote_repo_url(&None, remote_repo_url_from_config)?;
-                    println!("Publishing to {}", &remote_repo_url);
-                    for to_publish in oca_files_to_publish {
-                        send_to_repo(&remote_repo_url, to_publish, 666)?;
-                    }
-                };
-
-                cache_said.map(|c| c.save().unwrap());
-                cached_digests.map(|c| c.save().unwrap());
-               
-                Ok(())
+                    build_and_publish(
+                        directory.as_ref().map(|p| p.as_path()),
+                        &mut facade,
+                        nodes,
+                        Some(remote_repo_url),
+                    )
+                } else {
+                    build_and_publish(
+                        directory.as_ref().map(|p| p.as_path()),
+                        &mut facade,
+                        nodes,
+                        None,
+                    )
+                }
             }
 
             Some(Commands::Publish {
@@ -365,82 +331,21 @@ fn main() -> Result<(), CliError> {
                     }
                 }
                 (None, Some(directory), false) => {
-                    let mut cache_path = directory.clone();
-                    cache_path.push(".oca-bin");
-                    // let _ = File::create(&cache_path);
-                    let cache: PathCache = Cache::new(cache_path.clone());
-                    // let cache = load_cache(&cache_path).unwrap_or_default();
-                    let all_paths = visit_dirs_recursive(directory)?;
-
-                    // Detect edited files, that weren't built yet
-                    let changes = changed_files(all_paths.iter(), &cache);
-                    if !changes.is_empty() {
-                        println!("There are changes in following files, that wasn't build yet: ");
-                        println!("\t•{}", changes.into_iter().map(|path| path.to_str().unwrap()).join("\n\t• "));
-                        println!("They won't be published.");
-                    }
-                    let mut said_cache_path = directory.clone();
-                    said_cache_path.push(".oca-saids");
-                    println!("Loading saids cache: {:?}", &said_cache_path);
-                    let said_cache = Cache::new(said_cache_path);
-
-                    let facade = Arc::new(Mutex::new(get_oca_facade(local_repository_path)));
-
-                    // Cache for saving already published saids, to avoid publishing dependant saids multiple times.
-                    let mut local_cache = vec![];
-                    // Iter through built elements and publish them
-                    let _: Vec<()> = all_paths
-                        .into_iter()
-                        .map(|path| {
-                            // Version of file while it was built.
-                            let file_digest = cache.get(&path).unwrap();
-                            match file_digest {
-                                Some(digest) => {
-                                    // Built said
-                                    let said = said_cache.get(&digest).unwrap();
-
-                                    match said {
-                                        Some(said) => {
-                                            // Get saids that provided said
-                                            // depends on. Elements need to be
-                                            // published in proper order, for
-                                            // oca-repo to be able to process
-                                            // them.
-                                            for said in saids_to_publish(facade.clone(), &[said]) {
-                                                if !local_cache.contains(&said) {
-                                                    println!("Publish OCA bundle: {} to repository. File path: {:?}", &said, &path);
-                                                    // publish_oca_file_for(
-                                                    //     facade.clone(),
-                                                    //     said.clone(),
-                                                    //     timeout,
-                                                    //     remote_repo_url.clone(),
-                                                    // ).unwrap();
-                                                    local_cache.push(said);
-                                                };
-                                            }
-                                        },
-                                        None => {
-                                            // Cache error. OCA bundle said not cached.
-                                            todo!("No cached said for file hash: {} of file: {:?}.", &digest, &path)
-                                        },
-                                    }
-                                },
-                                None => {
-                                    // New file, not built yet.
-                                    println!("New unbuild ocafile file: {:?}. Won't be published", &path)
-                                }
-                            }
-                            
-                        })
-                        .collect();
-                        Ok(())
-                    
-                },
+                    let nodes = load_nodes(None, Some(directory))?;
+                    let mut facade = get_oca_facade(local_repository_path);
+                    let remote_repo_url = load_remote_repo_url(&None, remote_repo_url_from_config)?;
+                    build_and_publish(
+                        Some(directory.as_path()),
+                        &mut facade,
+                        nodes,
+                        Some(remote_repo_url),
+                    )
+                }
                 (None, None, true) => {
                     // publish built ocafiles that weren't publish
                     todo!()
-                },
-                _ => todo!()
+                }
+                _ => todo!(),
             },
             Some(Commands::List {}) => {
                 info!(

@@ -5,11 +5,17 @@ use std::{
 };
 
 use base64::{prelude::BASE64_STANDARD, Engine};
+use itertools::Itertools;
 use oca_rs::{facade::bundle::BundleElement, Facade, HashFunctionCode, SerializationFormats};
 use sha2::{Digest, Sha256};
+use url::Url;
 
 use crate::{
-    cache::{PathCache, SaidCache}, dependency_graph::{parse_node, GraphError, MutableGraph, Node, NodeParsingError}, error::CliError
+    cache::{PathCache, SaidCache},
+    dependency_graph::{parse_node, GraphError, MutableGraph, Node, NodeParsingError},
+    error::CliError,
+    get_oca_facade,
+    utils::{load_nodes, load_remote_repo_url, send_to_repo},
 };
 use oca_rs::EncodeBundle;
 
@@ -89,21 +95,25 @@ pub fn changed_files<'a>(
 
 /// Build node. If caches provided, save change there. Returns list of contents
 /// of successfully built ocafiles that can be published in next step.
-pub fn build(facade: &mut Facade, node: &Node, said_cache: Option<&SaidCache>,
-path_cache: Option<&PathCache>) -> Result<Vec<String>, CliError> {
+pub fn build(
+    facade: &mut Facade,
+    node: &Node,
+    said_cache: Option<&SaidCache>,
+    path_cache: Option<&PathCache>,
+) -> Result<Vec<String>, CliError> {
     info!("Building: {:?}", node);
     let mut oca_files_to_publish = vec![];
     let path = &node.path;
-    let unparsed_file = fs::read_to_string(&path)
-        .map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
+    let unparsed_file =
+        fs::read_to_string(&path).map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
     let hash = compute_hash(unparsed_file.trim());
 
     let oca_bundle_element = facade
         .build_from_ocafile(unparsed_file.clone())
         .map_err(|e| CliError::BuildingError(path.clone(), e.into()))?;
     if let Some(path_cache) = path_cache {
-            path_cache.insert(path.clone(), hash.clone())?;
-            info!("Inserting to cache: {:?}", &path);
+        path_cache.insert(path.clone(), hash.clone())?;
+        info!("Inserting to cache: {:?}", &path);
     };
 
     match oca_bundle_element {
@@ -131,8 +141,7 @@ path_cache: Option<&PathCache>) -> Result<Vec<String>, CliError> {
         BundleElement::Transformation(transformation_file) => {
             let code = HashFunctionCode::Blake3_256;
             let format = SerializationFormats::JSON;
-            let transformation_file_json =
-                transformation_file.encode(&code, &format).unwrap();
+            let transformation_file_json = transformation_file.encode(&code, &format).unwrap();
             println!("{}", String::from_utf8(transformation_file_json).unwrap());
         }
     };
@@ -162,7 +171,10 @@ pub fn join_with_dependencies<'a>(
 }
 
 /// Returns nodes that need to be updated
-pub fn handle_cache(directory_path: &Path, all_nodes: &[Node]) -> Result<(PathCache, SaidCache, Vec<Node>), CacheError> {
+pub fn handle_cache(
+    directory_path: &Path,
+    all_nodes: &[Node],
+) -> Result<(PathCache, SaidCache, Vec<Node>), CacheError> {
     // Load cache if exists
     let mut said_cache_path = directory_path.to_path_buf();
     said_cache_path.push(".oca-saids");
@@ -179,16 +191,67 @@ pub fn handle_cache(directory_path: &Path, all_nodes: &[Node]) -> Result<(PathCa
         .map(|node| node.path.clone())
         .collect::<Vec<_>>();
 
-    
     match load_changed_nodes(&cache_paths, &all_paths) {
-        Ok(nodes) => {
-            Ok((cache_paths, cache_said, nodes))
-        }
+        Ok(nodes) => Ok((cache_paths, cache_said, nodes)),
         Err(CacheError::EmptyCache) | Err(CacheError::PathError(_)) => {
             Ok((cache_paths, cache_said, all_nodes.to_vec()))
         }
         Err(e) => return Err(e.into()),
     }
+}
+
+pub fn build_and_publish(
+    directory: Option<&Path>,
+    facade: &mut Facade,
+    nodes: Vec<Node>,
+    remote_repo_url: Option<Url>,
+) -> Result<(), CliError> {
+    let (cached_digests, cache_said, nodes_to_build) = match directory.as_ref() {
+        // Handle cache. Returns nodes that need to be updated.
+        Some(cache_path) => match handle_cache(cache_path, &nodes) {
+            Ok((cache, cache2, nodes_to_update)) => {
+                let paths_to_rebuild = nodes_to_update
+                    .iter()
+                    .map(|node| node.path.to_str().unwrap())
+                    .join("\n\t•");
+                if !paths_to_rebuild.is_empty() {
+                    println!(
+                        "The following files will be rebuilt: \n\t• {}",
+                        paths_to_rebuild
+                    );
+                };
+
+                (Some(cache), Some(cache2), nodes_to_update)
+            }
+            Err(CacheError::NoChanges) => {
+                println!("Up to date");
+                return Ok(());
+            }
+            Err(e) => return Err(e.into()),
+        },
+        None => (None, None, nodes),
+    };
+
+    // Handle build
+    // let mut facade = get_oca_facade(local_repository_path);
+    let mut oca_files_to_publish = Vec::new();
+    for node in nodes_to_build.iter() {
+        let mut to_publish = build(facade, node, cache_said.as_ref(), cached_digests.as_ref())?;
+        oca_files_to_publish.append(&mut to_publish);
+    }
+
+    // Handle publish
+    if let Some(repo_url) = remote_repo_url {
+        println!("Publishing to {}", &repo_url);
+        for to_publish in oca_files_to_publish {
+            send_to_repo(&repo_url, to_publish, 666)?;
+        }
+    } else {
+    }
+
+    cache_said.map(|c| c.save().unwrap());
+    cached_digests.map(|c| c.save().unwrap());
+    Ok(())
 }
 
 #[test]
