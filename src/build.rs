@@ -129,7 +129,7 @@ pub fn build(
             };
             let schema_name = refs
                 .iter()
-                .find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
+                .find(|&(_, v)| *v == said.to_string());
             if let Some((refs, _)) = schema_name {
                 println!(
                     "OCA bundle created in local repository with SAID: {} and name: {}",
@@ -236,8 +236,8 @@ pub fn rebuild(
             Some(&cached_digests),
         )?;
     }
-    cache_saids.save().unwrap();
-    cached_digests.save().unwrap();
+    cache_saids.save()?;
+    cached_digests.save()?;
     Ok((nodes_to_build, cache_saids, cached_digests))
 }
 
@@ -248,13 +248,15 @@ pub fn handle_publish(
     said_cache: &SaidCache,
     path_cache: &PathCache,
 ) -> Result<(), CliError> {
-    // Publish only rebuilt elements in directory
     for node in nodes {
-        // All saids should be in cache, because it was build before.
-        let file_hash = path_cache.get(&node.path)?;
-        let said = said_cache.get(&file_hash.as_ref().unwrap())?;
-
-        match said {
+        let file_hash = if let Some(file_hash) = path_cache.get(&node.path)? {
+            file_hash
+        } else {
+            let unparsed_file = fs::read_to_string(&node.path)
+                .map_err(|e| CliError::ReadFileFailed(node.path.to_path_buf(), e))?;
+            compute_hash(unparsed_file.trim())
+        };
+        match said_cache.get(&file_hash)? {
             Some(said) => {
                 println!(
                     "Publishing SAID {} (name: {}) to {}",
@@ -262,7 +264,8 @@ pub fn handle_publish(
                 );
                 let r = publish_oca_file_for(facade.clone(), said, &None, remote_repo_url.clone());
             }
-            None => todo!(),
+            // Should never happen. All saids should be in cache, because it was build before.
+            None => return Err(CliError::FileUpdated(node.path.to_path_buf())),
         }
     }
     Ok(())

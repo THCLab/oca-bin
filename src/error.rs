@@ -65,6 +65,8 @@ pub enum CliError {
     Panic(String),
     #[error("Cache error: {0}")]
     CacheError(#[from] CacheError),
+    #[error("File updated before publish")]
+    FileUpdated(PathBuf)
 }
 
 impl From<Vec<oca_rs::facade::build::Error>> for BuildingFailures {

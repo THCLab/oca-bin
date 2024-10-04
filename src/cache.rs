@@ -59,13 +59,6 @@ impl<K: Eq + Hash + Serialize + DeserializeOwned, V: Serialize + DeserializeOwne
         let said = locked.get(hash);
         Ok(said.cloned())
     }
-
-    // pub fn show(&self) -> Result<(), CacheError> {
-    // 	let locked = self.cache.lock().unwrap();
-    // 	println!("Keys {:?}", locked.keys());
-    // 	// let said = locked.get(hash);
-    // 	Ok(())
-    // }
 }
 
 pub type SaidCache = Cache<String, SelfAddressingIdentifier>;
