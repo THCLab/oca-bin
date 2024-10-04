@@ -1,12 +1,14 @@
 use std::{
     collections::HashMap,
-    fs::{self, File},
+    fs::{self},
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
 };
 
 use base64::{prelude::BASE64_STANDARD, Engine};
 use itertools::Itertools;
 use oca_rs::{facade::bundle::BundleElement, Facade, HashFunctionCode, SerializationFormats};
+use said::SelfAddressingIdentifier;
 use sha2::{Digest, Sha256};
 use url::Url;
 
@@ -14,8 +16,7 @@ use crate::{
     cache::{PathCache, SaidCache},
     dependency_graph::{parse_node, GraphError, MutableGraph, Node, NodeParsingError},
     error::CliError,
-    get_oca_facade,
-    utils::{load_nodes, load_remote_repo_url, send_to_repo},
+    publish_oca_file_for,
 };
 use oca_rs::EncodeBundle;
 
@@ -93,60 +94,63 @@ pub fn changed_files<'a>(
         .collect()
 }
 
-/// Build node. If caches provided, save change there. Returns list of contents
-/// of successfully built ocafiles that can be published in next step.
+/// Build node. If caches provided, save change there. Returns SAID of built ocafile, and its contents.
 pub fn build(
-    facade: &mut Facade,
+    facade: Arc<Mutex<Facade>>,
     node: &Node,
     said_cache: Option<&SaidCache>,
     path_cache: Option<&PathCache>,
-) -> Result<Vec<String>, CliError> {
+) -> Result<Option<(SelfAddressingIdentifier, String)>, CliError> {
     info!("Building: {:?}", node);
-    let mut oca_files_to_publish = vec![];
     let path = &node.path;
     let unparsed_file =
         fs::read_to_string(&path).map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
     let hash = compute_hash(unparsed_file.trim());
+    let oca_bundle_element = {
+        let mut facade_locked = facade.lock().unwrap();
+        facade_locked
+            .build_from_ocafile(unparsed_file.clone())
+            .map_err(|e| CliError::BuildingError(path.clone(), e.into()))?
+    };
 
-    let oca_bundle_element = facade
-        .build_from_ocafile(unparsed_file.clone())
-        .map_err(|e| CliError::BuildingError(path.clone(), e.into()))?;
     if let Some(path_cache) = path_cache {
         path_cache.insert(path.clone(), hash.clone())?;
-        info!("Inserting to cache: {:?}", &path);
     };
 
     match oca_bundle_element {
         BundleElement::Mechanics(oca_bundle) => {
+            let said = oca_bundle.said.as_ref().unwrap();
             if let Some(said_cache) = said_cache {
-                said_cache.insert(hash, oca_bundle.said.as_ref().unwrap().clone())?;
+                said_cache.insert(hash, said.clone())?;
             };
-            let refs = facade.fetch_all_refs().unwrap();
+            let refs = {
+                let facade_locked = facade.lock().unwrap();
+                facade_locked.fetch_all_refs().unwrap()
+            };
             let schema_name = refs
                 .iter()
                 .find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
             if let Some((refs, _)) = schema_name {
                 println!(
                     "OCA bundle created in local repository with SAID: {} and name: {}",
-                    oca_bundle.said.unwrap(),
-                    refs
+                    &said, refs
                 );
             } else {
                 println!(
                     "OCA bundle created in local repository with SAID: {:?}",
-                    oca_bundle.said.unwrap()
+                    &said
                 );
             };
+            Ok(Some((said.clone(), unparsed_file)))
         }
         BundleElement::Transformation(transformation_file) => {
             let code = HashFunctionCode::Blake3_256;
             let format = SerializationFormats::JSON;
             let transformation_file_json = transformation_file.encode(&code, &format).unwrap();
             println!("{}", String::from_utf8(transformation_file_json).unwrap());
+            Ok(None)
         }
-    };
-    oca_files_to_publish.push(unparsed_file);
-    Ok(oca_files_to_publish)
+    }
 }
 
 pub fn compute_hash(content: &str) -> String {
@@ -171,45 +175,37 @@ pub fn join_with_dependencies<'a>(
 }
 
 /// Returns nodes that need to be updated
-pub fn handle_cache(
-    directory_path: &Path,
-    all_nodes: &[Node],
-) -> Result<(PathCache, SaidCache, Vec<Node>), CacheError> {
-    // Load cache if exists
-    let mut said_cache_path = directory_path.to_path_buf();
-    said_cache_path.push(".oca-saids");
-    let _file = File::create(&said_cache_path).unwrap();
-    let cache_said = SaidCache::new(said_cache_path.clone());
-
-    let mut cache_path = directory_path.to_path_buf();
-    cache_path.push(".oca-bin");
-    info!("Cache path: {:?}", &cache_path);
-    let cache_paths = PathCache::new(cache_path);
-
+pub fn detect_changes(all_nodes: &[Node], cache: &PathCache) -> Result<Vec<Node>, CacheError> {
     let all_paths = all_nodes
         .iter()
         .map(|node| node.path.clone())
         .collect::<Vec<_>>();
 
-    match load_changed_nodes(&cache_paths, &all_paths) {
-        Ok(nodes) => Ok((cache_paths, cache_said, nodes)),
-        Err(CacheError::EmptyCache) | Err(CacheError::PathError(_)) => {
-            Ok((cache_paths, cache_said, all_nodes.to_vec()))
-        }
+    match load_changed_nodes(&cache, &all_paths) {
+        Ok(nodes) => Ok(nodes),
+        Err(CacheError::EmptyCache) | Err(CacheError::PathError(_)) => Ok(all_nodes.to_vec()),
         Err(e) => return Err(e.into()),
     }
 }
 
-pub fn build_and_publish(
-    directory: Option<&Path>,
-    facade: &mut Facade,
+// Returns list of nodes that was rebuilt and caches.
+pub fn rebuild(
+    directory: &Path,
+    facade: Arc<Mutex<Facade>>,
     nodes: Vec<Node>,
-    remote_repo_url: Option<Url>,
-) -> Result<(), CliError> {
-    let (cached_digests, cache_said, nodes_to_build) = match directory.as_ref() {
-        // Handle cache. Returns nodes that need to be updated.
-        Some(cache_path) => match handle_cache(cache_path, &nodes) {
-            Ok((cache, cache2, nodes_to_update)) => {
+) -> Result<(Vec<Node>, SaidCache, PathCache), CliError> {
+    let (cached_digests, cache_saids, nodes_to_build) = {
+        // Load cache if exists
+        let mut said_cache_path = directory.to_path_buf();
+        said_cache_path.push(".oca-saids");
+        let cache_saids = SaidCache::new(said_cache_path.clone());
+
+        let mut cache_path = directory.to_path_buf();
+        cache_path.push(".oca-bin");
+        let cache_paths = PathCache::new(cache_path);
+
+        match detect_changes(&nodes, &cache_paths) {
+            Ok(nodes_to_update) => {
                 let paths_to_rebuild = nodes_to_update
                     .iter()
                     .map(|node| node.path.to_str().unwrap())
@@ -221,36 +217,54 @@ pub fn build_and_publish(
                     );
                 };
 
-                (Some(cache), Some(cache2), nodes_to_update)
+                (cache_paths, cache_saids, nodes_to_update)
             }
             Err(CacheError::NoChanges) => {
                 println!("Up to date");
-                return Ok(());
+                return Ok((vec![], cache_saids, cache_paths));
             }
             Err(e) => return Err(e.into()),
-        },
-        None => (None, None, nodes),
+        }
     };
 
     // Handle build
-    // let mut facade = get_oca_facade(local_repository_path);
-    let mut oca_files_to_publish = Vec::new();
     for node in nodes_to_build.iter() {
-        let mut to_publish = build(facade, node, cache_said.as_ref(), cached_digests.as_ref())?;
-        oca_files_to_publish.append(&mut to_publish);
+        build(
+            facade.clone(),
+            node,
+            Some(&cache_saids),
+            Some(&cached_digests),
+        )?;
     }
+    cache_saids.save().unwrap();
+    cached_digests.save().unwrap();
+    Ok((nodes_to_build, cache_saids, cached_digests))
+}
 
-    // Handle publish
-    if let Some(repo_url) = remote_repo_url {
-        println!("Publishing to {}", &repo_url);
-        for to_publish in oca_files_to_publish {
-            send_to_repo(&repo_url, to_publish, 666)?;
+pub fn handle_publish(
+    facade: Arc<Mutex<Facade>>,
+    remote_repo_url: Url,
+    nodes: &[Node],
+    said_cache: &SaidCache,
+    path_cache: &PathCache,
+) -> Result<(), CliError> {
+    // Publish only rebuilt elements in directory
+    for node in nodes {
+        // All saids should be in cache, because it was build before.
+        let file_hash = path_cache.get(&node.path)?;
+        let said = said_cache.get(&file_hash.as_ref().unwrap())?;
+
+        match said {
+            Some(said) => {
+                println!(
+                    "Publishing SAID {} (name: {}) to {}",
+                    &said, &node.refn, &remote_repo_url
+                );
+                let r = publish_oca_file_for(facade.clone(), said, &None, remote_repo_url.clone());
+            }
+            None => todo!(),
         }
-    } else {
     }
-
-    cache_said.map(|c| c.save().unwrap());
-    cached_digests.map(|c| c.save().unwrap());
     Ok(())
 }
 
@@ -378,7 +392,7 @@ pub fn test_build_utils() -> anyhow::Result<()> {
         paths.push(path)
     }
 
-    let cache = crate::Cache::new(tmp_dir.path().to_path_buf());
+    let cache = crate::cache::Cache::new(tmp_dir.path().to_path_buf());
 
     let fifth_hash = compute_hash(fifth_ocafile_str);
     let path = tmp_dir.path().join("fifth.ocafile");
