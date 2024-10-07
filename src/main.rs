@@ -1,5 +1,4 @@
 use crate::mapping::mapping;
-use build::compute_hash;
 use build::handle_publish;
 use build::rebuild;
 use config::create_or_open_local_storage;
@@ -9,7 +8,6 @@ use config::OCA_REPOSITORY_DIR;
 use dependency_graph::parse_name;
 use dependency_graph::GraphError;
 use error::CliError;
-use itertools::Itertools;
 use oca_presentation::presentation::Presentation;
 use presentation_command::PresentationCommand;
 use std::collections::HashSet;

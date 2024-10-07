@@ -2,12 +2,12 @@ use std::{
     collections::HashMap,
     fs::{self, File},
     io::Write,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Mutex,
 };
 
 use said::SelfAddressingIdentifier;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 
 use crate::build::CacheError;
 use std::hash::Hash;
@@ -25,7 +25,7 @@ impl<K: Eq + Hash + Serialize + DeserializeOwned, V: Serialize + DeserializeOwne
 {
     pub fn new(path: PathBuf) -> Self {
         Cache::load(path.clone()).unwrap_or(Cache {
-            path: path,
+            path,
             cache: Mutex::new(HashMap::new()),
         })
     }

@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     fs::{self},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -41,7 +40,7 @@ pub fn load_changed_nodes(
     all_paths: &[PathBuf],
 ) -> Result<Vec<Node>, CacheError> {
     // let cache = load_cache(cache_path)?;
-    let mut filtered_paths = changed_files(all_paths.iter(), &cache_path)
+    let mut filtered_paths = changed_files(all_paths.iter(), cache_path)
         .into_iter()
         .peekable();
 
@@ -51,15 +50,6 @@ pub fn load_changed_nodes(
         let graph = MutableGraph::new(all_paths)?;
         // Find files that filtered files depends on
         Ok(join_with_dependencies(&graph, filtered_paths, true)?)
-    }
-}
-
-pub fn load_cache(cache_path: &Path) -> Result<HashMap<PathBuf, String>, CacheError> {
-    let cache_contents = fs::read_to_string(cache_path)?;
-    if cache_contents.is_empty() {
-        Err(CacheError::EmptyCache)
-    } else {
-        Ok(serde_json::from_str(&cache_contents)?)
     }
 }
 
@@ -104,7 +94,7 @@ pub fn build(
     info!("Building: {:?}", node);
     let path = &node.path;
     let unparsed_file =
-        fs::read_to_string(&path).map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
+        fs::read_to_string(path).map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
     let hash = compute_hash(unparsed_file.trim());
     let oca_bundle_element = {
         let mut facade_locked = facade.lock().unwrap();
@@ -179,10 +169,10 @@ pub fn detect_changes(all_nodes: &[Node], cache: &PathCache) -> Result<Vec<Node>
         .map(|node| node.path.clone())
         .collect::<Vec<_>>();
 
-    match load_changed_nodes(&cache, &all_paths) {
+    match load_changed_nodes(cache, &all_paths) {
         Ok(nodes) => Ok(nodes),
         Err(CacheError::EmptyCache) | Err(CacheError::PathError(_)) => Ok(all_nodes.to_vec()),
-        Err(e) => return Err(e.into()),
+        Err(e) => Err(e),
     }
 }
 
@@ -260,7 +250,7 @@ pub fn handle_publish(
                     "Publishing SAID {} (name: {}) to {}",
                     &said, &node.refn, &remote_repo_url
                 );
-                let r = publish_oca_file_for(facade.clone(), said, &None, remote_repo_url.clone());
+                publish_oca_file_for(facade.clone(), said, &None, remote_repo_url.clone())?;
             }
             // Should never happen. All saids should be in cache, because it was build before.
             None => return Err(CliError::FileUpdated(node.path.to_path_buf())),
