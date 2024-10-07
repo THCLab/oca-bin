@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.6-rc.5] - 2024-10-07
+
+### 🚀 Features
+
+- Detect not built files while publish
+- Update publish command options
+- Publish by said with dependencies
+
+### 🚜 Refactor
+
+- Clean up build command
+- Cargo fmt
+- Minor changes
+
+### ⚙️ Miscellaneous Tasks
+
+- Fix clippy warnings
+
 ## [0.4.6-rc.4] - 2024-09-26
 
 ### 🚀 Features
@@ -18,6 +36,10 @@ All notable changes to this project will be documented in this file.
 - Add build submodule
 - Remove unwraps
 - Fix clippy warnings
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.4.6-rc.4 version
 
 ## [0.4.6-rc.3] - 2024-09-18
 
