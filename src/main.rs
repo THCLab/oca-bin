@@ -313,20 +313,39 @@ fn main() -> Result<(), CliError> {
                 directory,
             }) => match (said, directory, dirty) {
                 (Some(said), None, false) => {
-                    info!("Publish OCA bundle to repository");
-                    let facade = Arc::new(Mutex::new(get_oca_facade(local_repository_path)));
+                    info!("Publish OCA bundle and its dependencies to repository");
+                    let facade = get_oca_facade(local_repository_path);
+                    let facade = Arc::new(Mutex::new(facade));
                     match SelfAddressingIdentifier::from_str(said) {
                         Ok(said) => {
+                            // Find dependant saids for said.
+                            let saids_to_publish =
+                                saids_to_publish(facade.clone(), &[said.clone()]);
                             let remote_repo_url =
                                 load_remote_repo_url(repository_url, remote_repo_url_from_config)?;
-
-                            publish_oca_file_for(
-                                facade.clone(),
-                                said.clone(),
-                                timeout,
-                                remote_repo_url.clone(),
-                            )?;
-                            Ok(())
+                            // Make post request for all saids
+                            let res: Vec<_> = saids_to_publish
+                                .iter()
+                                .flat_map(|said| {
+                                    println!("Publishing {} to {}", &said, &remote_repo_url);
+                                    match publish_oca_file_for(
+                                        facade.clone(),
+                                        said.clone(),
+                                        timeout,
+                                        remote_repo_url.clone(),
+                                    ) {
+                                        Ok(_) => {
+                                            vec![]
+                                        }
+                                        Err(err) => vec![err.to_string()],
+                                    }
+                                })
+                                .collect();
+                            if res.is_empty() {
+                                Ok(())
+                            } else {
+                                Err(CliError::PublishError(said, res))
+                            }
                         }
                         Err(err) => {
                             println!("Invalid SAID: {}", err);

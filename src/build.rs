@@ -127,9 +127,7 @@ pub fn build(
                 let facade_locked = facade.lock().unwrap();
                 facade_locked.fetch_all_refs().unwrap()
             };
-            let schema_name = refs
-                .iter()
-                .find(|&(_, v)| *v == said.to_string());
+            let schema_name = refs.iter().find(|&(_, v)| *v == said.to_string());
             if let Some((refs, _)) = schema_name {
                 println!(
                     "OCA bundle created in local repository with SAID: {} and name: {}",
