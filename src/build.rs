@@ -4,18 +4,14 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use base64::{prelude::BASE64_STANDARD, Engine};
 use itertools::Itertools;
 use oca_rs::{facade::bundle::BundleElement, Facade, HashFunctionCode, SerializationFormats};
 use said::SelfAddressingIdentifier;
-use sha2::{Digest, Sha256};
 use url::Url;
 
 use crate::{
-    cache::{PathCache, SaidCache},
-    dependency_graph::{parse_node, GraphError, MutableGraph, Node, NodeParsingError},
-    error::CliError,
-    publish_oca_file_for,
+    // cache::{PathCache, SaidCache},
+    cache::BuiltOCACache, dependency_graph::{parse_node, GraphError, MutableGraph, Node, NodeParsingError}, error::CliError, publish_oca_file_for
 };
 use oca_rs::EncodeBundle;
 
@@ -36,7 +32,7 @@ pub enum CacheError {
 }
 
 pub fn load_changed_nodes(
-    cache_path: &PathCache,
+    cache_path: &BuiltOCACache,
     all_paths: &[PathBuf],
 ) -> Result<Vec<Node>, CacheError> {
     // let cache = load_cache(cache_path)?;
@@ -56,7 +52,7 @@ pub fn load_changed_nodes(
 // Filter already build elements, basing on provided cache
 pub fn changed_files<'a>(
     all_paths: impl IntoIterator<Item = &'a PathBuf>,
-    hashes_cache: &PathCache,
+    hashes_cache: &BuiltOCACache,
 ) -> Vec<&'a PathBuf> {
     all_paths
         .into_iter()
@@ -64,22 +60,32 @@ pub fn changed_files<'a>(
             let unparsed_file = fs::read_to_string(path)
                 .map_err(|e| CliError::ReadFileFailed(path.to_path_buf(), e))
                 .unwrap();
-            let hash = compute_hash(unparsed_file.trim());
-
-            match hashes_cache.get(*path).unwrap() {
-                Some(cache) if hash.eq(&cache) => {
+            // let hash = compute_hash(unparsed_file.trim());
+            match hashes_cache.get(&unparsed_file).unwrap() {
+                Some(_cached) => {
                     info!("Already built: {:?}. Skipping", &path);
                     false
-                }
-                Some(_) => {
-                    info!("File changed: {:?}", &path);
-                    true
-                }
+                },
                 None => {
                     info!("New ocafile: {:?}", &path);
                     true
-                }
+                },
             }
+
+            // match hashes_cache.get(*path).unwrap() {
+            //     Some(cache) if hash.eq(&cache) => {
+            //         info!("Already built: {:?}. Skipping", &path);
+            //         false
+            //     }
+            //     Some(_) => {
+            //         info!("File changed: {:?}", &path);
+            //         true
+            //     }
+            //     None => {
+            //         info!("New ocafile: {:?}", &path);
+            //         true
+            //     }
+            // }
         })
         .collect()
 }
@@ -88,14 +94,14 @@ pub fn changed_files<'a>(
 pub fn build(
     facade: Arc<Mutex<Facade>>,
     node: &Node,
-    said_cache: Option<&SaidCache>,
-    path_cache: Option<&PathCache>,
+    said_cache: Option<&BuiltOCACache>,
+    // path_cache: Option<&PathCache>,
 ) -> Result<Option<(SelfAddressingIdentifier, String)>, CliError> {
     info!("Building: {:?}", node);
     let path = &node.path;
     let unparsed_file =
         fs::read_to_string(path).map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
-    let hash = compute_hash(unparsed_file.trim());
+    // let hash = compute_hash(unparsed_file.trim());
     let oca_bundle_element = {
         let mut facade_locked = facade.lock().unwrap();
         facade_locked
@@ -103,15 +109,15 @@ pub fn build(
             .map_err(|e| CliError::BuildingError(path.clone(), e.into()))?
     };
 
-    if let Some(path_cache) = path_cache {
-        path_cache.insert(path.clone(), hash.clone())?;
-    };
+    // if let Some(path_cache) = path_cache {
+    //     path_cache.insert(path.clone(), hash.clone())?;
+    // };
 
     match oca_bundle_element {
         BundleElement::Mechanics(oca_bundle) => {
             let said = oca_bundle.said.as_ref().unwrap();
             if let Some(said_cache) = said_cache {
-                said_cache.insert(hash, said.clone())?;
+                said_cache.insert(&unparsed_file, said.clone()).unwrap();
             };
             let refs = {
                 let facade_locked = facade.lock().unwrap();
@@ -141,12 +147,12 @@ pub fn build(
     }
 }
 
-pub fn compute_hash(content: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(content);
-    let result = hasher.finalize();
-    BASE64_STANDARD.encode(result)
-}
+// pub fn compute_hash(content: &str) -> String {
+//     let mut hasher = Sha256::new();
+//     hasher.update(content);
+//     let result = hasher.finalize();
+//     BASE64_STANDARD.encode(result)
+// }
 
 pub fn join_with_dependencies<'a>(
     graph: &MutableGraph,
@@ -163,7 +169,7 @@ pub fn join_with_dependencies<'a>(
 }
 
 /// Returns nodes that need to be updated
-pub fn detect_changes(all_nodes: &[Node], cache: &PathCache) -> Result<Vec<Node>, CacheError> {
+pub fn detect_changes(all_nodes: &[Node], cache: &BuiltOCACache) -> Result<Vec<Node>, CacheError> {
     let all_paths = all_nodes
         .iter()
         .map(|node| node.path.clone())
@@ -181,18 +187,21 @@ pub fn rebuild(
     directory: &Path,
     facade: Arc<Mutex<Facade>>,
     nodes: Vec<Node>,
-) -> Result<(Vec<Node>, SaidCache, PathCache), CliError> {
-    let (cached_digests, cache_saids, nodes_to_build) = {
+// ) -> Result<(Vec<Node>, SaidCache, PathCache), CliError> {
+) -> Result<(Vec<Node>, BuiltOCACache), CliError> {
+    let (cache, nodes_to_build) = {
         // Load cache if exists
-        let mut said_cache_path = directory.to_path_buf();
-        said_cache_path.push(".oca-saids");
-        let cache_saids = SaidCache::new(said_cache_path.clone());
+        // let mut said_cache_path = directory.to_path_buf();
+        // said_cache_path.push(".oca-saids");
+        // let cache_saids = SaidCache::new(said_cache_path.clone());
 
         let mut cache_path = directory.to_path_buf();
         cache_path.push(".oca-bin");
-        let cache_paths = PathCache::new(cache_path);
+        fs::create_dir_all(&cache_path).unwrap();
+        // let cache_paths = PathCache::new(cache_path);
+        let cache = BuiltOCACache::new(&cache_path).unwrap();
 
-        match detect_changes(&nodes, &cache_paths) {
+        match detect_changes(&nodes, &cache) {
             Ok(nodes_to_update) => {
                 let paths_to_rebuild = nodes_to_update
                     .iter()
@@ -205,11 +214,11 @@ pub fn rebuild(
                     );
                 };
 
-                (cache_paths, cache_saids, nodes_to_update)
+                (cache, nodes_to_update)
             }
             Err(CacheError::NoChanges) => {
                 println!("Up to date");
-                return Ok((vec![], cache_saids, cache_paths));
+                return Ok((vec![], cache));
             }
             Err(e) => return Err(e.into()),
         }
@@ -220,31 +229,32 @@ pub fn rebuild(
         build(
             facade.clone(),
             node,
-            Some(&cache_saids),
-            Some(&cached_digests),
+            Some(&cache),
+            // Some(&cached_digests),
         )?;
     }
-    cache_saids.save()?;
-    cached_digests.save()?;
-    Ok((nodes_to_build, cache_saids, cached_digests))
+    // cache_saids.save()?;
+    // cached_digests.save()?;
+    Ok((nodes_to_build, cache))
 }
 
 pub fn handle_publish(
     facade: Arc<Mutex<Facade>>,
     remote_repo_url: Url,
     nodes: &[Node],
-    said_cache: &SaidCache,
-    path_cache: &PathCache,
+    cache: &BuiltOCACache,
+    // path_cache: &PathCache,
 ) -> Result<(), CliError> {
     for node in nodes {
-        let file_hash = if let Some(file_hash) = path_cache.get(&node.path)? {
-            file_hash
-        } else {
-            let unparsed_file = fs::read_to_string(&node.path)
+        // let file_hash = if let Some(file_hash) = cache.get(&node.path)? {
+        //     file_hash
+        // } else {
+            
+        //     compute_hash(unparsed_file.trim())
+        // };
+        let unparsed_file = fs::read_to_string(&node.path)
                 .map_err(|e| CliError::ReadFileFailed(node.path.to_path_buf(), e))?;
-            compute_hash(unparsed_file.trim())
-        };
-        match said_cache.get(&file_hash)? {
+        match cache.get(&unparsed_file).unwrap() {
             Some(said) => {
                 println!(
                     "Publishing SAID {} (name: {}) to {}",
@@ -260,11 +270,12 @@ pub fn handle_publish(
 }
 
 #[test]
-pub fn test_cache() -> anyhow::Result<()> {
+pub fn test_load_changed_nodes() -> anyhow::Result<()> {
     use std::{fs::File, io::Write};
     use tempdir::TempDir;
 
     let tmp_dir = TempDir::new("example")?;
+    let said: SelfAddressingIdentifier = "EKrgT8vjEMrFLp7JbrFIub2e3q3O1AL43uBeUellrXRz".parse().unwrap();
 
     let first_ocafile_str = "-- name=first\nADD ATTRIBUTE d=Text i=Text passed=Boolean";
     let second_ocafile_str = "-- name=second\nADD ATTRIBUTE list=Array[Text] el=Text";
@@ -288,15 +299,16 @@ pub fn test_cache() -> anyhow::Result<()> {
         paths.push(path)
     }
 
-    let mut hashes = list
-        .clone()
-        .iter()
-        .map(|(_path, content)| compute_hash(content))
-        .collect::<Vec<_>>();
+    // let mut hashes = list
+    //     .clone()
+    //     .iter()
+    //     .map(|(_path, content)| compute_hash(content))
+    //     .collect::<Vec<_>>();
 
     let cache_path = tmp_dir.path().join(".oca-bin");
-    let cache = PathCache::new(cache_path);
-    cache.insert(paths[0].clone(), hashes[0].clone()).unwrap();
+    let cache = BuiltOCACache::new(cache_path).unwrap();
+    // cache.insert(paths[0].clone(), hashes[0].clone()).unwrap();
+    cache.insert(list[0].1.clone(), said.clone()).unwrap();
 
     let nodes = load_changed_nodes(&cache, &paths)?;
     assert_eq!(
@@ -326,9 +338,10 @@ pub fn test_cache() -> anyhow::Result<()> {
 
     // Add all files to cache
     // update first element hash
-    hashes[0] = compute_hash(&edited_first_ocafile_str);
-    for (path, hash) in paths.clone().into_iter().zip(hashes) {
-        cache.insert(path.clone(), hash.clone()).unwrap();
+    // hashes[0] = compute_hash(&edited_first_ocafile_str);
+    // for (path, hash) in paths.clone().into_iter().zip(hashes) {
+    for (_, ocafile) in list {
+        cache.insert(&ocafile, said.clone()).unwrap();
     }
 
     let nodes = load_changed_nodes(&cache, &paths).unwrap_err();
@@ -355,7 +368,7 @@ pub fn test_cache() -> anyhow::Result<()> {
 }
 
 #[test]
-pub fn test_build_utils() -> anyhow::Result<()> {
+pub fn test_changed_files() -> anyhow::Result<()> {
     use std::{fs::File, io::Write};
     use tempdir::TempDir;
 
@@ -383,19 +396,22 @@ pub fn test_build_utils() -> anyhow::Result<()> {
         paths.push(path)
     }
 
-    let cache = crate::cache::Cache::new(tmp_dir.path().to_path_buf());
+    let said: SelfAddressingIdentifier = "EKrgT8vjEMrFLp7JbrFIub2e3q3O1AL43uBeUellrXRz".parse().unwrap();
 
-    let fifth_hash = compute_hash(fifth_ocafile_str);
+    // let cache = crate::cache::Cache::new(tmp_dir.path().to_path_buf());
+    let cache = BuiltOCACache::new(tmp_dir.path().to_path_buf()).unwrap();
+
+    // let fifth_hash = compute_hash(fifth_ocafile_str);
     let path = tmp_dir.path().join("fifth.ocafile");
-    cache.insert(path.clone(), fifth_hash).unwrap();
+    cache.insert(fifth_ocafile_str, said.clone()).unwrap();
 
     let nodes = changed_files(paths.iter(), &cache);
     assert!(!nodes.contains(&&path));
     assert_eq!(nodes.len(), 4);
 
-    let second_hash = compute_hash(second_ocafile_str);
+    // let second_hash = compute_hash(second_ocafile_str);
     let second_path = tmp_dir.path().join("second.ocafile");
-    cache.insert(second_path.clone(), second_hash).unwrap();
+    cache.insert(&second_ocafile_str, said.clone()).unwrap();
 
     let nodes = changed_files(paths.iter(), &cache);
     assert!(!nodes.contains(&&path));

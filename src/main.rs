@@ -285,15 +285,15 @@ fn main() -> Result<(), CliError> {
                     (None, _) => {
                         // No directory, no cache.
                         for node in nodes.iter() {
-                            build::build(facade.clone(), node, None, None)?;
+                            build::build(facade.clone(), node, None)?;
                         }
                     }
                     (Some(directory), true) => {
                         let remote_repo_url =
                             load_remote_repo_url(&None, remote_repo_url_from_config)?;
-                        let (nodes, cache_said, cache_path) =
+                        let (nodes, cache_said) =
                             rebuild(directory.as_path(), facade.clone(), nodes)?;
-                        handle_publish(facade, remote_repo_url, &nodes, &cache_said, &cache_path)?;
+                        handle_publish(facade, remote_repo_url, &nodes, &cache_said)?;
                     }
                     (Some(directory), false) => {
                         rebuild(directory.as_path(), facade, nodes)?;
@@ -355,20 +355,20 @@ fn main() -> Result<(), CliError> {
                     let nodes = load_nodes(None, Some(directory))?;
                     let facade =
                         Arc::new(Mutex::new(get_oca_facade(local_repository_path.clone())));
-                    let (_rebuilt_nodes, said_cache, path_cache) =
+                    let (_rebuilt_nodes, said_cache) =
                         rebuild(directory.as_path(), facade.clone(), nodes.clone())?;
 
                     let remote_repo_url = load_remote_repo_url(&None, remote_repo_url_from_config)?;
 
                     // Publish all elements in directory
-                    handle_publish(facade, remote_repo_url, &nodes, &said_cache, &path_cache)?;
+                    handle_publish(facade, remote_repo_url, &nodes, &said_cache)?;
                     Ok(())
                 }
                 (None, Some(directory), true) => {
                     let nodes = load_nodes(None, Some(directory))?;
                     let facade =
                         Arc::new(Mutex::new(get_oca_facade(local_repository_path.clone())));
-                    let (rebuilt_nodes, said_cache, path_cache) =
+                    let (rebuilt_nodes, said_cache) =
                         rebuild(directory.as_path(), facade.clone(), nodes.clone())?;
 
                     let remote_repo_url = load_remote_repo_url(&None, remote_repo_url_from_config)?;
@@ -379,7 +379,6 @@ fn main() -> Result<(), CliError> {
                         remote_repo_url,
                         &rebuilt_nodes,
                         &said_cache,
-                        &path_cache,
                     )?;
                     Ok(())
                 }
