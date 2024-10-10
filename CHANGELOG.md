@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.6-rc.6] - 2024-10-10
+
+### 🚀 Features
+
+- Update build and publish commands options
+
+### 🚜 Refactor
+
+- Update cache
+
 ## [0.4.6-rc.5] - 2024-10-07
 
 ### 🚀 Features
@@ -19,6 +29,7 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Fix clippy warnings
+- Release 0.4.6-rc.5 version
 
 ## [0.4.6-rc.4] - 2024-09-26
 
