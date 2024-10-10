@@ -80,7 +80,9 @@ enum Commands {
         directory: Option<PathBuf>,
         /// Publish build ocafiles
         #[clap(long, short, action)]
-        publish_dirty: bool,
+        publish: bool,
+        #[arg(long, action, requires = "publish", requires = "directory")]
+        diff: bool,
     },
     /// Validate oca objects out of ocafile
     #[clap(group = clap::ArgGroup::new("build").multiple(true).required(true).args(&["ocafile", "directory"]))]
@@ -99,12 +101,14 @@ enum Commands {
         repository_url: Option<String>,
         #[arg(short, long, group = "publish")]
         said: Option<String>,
-        #[arg(long, action)]
-        dirty: bool,
+        #[arg(long, action, requires = "directory")]
+        diff: bool,
         #[arg(short, long, group = "publish")]
         directory: Option<PathBuf>,
         #[arg(short, long)]
         timeout: Option<u64>,
+        #[arg(short, long)]
+        all: bool,
     },
     /// Show ocafile for specify said
     Show {
@@ -276,27 +280,59 @@ fn main() -> Result<(), CliError> {
             Some(Commands::Build {
                 ocafile,
                 directory,
-                publish_dirty,
+                publish,
+                diff,
             }) => {
                 let nodes = load_nodes(ocafile.clone(), directory.as_ref())?;
                 let facade = Arc::new(Mutex::new(get_oca_facade(local_repository_path)));
 
-                match (directory, *publish_dirty) {
-                    (None, _) => {
+                match (directory, *publish, *diff) {
+                    (None, false, false) => {
                         // No directory, no cache.
                         for node in nodes.iter() {
                             build::build(facade.clone(), node, None)?;
                         }
                     }
-                    (Some(directory), true) => {
+                    (None, true, false) => {
+                        // No directory, no cache.
+                        let saids: Result<Vec<_>, _> = nodes
+                            .iter()
+                            .filter_map(|node| build::build(facade.clone(), node, None).transpose())
+                            .collect();
                         let remote_repo_url =
                             load_remote_repo_url(&None, remote_repo_url_from_config)?;
-                        let (nodes, cache_said) =
-                            rebuild(directory.as_path(), facade.clone(), nodes)?;
+                        for (said, _refn) in saids? {
+                            println!("Publishing SAID {} to {}", &said, &remote_repo_url);
+                            publish_oca_file_for(
+                                facade.clone(),
+                                said,
+                                &None,
+                                remote_repo_url.clone(),
+                            )?;
+                        }
+                    }
+                    (Some(directory), true, false) => {
+                        let remote_repo_url =
+                            load_remote_repo_url(&None, remote_repo_url_from_config)?;
+                        let (_rebuilt_nodes, cache_said) =
+                            rebuild(directory.as_path(), facade.clone(), &nodes)?;
                         handle_publish(facade, remote_repo_url, &nodes, &cache_said)?;
                     }
-                    (Some(directory), false) => {
-                        rebuild(directory.as_path(), facade, nodes)?;
+                    (Some(directory), false, _) => {
+                        rebuild(directory.as_path(), facade, &nodes)?;
+                    }
+                    (Some(directory), true, true) => {
+                        let remote_repo_url =
+                            load_remote_repo_url(&None, remote_repo_url_from_config)?;
+                        let (rebuilt_nodes, cache) =
+                            rebuild(directory.as_path(), facade.clone(), &nodes)?;
+                        handle_publish(facade, remote_repo_url, &rebuilt_nodes, &cache)?;
+                    }
+                    (None, true, true) => {
+                        println!("Error: --diff is only available with -d or --directory option");
+                    }
+                    (None, false, true) => {
+                        println!("Error: --diff is only available with --publish option");
                     }
                 };
 
@@ -307,10 +343,11 @@ fn main() -> Result<(), CliError> {
                 repository_url,
                 said,
                 timeout,
-                dirty,
+                diff,
                 directory,
-            }) => match (said, directory, dirty) {
-                (Some(said), None, false) => {
+                all,
+            }) => match (said, directory, diff, all) {
+                (Some(said), None, false, _) => {
                     info!("Publish OCA bundle and its dependencies to repository");
                     let facade = get_oca_facade(local_repository_path);
                     let facade = Arc::new(Mutex::new(facade));
@@ -351,12 +388,12 @@ fn main() -> Result<(), CliError> {
                         }
                     }
                 }
-                (None, Some(directory), false) => {
+                (None, Some(directory), false, _) => {
                     let nodes = load_nodes(None, Some(directory))?;
                     let facade =
                         Arc::new(Mutex::new(get_oca_facade(local_repository_path.clone())));
                     let (_rebuilt_nodes, said_cache) =
-                        rebuild(directory.as_path(), facade.clone(), nodes.clone())?;
+                        rebuild(directory.as_path(), facade.clone(), &nodes)?;
 
                     let remote_repo_url = load_remote_repo_url(&None, remote_repo_url_from_config)?;
 
@@ -364,29 +401,32 @@ fn main() -> Result<(), CliError> {
                     handle_publish(facade, remote_repo_url, &nodes, &said_cache)?;
                     Ok(())
                 }
-                (None, Some(directory), true) => {
+                (None, Some(directory), true, false) => {
                     let nodes = load_nodes(None, Some(directory))?;
                     let facade =
                         Arc::new(Mutex::new(get_oca_facade(local_repository_path.clone())));
                     let (rebuilt_nodes, said_cache) =
-                        rebuild(directory.as_path(), facade.clone(), nodes.clone())?;
+                        rebuild(directory.as_path(), facade.clone(), &nodes)?;
 
                     let remote_repo_url = load_remote_repo_url(&None, remote_repo_url_from_config)?;
 
                     // Publish only rebuilt elements in directory
-                    handle_publish(
-                        facade,
-                        remote_repo_url,
-                        &rebuilt_nodes,
-                        &said_cache,
-                    )?;
+                    handle_publish(facade, remote_repo_url, &rebuilt_nodes, &said_cache)?;
                     Ok(())
                 }
-                (_, None, true) => {
-                    println!("Error: --dirty is only available with -d or --directory option");
+                (_, None, true, false) => {
+                    println!("Error: --diff is only available with -d or --directory option");
                     Ok(())
                 }
-                _ => todo!(),
+                (_, None, false, true) => {
+                    println!("Error: --all is only available with -d or --directory option");
+                    Ok(())
+                }
+                (_, _, true, true) => {
+                    println!("Error: --all and --diff can't be used at the same time");
+                    Ok(())
+                }
+                _ => unreachable!(),
             },
             Some(Commands::List {}) => {
                 info!(

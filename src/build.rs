@@ -11,7 +11,10 @@ use url::Url;
 
 use crate::{
     // cache::{PathCache, SaidCache},
-    cache::BuiltOCACache, dependency_graph::{parse_node, GraphError, MutableGraph, Node, NodeParsingError}, error::CliError, publish_oca_file_for
+    cache::BuiltOCACache,
+    dependency_graph::{parse_node, GraphError, MutableGraph, Node, NodeParsingError},
+    error::CliError,
+    publish_oca_file_for,
 };
 use oca_rs::EncodeBundle;
 
@@ -65,11 +68,11 @@ pub fn changed_files<'a>(
                 Some(_cached) => {
                     info!("Already built: {:?}. Skipping", &path);
                     false
-                },
+                }
                 None => {
                     info!("New ocafile: {:?}", &path);
                     true
-                },
+                }
             }
 
             // match hashes_cache.get(*path).unwrap() {
@@ -95,7 +98,6 @@ pub fn build(
     facade: Arc<Mutex<Facade>>,
     node: &Node,
     said_cache: Option<&BuiltOCACache>,
-    // path_cache: Option<&PathCache>,
 ) -> Result<Option<(SelfAddressingIdentifier, String)>, CliError> {
     info!("Building: {:?}", node);
     let path = &node.path;
@@ -108,10 +110,6 @@ pub fn build(
             .build_from_ocafile(unparsed_file.clone())
             .map_err(|e| CliError::BuildingError(path.clone(), e.into()))?
     };
-
-    // if let Some(path_cache) = path_cache {
-    //     path_cache.insert(path.clone(), hash.clone())?;
-    // };
 
     match oca_bundle_element {
         BundleElement::Mechanics(oca_bundle) => {
@@ -186,8 +184,7 @@ pub fn detect_changes(all_nodes: &[Node], cache: &BuiltOCACache) -> Result<Vec<N
 pub fn rebuild(
     directory: &Path,
     facade: Arc<Mutex<Facade>>,
-    nodes: Vec<Node>,
-// ) -> Result<(Vec<Node>, SaidCache, PathCache), CliError> {
+    nodes: &[Node],
 ) -> Result<(Vec<Node>, BuiltOCACache), CliError> {
     let (cache, nodes_to_build) = {
         // Load cache if exists
@@ -243,17 +240,10 @@ pub fn handle_publish(
     remote_repo_url: Url,
     nodes: &[Node],
     cache: &BuiltOCACache,
-    // path_cache: &PathCache,
 ) -> Result<(), CliError> {
     for node in nodes {
-        // let file_hash = if let Some(file_hash) = cache.get(&node.path)? {
-        //     file_hash
-        // } else {
-            
-        //     compute_hash(unparsed_file.trim())
-        // };
         let unparsed_file = fs::read_to_string(&node.path)
-                .map_err(|e| CliError::ReadFileFailed(node.path.to_path_buf(), e))?;
+            .map_err(|e| CliError::ReadFileFailed(node.path.to_path_buf(), e))?;
         match cache.get(&unparsed_file).unwrap() {
             Some(said) => {
                 println!(
@@ -275,7 +265,9 @@ pub fn test_load_changed_nodes() -> anyhow::Result<()> {
     use tempdir::TempDir;
 
     let tmp_dir = TempDir::new("example")?;
-    let said: SelfAddressingIdentifier = "EKrgT8vjEMrFLp7JbrFIub2e3q3O1AL43uBeUellrXRz".parse().unwrap();
+    let said: SelfAddressingIdentifier = "EKrgT8vjEMrFLp7JbrFIub2e3q3O1AL43uBeUellrXRz"
+        .parse()
+        .unwrap();
 
     let first_ocafile_str = "-- name=first\nADD ATTRIBUTE d=Text i=Text passed=Boolean";
     let second_ocafile_str = "-- name=second\nADD ATTRIBUTE list=Array[Text] el=Text";
@@ -396,7 +388,9 @@ pub fn test_changed_files() -> anyhow::Result<()> {
         paths.push(path)
     }
 
-    let said: SelfAddressingIdentifier = "EKrgT8vjEMrFLp7JbrFIub2e3q3O1AL43uBeUellrXRz".parse().unwrap();
+    let said: SelfAddressingIdentifier = "EKrgT8vjEMrFLp7JbrFIub2e3q3O1AL43uBeUellrXRz"
+        .parse()
+        .unwrap();
 
     // let cache = crate::cache::Cache::new(tmp_dir.path().to_path_buf());
     let cache = BuiltOCACache::new(tmp_dir.path().to_path_buf()).unwrap();

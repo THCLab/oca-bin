@@ -5,7 +5,6 @@ use kv::{Bucket, Config, Json, Store};
 use said::SelfAddressingIdentifier;
 use sha2::{Digest, Sha256};
 
-
 pub struct BuiltOCACache {
     store: Store,
 }
