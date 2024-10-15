@@ -32,6 +32,19 @@ pub enum CacheError {
     GraphError(#[from] GraphError),
     #[error("Node parsing error: {0}")]
     NodeError(#[from] NodeParsingError),
+    #[error(transparent)]
+    KVError(kv::Error),
+    #[error("Database error. Consider removing `.oca-bin` file or directory from working directory.")]
+    SledError(kv::Error)
+}
+
+impl From<kv::Error> for CacheError {
+    fn from(value: kv::Error) -> Self {
+        match &value {
+            kv::Error::Sled(_error) => Self::SledError(value),
+            _ => Self::KVError(value),
+        }
+    }
 }
 
 pub fn load_changed_nodes(
@@ -63,7 +76,6 @@ pub fn changed_files<'a>(
             let unparsed_file = fs::read_to_string(path)
                 .map_err(|e| CliError::ReadFileFailed(path.to_path_buf(), e))
                 .unwrap();
-            // let hash = compute_hash(unparsed_file.trim());
             match hashes_cache.get(&unparsed_file).unwrap() {
                 Some(_cached) => {
                     info!("Already built: {:?}. Skipping", &path);
@@ -115,7 +127,7 @@ pub fn build(
         BundleElement::Mechanics(oca_bundle) => {
             let said = oca_bundle.said.as_ref().unwrap();
             if let Some(said_cache) = said_cache {
-                said_cache.insert(&unparsed_file, said.clone()).unwrap();
+                said_cache.insert(&unparsed_file, said.clone()).map_err(CacheError::from)?;
             };
             let refs = {
                 let facade_locked = facade.lock().unwrap();
@@ -190,7 +202,7 @@ pub fn rebuild(
         
         let mut cache_path = directory.to_path_buf();
         cache_path.push(".oca-bin");
-        let cache = BuiltOCACache::new(&cache_path).unwrap();
+        let cache = BuiltOCACache::new(&cache_path).map_err(CacheError::from)?;
 
         match detect_changes(&nodes, &cache) {
             Ok(nodes_to_update) => {
@@ -238,7 +250,7 @@ pub fn handle_publish(
     for node in nodes {
         let unparsed_file = fs::read_to_string(&node.path)
             .map_err(|e| CliError::ReadFileFailed(node.path.to_path_buf(), e))?;
-        match cache.get(&unparsed_file).unwrap() {
+        match cache.get(&unparsed_file).map_err(CacheError::from)? {
             Some(said) => {
                 println!(
                     "Publishing SAID {} (name: {}) to {}",
@@ -294,7 +306,7 @@ pub fn test_load_changed_nodes() -> anyhow::Result<()> {
     let cache_path = tmp_dir.path().join(".oca-bin");
     let cache = BuiltOCACache::new(cache_path).unwrap();
     // cache.insert(paths[0].clone(), hashes[0].clone()).unwrap();
-    cache.insert(list[0].1.clone(), said.clone()).unwrap();
+    cache.insert(list[0].1, said.clone()).unwrap();
 
     let nodes = load_changed_nodes(&cache, &paths)?;
     assert_eq!(
