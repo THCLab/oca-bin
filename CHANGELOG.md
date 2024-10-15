@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.6-rc.7] - 2024-10-15
+
+### 🚀 Features
+
+- Allow setting repo url in build command
+
+### 🐛 Bug Fixes
+
+- Remove unwrap
+
 ## [0.4.6-rc.6] - 2024-10-10
 
 ### 🚀 Features
@@ -11,6 +21,10 @@ All notable changes to this project will be documented in this file.
 ### 🚜 Refactor
 
 - Update cache
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.4.6-rc.6 version
 
 ## [0.4.6-rc.5] - 2024-10-07
 
