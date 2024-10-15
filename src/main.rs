@@ -83,6 +83,8 @@ enum Commands {
         publish: bool,
         #[arg(long, action, requires = "publish", requires = "directory")]
         diff: bool,
+        #[arg(short, long, requires = "publish")]
+        repository_url: Option<String>,
     },
     /// Validate oca objects out of ocafile
     #[clap(group = clap::ArgGroup::new("build").multiple(true).required(true).args(&["ocafile", "directory"]))]
@@ -282,6 +284,7 @@ fn main() -> Result<(), CliError> {
                 directory,
                 publish,
                 diff,
+                repository_url,
             }) => {
                 let nodes = load_nodes(ocafile.clone(), directory.as_ref())?;
                 let facade = Arc::new(Mutex::new(get_oca_facade(local_repository_path)));
@@ -313,7 +316,7 @@ fn main() -> Result<(), CliError> {
                     }
                     (Some(directory), true, false) => {
                         let remote_repo_url =
-                            load_remote_repo_url(&None, remote_repo_url_from_config)?;
+                            load_remote_repo_url(&repository_url, remote_repo_url_from_config)?;
                         let (_rebuilt_nodes, cache_said) =
                             rebuild(directory.as_path(), facade.clone(), &nodes)?;
                         handle_publish(facade, remote_repo_url, &nodes, &cache_said)?;
