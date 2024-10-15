@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.6-rc.8] - 2024-10-15
+
+### ⚙️ Miscellaneous Tasks
+
+- Add ubuntu-20.04 to supported OS
+
 ## [0.4.6-rc.7] - 2024-10-15
 
 ### 🚀 Features
@@ -11,6 +17,10 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 - Remove unwrap
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.4.6-rc.7 version
 
 ## [0.4.6-rc.6] - 2024-10-10
 
