@@ -187,15 +187,9 @@ pub fn rebuild(
     nodes: &[Node],
 ) -> Result<(Vec<Node>, BuiltOCACache), CliError> {
     let (cache, nodes_to_build) = {
-        // Load cache if exists
-        // let mut said_cache_path = directory.to_path_buf();
-        // said_cache_path.push(".oca-saids");
-        // let cache_saids = SaidCache::new(said_cache_path.clone());
-
+        
         let mut cache_path = directory.to_path_buf();
         cache_path.push(".oca-bin");
-        fs::create_dir_all(&cache_path).unwrap();
-        // let cache_paths = PathCache::new(cache_path);
         let cache = BuiltOCACache::new(&cache_path).unwrap();
 
         match detect_changes(&nodes, &cache) {
