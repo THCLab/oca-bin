@@ -24,16 +24,21 @@ jobs:
     needs: create-release
     strategy:
       matrix:
-        os:
-          - ubuntu-latest
-          - ubuntu-20.04
-          - macos-latest
-          - windows-latest
+        include:
+          - os: ubuntu-latest
+            archive-suffix: "ubuntu-latest"
+          - os: ubuntu-20.04
+            archive-suffix: "ubuntu-20.04"
+          - os: macos-latest
+            archive-suffix: ""
+          - os: windows-latest
+            archive-suffix: ""
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
+          archive: $bin-$target${{ matrix.archive-suffix }}
           # (required) Comma-separated list of binary names (non-extension portion of filename) to build and upload.
           # Note that glob pattern is not supported yet.
           bin: oca
