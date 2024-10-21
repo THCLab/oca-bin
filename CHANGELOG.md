@@ -2,11 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.6-rc.9] - 2024-10-21
+
+### ⚙️ Miscellaneous Tasks
+
+- Customize name for pkg
+
 ## [0.4.6-rc.8] - 2024-10-15
 
 ### ⚙️ Miscellaneous Tasks
 
 - Add ubuntu-20.04 to supported OS
+- Release 0.4.6-rc.8 version
 
 ## [0.4.6-rc.7] - 2024-10-15
 
