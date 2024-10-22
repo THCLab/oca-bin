@@ -2,11 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.6-rc.10] - 2024-10-22
+
+### 🐛 Bug Fixes
+
+- Publish cmd accepts repo url flag
+
 ## [0.4.6-rc.9] - 2024-10-21
 
 ### ⚙️ Miscellaneous Tasks
 
 - Customize name for pkg
+- Release 0.4.6-rc.9 version
 
 ## [0.4.6-rc.8] - 2024-10-15
 
