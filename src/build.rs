@@ -214,7 +214,7 @@ pub fn rebuild(
         cache_path.push(".oca-bin");
         let cache = BuiltOCACache::new(&cache_path).map_err(CacheError::from)?;
 
-        match detect_changes(&nodes, &cache) {
+        match detect_changes(nodes, &cache) {
             Ok(nodes_to_update) => {
                 let paths_to_rebuild = nodes_to_update
                     .iter()
@@ -241,7 +241,7 @@ pub fn rebuild(
 
     // Handle build
     for node in nodes_to_build.iter() {
-        build(facade.clone(), node, Some(&cache), &summary)?;
+        build(facade.clone(), node, Some(&cache), summary)?;
     }
     // cache_saids.save()?;
     // cached_digests.save()?;

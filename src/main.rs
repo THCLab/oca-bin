@@ -365,7 +365,7 @@ fn main() -> Result<(), CliError> {
                     }
                     (Some(directory), true, false) => {
                         let remote_repo_url =
-                            load_remote_repo_url(&repository_url, remote_repo_url_from_config)?;
+                            load_remote_repo_url(repository_url, remote_repo_url_from_config)?;
                         let (_rebuilt_nodes, cache_said) =
                             rebuild(directory.as_path(), facade.clone(), &nodes, &summary)?;
                         handle_publish(facade, remote_repo_url, &nodes, &cache_said, &summary)?;
