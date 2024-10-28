@@ -2,11 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.6-rc.11] - 2024-10-28
+
+### 🚀 Features
+
+- Add summary options to publish method
+- Allow to choose summary format for publish
+- Add count of published file to summary
+- Choose summary format for build --publish
+
+### 🐛 Bug Fixes
+
+- Add cache database error
+
+### 🚜 Refactor
+
+- Fix clippy warnings
+
 ## [0.4.6-rc.10] - 2024-10-22
 
 ### 🐛 Bug Fixes
 
 - Publish cmd accepts repo url flag
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.4.6-rc.10 version
 
 ## [0.4.6-rc.9] - 2024-10-21
 
