@@ -263,6 +263,7 @@ pub fn handle_publish(
     cache: &BuiltOCACache,
     summary: &SummaryOptions,
 ) -> Result<(), CliError> {
+    let mut i = 0;
     let mut published = vec![];
     for node in nodes {
         let unparsed_file = fs::read_to_string(&node.path)
@@ -275,6 +276,7 @@ pub fn handle_publish(
                             "Publishing {} (name: {}) to {}",
                             &said, node.refn, &remote_repo_url
                         );
+                        i += 1;
                     }
                     SummaryOptions::Json => {
                         published.push(PublishedInfo {
@@ -291,11 +293,17 @@ pub fn handle_publish(
             None => return Err(CliError::FileUpdated(node.path.to_path_buf())),
         }
     }
-    if let SummaryOptions::Json = summary {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&json!({"published": published})).unwrap()
-        )
+    match summary {
+        SummaryOptions::Human => {
+            println!("published: {} files", i);
+        }
+        SummaryOptions::Json => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({"published": published})).unwrap()
+            )
+        }
+        SummaryOptions::None => (),
     }
     Ok(())
 }
