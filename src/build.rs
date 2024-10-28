@@ -115,6 +115,7 @@ pub fn build(
     facade: Arc<Mutex<Facade>>,
     node: &Node,
     said_cache: Option<&BuiltOCACache>,
+    summary: &SummaryOptions,
 ) -> Result<Option<(SelfAddressingIdentifier, String)>, CliError> {
     info!("Building: {:?}", node);
     let path = &node.path;
@@ -141,16 +142,18 @@ pub fn build(
                 facade_locked.fetch_all_refs().unwrap()
             };
             let schema_name = refs.iter().find(|&(_, v)| *v == said.to_string());
-            if let Some((refs, _)) = schema_name {
-                println!(
-                    "OCA bundle created in local repository with SAID: {} and name: {}",
-                    &said, refs
-                );
-            } else {
-                println!(
-                    "OCA bundle created in local repository with SAID: {:?}",
-                    &said
-                );
+            if let SummaryOptions::Human = summary {
+                if let Some((refs, _)) = schema_name {
+                    println!(
+                        "OCA bundle created in local repository with SAID: {} and name: {}",
+                        &said, refs
+                    );
+                } else {
+                    println!(
+                        "OCA bundle created in local repository with SAID: {:?}",
+                        &said
+                    );
+                };
             };
             Ok(Some((said.clone(), unparsed_file)))
         }
@@ -238,12 +241,7 @@ pub fn rebuild(
 
     // Handle build
     for node in nodes_to_build.iter() {
-        build(
-            facade.clone(),
-            node,
-            Some(&cache),
-            // Some(&cached_digests),
-        )?;
+        build(facade.clone(), node, Some(&cache), &summary)?;
     }
     // cache_saids.save()?;
     // cached_digests.save()?;

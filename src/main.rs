@@ -91,6 +91,8 @@ enum Commands {
         diff: bool,
         #[arg(short, long, requires = "publish")]
         repository_url: Option<String>,
+        #[clap(flatten)]
+        summary: Option<SummaryGroup>,
     },
     /// Validate oca objects out of ocafile
     #[clap(group = clap::ArgGroup::new("build").multiple(true).required(true).args(&["ocafile", "directory"]))]
@@ -293,7 +295,17 @@ fn main() -> Result<(), CliError> {
                 publish,
                 diff,
                 repository_url,
+                summary,
             }) => {
+                let summary = match (publish, summary) {
+                    (true, None) => SummaryOptions::Human,
+                    (true, Some(s)) => s.summary(),
+                    (false, None) => SummaryOptions::None,
+                    (false, Some(_)) => {
+                        println!("Error: summary is only available with --publish option");
+                        return Ok(());
+                    }
+                };
                 let nodes = load_nodes(ocafile.clone(), directory.as_ref())?;
                 let facade = Arc::new(Mutex::new(get_oca_facade(local_repository_path)));
 
@@ -301,29 +313,57 @@ fn main() -> Result<(), CliError> {
                     (None, false, false) => {
                         // No directory, no cache.
                         for node in nodes.iter() {
-                            build::build(facade.clone(), node, None)?;
+                            build::build(facade.clone(), node, None, &summary)?;
                         }
                     }
                     (None, true, false) => {
                         // No directory, no cache.
                         let saids: Result<Vec<_>, _> = nodes
                             .iter()
-                            .filter_map(|node| build::build(facade.clone(), node, None).transpose())
+                            .filter_map(|node| {
+                                build::build(facade.clone(), node, None, &summary).transpose()
+                            })
                             .collect();
                         let remote_repo_url =
                             load_remote_repo_url(&None, remote_repo_url_from_config)?;
+                        let mut published = vec![];
                         for (said, _refn) in saids? {
-                            println!("Publishing SAID {} to {}", &said, &remote_repo_url);
-                            publish_oca_file_for(
+                            match publish_oca_file_for(
                                 facade.clone(),
-                                said,
+                                said.clone(),
                                 &None,
                                 remote_repo_url.clone(),
-                            )?;
+                            )
+                            .map(|_| get_oca_bundle_by_said(&said, facade.clone()))
+                            {
+                                Ok(Ok((refn, _oca))) => match summary {
+                                    summary::SummaryOptions::Human => {
+                                        println!(
+                                            "Publishing {} (name: {}) to {}",
+                                            &said, refn, &remote_repo_url
+                                        );
+                                    }
+                                    summary::SummaryOptions::Json => {
+                                        published.push(PublishedInfo {
+                                            name: refn,
+                                            said: said.clone(),
+                                        });
+                                    }
+                                    summary::SummaryOptions::None => {}
+                                },
+                                Ok(Err(e)) => return Err(e),
+                                Err(e) => return Err(e),
+                            };
+                        }
+                        if let SummaryOptions::Json = summary {
+                            println!(
+                                "{}",
+                                serde_json::to_string_pretty(&json!({"published": published}))
+                                    .unwrap()
+                            )
                         }
                     }
                     (Some(directory), true, false) => {
-                        let summary = SummaryOptions::Human;
                         let remote_repo_url =
                             load_remote_repo_url(&repository_url, remote_repo_url_from_config)?;
                         let (_rebuilt_nodes, cache_said) =
@@ -335,7 +375,6 @@ fn main() -> Result<(), CliError> {
                         rebuild(directory.as_path(), facade, &nodes, &summary)?;
                     }
                     (Some(directory), true, true) => {
-                        let summary = SummaryOptions::Human;
                         let remote_repo_url =
                             load_remote_repo_url(&None, remote_repo_url_from_config)?;
                         let (rebuilt_nodes, cache) =
@@ -380,41 +419,45 @@ fn main() -> Result<(), CliError> {
                                 )?;
                                 // Make post request for all saids
                                 let res: Vec<_> = saids_to_publish
-                                .iter()
-                                .flat_map(|said| {
-                                    match publish_oca_file_for(
-                                        facade.clone(),
-                                        said.clone(),
-                                        timeout,
-                                        remote_repo_url.clone(),
-                                    ) {
-                                        Ok(_) => {
-                                            match get_oca_bundle_by_said(said, facade.clone()) {
-                                            Ok((name, _bundle)) => {
+                                    .iter()
+                                    .flat_map(|said| {
+                                        match publish_oca_file_for(
+                                            facade.clone(),
+                                            said.clone(),
+                                            timeout,
+                                            remote_repo_url.clone(),
+                                        )
+                                        .map(|_| get_oca_bundle_by_said(said, facade.clone()))
+                                        {
+                                            Ok(Ok((name, _bundle))) => {
                                                 {
                                                     match summary {
                                                         summary::SummaryOptions::Human => {
-                                                            println!("Publishing {} (name: {}) to {}", &said, name, &remote_repo_url);
-                                                        },
+                                                            println!(
+                                                                "Publishing {} (name: {}) to {}",
+                                                                &said, name, &remote_repo_url
+                                                            );
+                                                        }
                                                         summary::SummaryOptions::Json => {
-                                                            published.push(PublishedInfo { name, said: said.clone()});
-                                                        },
-                                                        summary::SummaryOptions::None => {},
+                                                            published.push(PublishedInfo {
+                                                                name,
+                                                                said: said.clone(),
+                                                            });
+                                                        }
+                                                        summary::SummaryOptions::None => {}
                                                     }
-                                                    
                                                 }
+                                                vec![]
                                             }
-                                            Err(e) => {
+                                            Ok(Err(e)) => {
                                                 // shouldn't happened
                                                 info!("Shouldn't happened: {}", e);
+                                                vec![e.to_string()]
                                             }
-                                        };
-                                            vec![]
+                                            Err(err) => vec![err.to_string()],
                                         }
-                                        Err(err) => vec![err.to_string()],
-                                    }
-                                })
-                                .collect();
+                                    })
+                                    .collect();
 
                                 if let SummaryOptions::Json = summary {
                                     println!(
