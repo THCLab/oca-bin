@@ -1,6 +1,7 @@
 use crate::mapping::mapping;
 use build::handle_publish;
 use build::rebuild;
+use clap::ArgGroup;
 use config::create_or_open_local_storage;
 use config::OCA_CACHE_DB_DIR;
 use config::OCA_INDEX_DIR;
@@ -10,6 +11,8 @@ use dependency_graph::GraphError;
 use error::CliError;
 use oca_presentation::presentation::Presentation;
 use presentation_command::PresentationCommand;
+use summary::Summary;
+use tui::get_oca_bundle_by_said;
 use std::collections::HashSet;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
@@ -45,6 +48,7 @@ extern crate log;
 mod build;
 mod cache;
 mod config;
+mod summary;
 mod dependency_graph;
 pub mod error;
 mod mapping;
@@ -111,6 +115,9 @@ enum Commands {
         timeout: Option<u64>,
         #[arg(short, long)]
         all: bool,
+        #[clap(flatten)]
+        summary: Summary,
+
     },
     /// Show ocafile for specify said
     Show {
@@ -349,7 +356,11 @@ fn main() -> Result<(), CliError> {
                 diff,
                 directory,
                 all,
-            }) => match (said, directory, diff, all) {
+                summary
+            }) => 
+            {   
+                println!("Summary: {:?}", summary);
+                match (said, directory, diff, all) {
                 (Some(said), None, false, _) => {
                     info!("Publish OCA bundle and its dependencies to repository");
                     let facade = get_oca_facade(local_repository_path);
@@ -362,6 +373,7 @@ fn main() -> Result<(), CliError> {
                             let remote_repo_url =
                                 load_remote_repo_url(repository_url, remote_repo_url_from_config)?;
                             // Make post request for all saids
+                            // let mut published = vec![];
                             let res: Vec<_> = saids_to_publish
                                 .iter()
                                 .flat_map(|said| {
@@ -373,12 +385,34 @@ fn main() -> Result<(), CliError> {
                                         remote_repo_url.clone(),
                                     ) {
                                         Ok(_) => {
+                                        //     match get_oca_bundle_by_said(said, facade.clone()) {
+                                        //     Ok((name, _bundle)) => {
+                                        //         {
+                                        //             // TODO here save to the file name and said
+                                        //             published.push((name, said));
+                                                    
+                                        //         }
+                                               
+                                        //     }
+                                        //     Err(e) => {
+                                        //         // shouldn't happened
+                                        //     }
+                                        // };
+
                                             vec![]
                                         }
                                         Err(err) => vec![err.to_string()],
                                     }
                                 })
                                 .collect();
+
+                            // save publish status
+                            // let file_path = "publish_status.json";
+
+                            // Create and write to the file
+                            // let mut file = File::create(file_path)?;
+                            // file.write_all(&serde_json::to_vec(&published).unwrap())?;
+
                             if res.is_empty() {
                                 Ok(())
                             } else {
@@ -431,7 +465,7 @@ fn main() -> Result<(), CliError> {
                     Ok(())
                 }
                 _ => unreachable!(),
-            },
+            }},
             Some(Commands::List {}) => {
                 info!(
                     "List OCA object from local repository: {:?}",
