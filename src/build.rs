@@ -7,6 +7,8 @@ use std::{
 use itertools::Itertools;
 use oca_rs::{facade::bundle::BundleElement, Facade, HashFunctionCode, SerializationFormats};
 use said::SelfAddressingIdentifier;
+use serde::Serialize;
+use serde_json::json;
 use url::Url;
 
 use crate::{
@@ -15,6 +17,7 @@ use crate::{
     dependency_graph::{parse_node, GraphError, MutableGraph, Node, NodeParsingError},
     error::CliError,
     publish_oca_file_for,
+    summary::SummaryOptions,
 };
 use oca_rs::EncodeBundle;
 
@@ -34,8 +37,10 @@ pub enum CacheError {
     NodeError(#[from] NodeParsingError),
     #[error(transparent)]
     KVError(kv::Error),
-    #[error("Database error. Consider removing `.oca-bin` file or directory from working directory.")]
-    SledError(kv::Error)
+    #[error(
+        "Database error. Consider removing `.oca-bin` file or directory from working directory."
+    )]
+    SledError(kv::Error),
 }
 
 impl From<kv::Error> for CacheError {
@@ -127,7 +132,9 @@ pub fn build(
         BundleElement::Mechanics(oca_bundle) => {
             let said = oca_bundle.said.as_ref().unwrap();
             if let Some(said_cache) = said_cache {
-                said_cache.insert(&unparsed_file, said.clone()).map_err(CacheError::from)?;
+                said_cache
+                    .insert(&unparsed_file, said.clone())
+                    .map_err(CacheError::from)?;
             };
             let refs = {
                 let facade_locked = facade.lock().unwrap();
@@ -197,9 +204,9 @@ pub fn rebuild(
     directory: &Path,
     facade: Arc<Mutex<Facade>>,
     nodes: &[Node],
+    summary: &SummaryOptions,
 ) -> Result<(Vec<Node>, BuiltOCACache), CliError> {
     let (cache, nodes_to_build) = {
-        
         let mut cache_path = directory.to_path_buf();
         cache_path.push(".oca-bin");
         let cache = BuiltOCACache::new(&cache_path).map_err(CacheError::from)?;
@@ -220,7 +227,9 @@ pub fn rebuild(
                 (cache, nodes_to_update)
             }
             Err(CacheError::NoChanges) => {
-                println!("Up to date");
+                if let SummaryOptions::Human = summary {
+                    println!("Up to date");
+                };
                 return Ok((vec![], cache));
             }
             Err(e) => return Err(e.into()),
@@ -241,26 +250,52 @@ pub fn rebuild(
     Ok((nodes_to_build, cache))
 }
 
+#[derive(Serialize)]
+pub struct PublishedInfo {
+    pub name: String,
+    pub said: SelfAddressingIdentifier,
+}
+
 pub fn handle_publish(
     facade: Arc<Mutex<Facade>>,
     remote_repo_url: Url,
     nodes: &[Node],
     cache: &BuiltOCACache,
+    summary: &SummaryOptions,
 ) -> Result<(), CliError> {
+    let mut published = vec![];
     for node in nodes {
         let unparsed_file = fs::read_to_string(&node.path)
             .map_err(|e| CliError::ReadFileFailed(node.path.to_path_buf(), e))?;
         match cache.get(&unparsed_file).map_err(CacheError::from)? {
             Some(said) => {
-                println!(
-                    "Publishing SAID {} (name: {}) to {}",
-                    &said, &node.refn, &remote_repo_url
-                );
+                match summary {
+                    SummaryOptions::Human => {
+                        println!(
+                            "Publishing {} (name: {}) to {}",
+                            &said, node.refn, &remote_repo_url
+                        );
+                    }
+                    SummaryOptions::Json => {
+                        published.push(PublishedInfo {
+                            name: node.refn.clone(),
+                            said: said.clone(),
+                        });
+                    }
+                    SummaryOptions::None => {}
+                };
+
                 publish_oca_file_for(facade.clone(), said, &None, remote_repo_url.clone())?;
             }
             // Should never happen. All saids should be in cache, because it was build before.
             None => return Err(CliError::FileUpdated(node.path.to_path_buf())),
         }
+    }
+    if let SummaryOptions::Json = summary {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({"published": published})).unwrap()
+        )
     }
     Ok(())
 }

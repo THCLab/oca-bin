@@ -1,7 +1,7 @@
 use crate::mapping::mapping;
 use build::handle_publish;
 use build::rebuild;
-use clap::ArgGroup;
+use build::PublishedInfo;
 use config::create_or_open_local_storage;
 use config::OCA_CACHE_DB_DIR;
 use config::OCA_INDEX_DIR;
@@ -11,14 +11,16 @@ use dependency_graph::GraphError;
 use error::CliError;
 use oca_presentation::presentation::Presentation;
 use presentation_command::PresentationCommand;
-use summary::Summary;
-use tui::get_oca_bundle_by_said;
+use serde_json::json;
 use std::collections::HashSet;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::{env, fs, fs::File, io::Write, path::PathBuf, process, str::FromStr};
+use summary::SummaryGroup;
+use summary::SummaryOptions;
 use tui::app::App;
+use tui::get_oca_bundle_by_said;
 use utils::handle_panic;
 use utils::load_nodes;
 use utils::load_remote_repo_url;
@@ -48,11 +50,11 @@ extern crate log;
 mod build;
 mod cache;
 mod config;
-mod summary;
 mod dependency_graph;
 pub mod error;
 mod mapping;
 pub mod presentation_command;
+mod summary;
 mod tui;
 mod utils;
 mod validate;
@@ -116,8 +118,7 @@ enum Commands {
         #[arg(short, long)]
         all: bool,
         #[clap(flatten)]
-        summary: Summary,
-
+        summary: SummaryGroup,
     },
     /// Show ocafile for specify said
     Show {
@@ -322,21 +323,24 @@ fn main() -> Result<(), CliError> {
                         }
                     }
                     (Some(directory), true, false) => {
+                        let summary = SummaryOptions::Human;
                         let remote_repo_url =
                             load_remote_repo_url(&repository_url, remote_repo_url_from_config)?;
                         let (_rebuilt_nodes, cache_said) =
-                            rebuild(directory.as_path(), facade.clone(), &nodes)?;
-                        handle_publish(facade, remote_repo_url, &nodes, &cache_said)?;
+                            rebuild(directory.as_path(), facade.clone(), &nodes, &summary)?;
+                        handle_publish(facade, remote_repo_url, &nodes, &cache_said, &summary)?;
                     }
                     (Some(directory), false, _) => {
-                        rebuild(directory.as_path(), facade, &nodes)?;
+                        let summary = SummaryOptions::Human;
+                        rebuild(directory.as_path(), facade, &nodes, &summary)?;
                     }
                     (Some(directory), true, true) => {
+                        let summary = SummaryOptions::Human;
                         let remote_repo_url =
                             load_remote_repo_url(&None, remote_repo_url_from_config)?;
                         let (rebuilt_nodes, cache) =
-                            rebuild(directory.as_path(), facade.clone(), &nodes)?;
-                        handle_publish(facade, remote_repo_url, &rebuilt_nodes, &cache)?;
+                            rebuild(directory.as_path(), facade.clone(), &nodes, &summary)?;
+                        handle_publish(facade, remote_repo_url, &rebuilt_nodes, &cache, &summary)?;
                     }
                     (None, true, true) => {
                         println!("Error: --diff is only available with -d or --directory option");
@@ -356,28 +360,28 @@ fn main() -> Result<(), CliError> {
                 diff,
                 directory,
                 all,
-                summary
-            }) => 
-            {   
-                println!("Summary: {:?}", summary);
+                summary,
+            }) => {
+                let summary = summary.summary();
                 match (said, directory, diff, all) {
-                (Some(said), None, false, _) => {
-                    info!("Publish OCA bundle and its dependencies to repository");
-                    let facade = get_oca_facade(local_repository_path);
-                    let facade = Arc::new(Mutex::new(facade));
-                    match SelfAddressingIdentifier::from_str(said) {
-                        Ok(said) => {
-                            // Find dependant saids for said.
-                            let saids_to_publish =
-                                saids_to_publish(facade.clone(), &[said.clone()]);
-                            let remote_repo_url =
-                                load_remote_repo_url(repository_url, remote_repo_url_from_config)?;
-                            // Make post request for all saids
-                            // let mut published = vec![];
-                            let res: Vec<_> = saids_to_publish
+                    (Some(said), None, false, _) => {
+                        let mut published = vec![];
+                        info!("Publish OCA bundle and its dependencies to repository");
+                        let facade = get_oca_facade(local_repository_path);
+                        let facade = Arc::new(Mutex::new(facade));
+                        match SelfAddressingIdentifier::from_str(said) {
+                            Ok(said) => {
+                                // Find dependant saids for said.
+                                let saids_to_publish =
+                                    saids_to_publish(facade.clone(), &[said.clone()]);
+                                let remote_repo_url = load_remote_repo_url(
+                                    repository_url,
+                                    remote_repo_url_from_config,
+                                )?;
+                                // Make post request for all saids
+                                let res: Vec<_> = saids_to_publish
                                 .iter()
                                 .flat_map(|said| {
-                                    println!("Publishing {} to {}", &said, &remote_repo_url);
                                     match publish_oca_file_for(
                                         facade.clone(),
                                         said.clone(),
@@ -385,20 +389,26 @@ fn main() -> Result<(), CliError> {
                                         remote_repo_url.clone(),
                                     ) {
                                         Ok(_) => {
-                                        //     match get_oca_bundle_by_said(said, facade.clone()) {
-                                        //     Ok((name, _bundle)) => {
-                                        //         {
-                                        //             // TODO here save to the file name and said
-                                        //             published.push((name, said));
+                                            match get_oca_bundle_by_said(said, facade.clone()) {
+                                            Ok((name, _bundle)) => {
+                                                {
+                                                    match summary {
+                                                        summary::SummaryOptions::Human => {
+                                                            println!("Publishing {} (name: {}) to {}", &said, name, &remote_repo_url);
+                                                        },
+                                                        summary::SummaryOptions::Json => {
+                                                            published.push(PublishedInfo { name, said: said.clone()});
+                                                        },
+                                                        summary::SummaryOptions::None => {},
+                                                    }
                                                     
-                                        //         }
-                                               
-                                        //     }
-                                        //     Err(e) => {
-                                        //         // shouldn't happened
-                                        //     }
-                                        // };
-
+                                                }
+                                            }
+                                            Err(e) => {
+                                                // shouldn't happened
+                                                info!("Shouldn't happened: {}", e);
+                                            }
+                                        };
                                             vec![]
                                         }
                                         Err(err) => vec![err.to_string()],
@@ -406,66 +416,77 @@ fn main() -> Result<(), CliError> {
                                 })
                                 .collect();
 
-                            // save publish status
-                            // let file_path = "publish_status.json";
+                                if let SummaryOptions::Json = summary {
+                                    println!(
+                                        "{}",
+                                        serde_json::to_string_pretty(
+                                            &json!({"published": published})
+                                        )
+                                        .unwrap()
+                                    )
+                                }
 
-                            // Create and write to the file
-                            // let mut file = File::create(file_path)?;
-                            // file.write_all(&serde_json::to_vec(&published).unwrap())?;
-
-                            if res.is_empty() {
-                                Ok(())
-                            } else {
-                                Err(CliError::PublishError(said, res))
+                                if res.is_empty() {
+                                    Ok(())
+                                } else {
+                                    Err(CliError::PublishError(said, res))
+                                }
+                            }
+                            Err(err) => {
+                                println!("Invalid SAID: {}", err);
+                                Err(err.into())
                             }
                         }
-                        Err(err) => {
-                            println!("Invalid SAID: {}", err);
-                            Err(err.into())
-                        }
                     }
-                }
-                (None, Some(directory), false, _) => {
-                    let nodes = load_nodes(None, Some(directory))?;
-                    let facade =
-                        Arc::new(Mutex::new(get_oca_facade(local_repository_path.clone())));
-                    let (_rebuilt_nodes, said_cache) =
-                        rebuild(directory.as_path(), facade.clone(), &nodes)?;
+                    (None, Some(directory), false, _) => {
+                        let nodes = load_nodes(None, Some(directory))?;
+                        let facade =
+                            Arc::new(Mutex::new(get_oca_facade(local_repository_path.clone())));
+                        let (_rebuilt_nodes, said_cache) =
+                            rebuild(directory.as_path(), facade.clone(), &nodes, &summary)?;
 
-                    let remote_repo_url =
-                        load_remote_repo_url(repository_url, remote_repo_url_from_config)?;
+                        let remote_repo_url =
+                            load_remote_repo_url(repository_url, remote_repo_url_from_config)?;
 
-                    // Publish all elements in directory
-                    handle_publish(facade, remote_repo_url, &nodes, &said_cache)?;
-                    Ok(())
-                }
-                (None, Some(directory), true, false) => {
-                    let nodes = load_nodes(None, Some(directory))?;
-                    let facade =
-                        Arc::new(Mutex::new(get_oca_facade(local_repository_path.clone())));
-                    let (rebuilt_nodes, said_cache) =
-                        rebuild(directory.as_path(), facade.clone(), &nodes)?;
+                        // Publish all elements in directory
+                        handle_publish(facade, remote_repo_url, &nodes, &said_cache, &summary)?;
+                        Ok(())
+                    }
+                    (None, Some(directory), true, false) => {
+                        let nodes = load_nodes(None, Some(directory))?;
+                        let facade =
+                            Arc::new(Mutex::new(get_oca_facade(local_repository_path.clone())));
+                        let (rebuilt_nodes, said_cache) =
+                            rebuild(directory.as_path(), facade.clone(), &nodes, &summary)?;
 
-                    let remote_repo_url = load_remote_repo_url(&None, remote_repo_url_from_config)?;
+                        let remote_repo_url =
+                            load_remote_repo_url(&None, remote_repo_url_from_config)?;
 
-                    // Publish only rebuilt elements in directory
-                    handle_publish(facade, remote_repo_url, &rebuilt_nodes, &said_cache)?;
-                    Ok(())
+                        // Publish only rebuilt elements in directory
+                        handle_publish(
+                            facade,
+                            remote_repo_url,
+                            &rebuilt_nodes,
+                            &said_cache,
+                            &summary,
+                        )?;
+                        Ok(())
+                    }
+                    (_, None, true, false) => {
+                        println!("Error: --diff is only available with -d or --directory option");
+                        Ok(())
+                    }
+                    (_, None, false, true) => {
+                        println!("Error: --all is only available with -d or --directory option");
+                        Ok(())
+                    }
+                    (_, _, true, true) => {
+                        println!("Error: --all and --diff can't be used at the same time");
+                        Ok(())
+                    }
+                    _ => unreachable!(),
                 }
-                (_, None, true, false) => {
-                    println!("Error: --diff is only available with -d or --directory option");
-                    Ok(())
-                }
-                (_, None, false, true) => {
-                    println!("Error: --all is only available with -d or --directory option");
-                    Ok(())
-                }
-                (_, _, true, true) => {
-                    println!("Error: --all and --diff can't be used at the same time");
-                    Ok(())
-                }
-                _ => unreachable!(),
-            }},
+            }
             Some(Commands::List {}) => {
                 info!(
                     "List OCA object from local repository: {:?}",
