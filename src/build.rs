@@ -221,10 +221,13 @@ pub fn rebuild(
                     .map(|node| node.path.to_str().unwrap())
                     .join("\n\t•");
                 if !paths_to_rebuild.is_empty() {
-                    println!(
-                        "The following files will be rebuilt: \n\t• {}",
-                        paths_to_rebuild
-                    );
+                    if let SummaryOptions::Human = summary {
+                        println!(
+                            "The following files will be rebuilt: \n\t• {}",
+                            paths_to_rebuild
+                        );
+                    }
+                    
                 };
 
                 (cache, nodes_to_update)

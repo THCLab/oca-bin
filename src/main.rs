@@ -371,7 +371,6 @@ fn main() -> Result<(), CliError> {
                         handle_publish(facade, remote_repo_url, &nodes, &cache_said, &summary)?;
                     }
                     (Some(directory), false, _) => {
-                        let summary = SummaryOptions::Human;
                         rebuild(directory.as_path(), facade, &nodes, &summary)?;
                     }
                     (Some(directory), true, true) => {
