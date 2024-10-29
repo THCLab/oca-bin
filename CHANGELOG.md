@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.6-rc.12] - 2024-10-29
+
+### 🐛 Bug Fixes
+
+- Update summary-json output
+
 ## [0.4.6-rc.11] - 2024-10-28
 
 ### 🚀 Features
@@ -18,6 +24,10 @@ All notable changes to this project will be documented in this file.
 ### 🚜 Refactor
 
 - Fix clippy warnings
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.4.6-rc.11 version
 
 ## [0.4.6-rc.10] - 2024-10-22
 
