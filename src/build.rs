@@ -255,18 +255,42 @@ pub fn rebuild(
 pub struct PublishedInfo {
     pub name: String,
     pub said: SelfAddressingIdentifier,
+    pub built: bool,
+    pub published: bool,
+}
+
+pub enum NodeStatus {
+    Rebuilt(Node),
+    NotChanged(Node),
+}
+
+impl NodeStatus {
+    pub fn node(&self) -> &Node {
+        match self {
+            NodeStatus::Rebuilt(node) => node,
+            NodeStatus::NotChanged(node) => node,
+        }
+    }
+
+    pub fn rebuilt(&self) -> bool {
+        match self {
+            NodeStatus::Rebuilt(_node) => true,
+            NodeStatus::NotChanged(_node) => false,
+        }
+    }
 }
 
 pub fn handle_publish(
     facade: Arc<Mutex<Facade>>,
     remote_repo_url: Url,
-    nodes: &[Node],
+    nodes: impl IntoIterator<Item=NodeStatus>,
     cache: &BuiltOCACache,
     summary: &SummaryOptions,
 ) -> Result<(), CliError> {
     let mut i = 0;
     let mut published = vec![];
-    for node in nodes {
+    for node_status in nodes {
+        let node = node_status.node();
         let unparsed_file = fs::read_to_string(&node.path)
             .map_err(|e| CliError::ReadFileFailed(node.path.to_path_buf(), e))?;
         match cache.get(&unparsed_file).map_err(CacheError::from)? {
@@ -283,6 +307,8 @@ pub fn handle_publish(
                         published.push(PublishedInfo {
                             name: node.refn.clone(),
                             said: said.clone(),
+                            published: true,
+                            built: node_status.rebuilt(),
                         });
                     }
                     SummaryOptions::None => {}

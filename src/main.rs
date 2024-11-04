@@ -1,6 +1,7 @@
 use crate::mapping::mapping;
 use build::handle_publish;
 use build::rebuild;
+use build::NodeStatus;
 use build::PublishedInfo;
 use config::create_or_open_local_storage;
 use config::OCA_CACHE_DB_DIR;
@@ -13,6 +14,7 @@ use oca_presentation::presentation::Presentation;
 use presentation_command::PresentationCommand;
 use serde_json::json;
 use std::collections::HashSet;
+use std::fs::read_to_string;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -301,9 +303,8 @@ fn main() -> Result<(), CliError> {
                     (true, None) => SummaryOptions::Human,
                     (true, Some(s)) => s.summary(),
                     (false, None) => SummaryOptions::None,
-                    (false, Some(_)) => {
-                        println!("Error: summary is only available with --publish option");
-                        return Ok(());
+                    (false, Some(s)) => {
+                        s.summary()
                     }
                 };
                 let nodes = load_nodes(ocafile.clone(), directory.as_ref())?;
@@ -312,8 +313,22 @@ fn main() -> Result<(), CliError> {
                 match (directory, *publish, *diff) {
                     (None, false, false) => {
                         // No directory, no cache.
+                        let mut summary_info = vec![];
                         for node in nodes.iter() {
-                            build::build(facade.clone(), node, None, &summary)?;
+                            let built = build::build(facade.clone(), node, None, &summary)?;
+                            match built {
+                                Some((said, _)) => {
+                                    summary_info.push(PublishedInfo { name: node.refn.clone(), said, built: true, published: false });
+                                },
+                                None => todo!(),
+                            };
+                            if let SummaryOptions::Json = summary {
+                            println!(
+                                "{}",
+                                serde_json::to_string_pretty(&json!({"published": summary_info}))
+                                    .unwrap()
+                            )
+                        }
                         }
                     }
                     (None, true, false) => {
@@ -347,6 +362,8 @@ fn main() -> Result<(), CliError> {
                                         published.push(PublishedInfo {
                                             name: refn,
                                             said: said.clone(),
+                                            built: true,
+                                            published: true,
                                         });
                                     }
                                     summary::SummaryOptions::None => {}
@@ -366,19 +383,57 @@ fn main() -> Result<(), CliError> {
                     (Some(directory), true, false) => {
                         let remote_repo_url =
                             load_remote_repo_url(repository_url, remote_repo_url_from_config)?;
-                        let (_rebuilt_nodes, cache_said) =
+                        let (rebuilt_nodes, cache_said) =
                             rebuild(directory.as_path(), facade.clone(), &nodes, &summary)?;
-                        handle_publish(facade, remote_repo_url, &nodes, &cache_said, &summary)?;
+                        let statuses = nodes.into_iter().map(|node| {
+                            if rebuilt_nodes.contains(&node) {
+                                NodeStatus::Rebuilt(node)
+                            } else {
+                                NodeStatus::NotChanged(node)
+                            }
+                        });
+                        handle_publish(facade, remote_repo_url, statuses, &cache_said, &summary)?;
                     }
-                    (Some(directory), false, _) => {
-                        rebuild(directory.as_path(), facade, &nodes, &summary)?;
+                    (Some(directory), false, true) => {
+                        let (rebuilt, cache) = rebuild(directory.as_path(), facade, &nodes, &summary)?;
+                        if let SummaryOptions::Json = summary {
+                            let mut summary_info = vec![];
+                            rebuilt.iter().for_each(|node| {
+                                let file = read_to_string(&node.path).unwrap();
+                                let said = cache.get(&file).unwrap().unwrap();
+                                if rebuilt.contains(&node) {
+                                    summary_info.push(PublishedInfo { name: node.refn.clone(), said, built: true, published: false });
+                                } else {
+                                    summary_info.push(PublishedInfo { name: node.refn.clone(), said, built: false, published: false });
+                                }
+                            });
+                            println!("{}", serde_json::to_string_pretty(&json!({"published": summary_info})).unwrap());
+                        }
+
+                    }
+                    (Some(directory), false, false) => {
+                        let (rebuilt, cache) = rebuild(directory.as_path(), facade, &nodes, &summary)?;
+                        if let SummaryOptions::Json = summary {
+                            let mut summary_info = vec![];
+                            nodes.into_iter().for_each(|node| {
+                                let file = read_to_string(&node.path).unwrap();
+                                let said = cache.get(&file).unwrap().unwrap();
+                                if rebuilt.contains(&node) {
+                                    summary_info.push(PublishedInfo { name: node.refn.clone(), said, built: true, published: false });
+                                } else {
+                                    summary_info.push(PublishedInfo { name: node.refn.clone(), said, built: false, published: false });
+                                }
+                            });
+                            println!("{}", serde_json::to_string_pretty(&json!({"published": summary_info})).unwrap());
+                        }
+                        
                     }
                     (Some(directory), true, true) => {
                         let remote_repo_url =
                             load_remote_repo_url(&None, remote_repo_url_from_config)?;
                         let (rebuilt_nodes, cache) =
                             rebuild(directory.as_path(), facade.clone(), &nodes, &summary)?;
-                        handle_publish(facade, remote_repo_url, &rebuilt_nodes, &cache, &summary)?;
+                        handle_publish(facade, remote_repo_url, rebuilt_nodes.into_iter().map(|node| NodeStatus::Rebuilt(node)), &cache, &summary)?;
                     }
                     (None, true, true) => {
                         println!("Error: --diff is only available with -d or --directory option");
@@ -441,6 +496,8 @@ fn main() -> Result<(), CliError> {
                                                             published.push(PublishedInfo {
                                                                 name,
                                                                 said: said.clone(),
+                                                                built: false,
+                                                                published: true
                                                             });
                                                         }
                                                         summary::SummaryOptions::None => {}
@@ -484,14 +541,21 @@ fn main() -> Result<(), CliError> {
                         let nodes = load_nodes(None, Some(directory))?;
                         let facade =
                             Arc::new(Mutex::new(get_oca_facade(local_repository_path.clone())));
-                        let (_rebuilt_nodes, said_cache) =
+                        let (rebuilt_nodes, said_cache) =
                             rebuild(directory.as_path(), facade.clone(), &nodes, &summary)?;
 
                         let remote_repo_url =
                             load_remote_repo_url(repository_url, remote_repo_url_from_config)?;
+                        let statuses = nodes.into_iter().map(|node| {
+                            if rebuilt_nodes.contains(&node) {
+                                NodeStatus::Rebuilt(node)
+                            } else {
+                                NodeStatus::NotChanged(node)
+                            }
+                        });
 
                         // Publish all elements in directory
-                        handle_publish(facade, remote_repo_url, &nodes, &said_cache, &summary)?;
+                        handle_publish(facade, remote_repo_url, statuses, &said_cache, &summary)?;
                         Ok(())
                     }
                     (None, Some(directory), true, false) => {
@@ -508,7 +572,7 @@ fn main() -> Result<(), CliError> {
                         handle_publish(
                             facade,
                             remote_repo_url,
-                            &rebuilt_nodes,
+                            rebuilt_nodes.into_iter().map(|node| NodeStatus::Rebuilt(node)),
                             &said_cache,
                             &summary,
                         )?;
