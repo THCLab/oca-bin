@@ -401,7 +401,7 @@ fn main() -> Result<(), CliError> {
                             rebuilt.iter().for_each(|node| {
                                 let file = read_to_string(&node.path).unwrap();
                                 let said = cache.get(&file).unwrap().unwrap();
-                                if rebuilt.contains(&node) {
+                                if rebuilt.contains(node) {
                                     summary_info.push(PublishedInfo { name: node.refn.clone(), said, built: true, published: false });
                                 } else {
                                     summary_info.push(PublishedInfo { name: node.refn.clone(), said, built: false, published: false });
@@ -433,7 +433,7 @@ fn main() -> Result<(), CliError> {
                             load_remote_repo_url(&None, remote_repo_url_from_config)?;
                         let (rebuilt_nodes, cache) =
                             rebuild(directory.as_path(), facade.clone(), &nodes, &summary)?;
-                        handle_publish(facade, remote_repo_url, rebuilt_nodes.into_iter().map(|node| NodeStatus::Rebuilt(node)), &cache, &summary)?;
+                        handle_publish(facade, remote_repo_url, rebuilt_nodes.into_iter().map(NodeStatus::Rebuilt), &cache, &summary)?;
                     }
                     (None, true, true) => {
                         println!("Error: --diff is only available with -d or --directory option");
@@ -572,7 +572,7 @@ fn main() -> Result<(), CliError> {
                         handle_publish(
                             facade,
                             remote_repo_url,
-                            rebuilt_nodes.into_iter().map(|node| NodeStatus::Rebuilt(node)),
+                            rebuilt_nodes.into_iter().map(NodeStatus::Rebuilt),
                             &said_cache,
                             &summary,
                         )?;
