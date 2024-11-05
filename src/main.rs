@@ -86,12 +86,14 @@ enum Commands {
         /// Build oca objects from directory (recursive)
         #[arg(short, long, group = "build")]
         directory: Option<PathBuf>,
-        /// Publish build ocafiles
+        /// Publish built ocafiles
         #[clap(long, short, action)]
         publish: bool,
+        /// Build only the ocafiles that were changed since the last build
         #[arg(long, action, requires = "publish", requires = "directory")]
         diff: bool,
-        #[arg(short, long, requires = "publish")]
+        /// Specify online repository url
+        #[arg(short, long)]
         repository_url: Option<String>,
         #[clap(flatten)]
         summary: Option<SummaryGroup>,
@@ -109,12 +111,16 @@ enum Commands {
     /// Publish oca objects into online repository
     #[clap(group = clap::ArgGroup::new("publish").required(true).args(&["said", "directory"]))]
     Publish {
+        /// Specify online repository url
         #[arg(short, long)]
         repository_url: Option<String>,
+        /// Specify the SAID of the OCA object to publish
         #[arg(short, long, group = "publish")]
         said: Option<String>,
+        /// Publish only the ocafiles that were changed since the last build
         #[arg(long, action, requires = "directory")]
         diff: bool,
+        /// Publish oca objects from directory (recursive)
         #[arg(short, long, group = "publish")]
         directory: Option<PathBuf>,
         #[arg(short, long)]

@@ -8,10 +8,13 @@ use clap::ArgGroup;
         .args(&["summary", "no_summary", "summary_json"])
 )]
 pub struct SummaryGroup {
+    /// Print summary in JSON
     #[clap(long, group = "summary_group", action)]
     summary_json: bool,
+    /// Print summary in human readable format
     #[clap(long, group = "summary_group", action)]
     summary: bool,
+    /// Do not print any summary
     #[clap(long, group = "summary_group", action)]
     no_summary: bool,
 }
