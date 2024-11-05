@@ -227,7 +227,6 @@ pub fn rebuild(
                             paths_to_rebuild
                         );
                     }
-                    
                 };
 
                 (cache, nodes_to_update)
@@ -283,7 +282,7 @@ impl NodeStatus {
 pub fn handle_publish(
     facade: Arc<Mutex<Facade>>,
     remote_repo_url: Url,
-    nodes: impl IntoIterator<Item=NodeStatus>,
+    nodes: impl IntoIterator<Item = NodeStatus>,
     cache: &BuiltOCACache,
     summary: &SummaryOptions,
 ) -> Result<(), CliError> {

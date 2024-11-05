@@ -309,9 +309,7 @@ fn main() -> Result<(), CliError> {
                     (true, None) => SummaryOptions::Human,
                     (true, Some(s)) => s.summary(),
                     (false, None) => SummaryOptions::None,
-                    (false, Some(s)) => {
-                        s.summary()
-                    }
+                    (false, Some(s)) => s.summary(),
                 };
                 let nodes = load_nodes(ocafile.clone(), directory.as_ref())?;
                 let facade = Arc::new(Mutex::new(get_oca_facade(local_repository_path)));
@@ -324,17 +322,24 @@ fn main() -> Result<(), CliError> {
                             let built = build::build(facade.clone(), node, None, &summary)?;
                             match built {
                                 Some((said, _)) => {
-                                    summary_info.push(PublishedInfo { name: node.refn.clone(), said, built: true, published: false });
-                                },
+                                    summary_info.push(PublishedInfo {
+                                        name: node.refn.clone(),
+                                        said,
+                                        built: true,
+                                        published: false,
+                                    });
+                                }
                                 None => todo!(),
                             };
                             if let SummaryOptions::Json = summary {
-                            println!(
-                                "{}",
-                                serde_json::to_string_pretty(&json!({"published": summary_info}))
+                                println!(
+                                    "{}",
+                                    serde_json::to_string_pretty(
+                                        &json!({"published": summary_info})
+                                    )
                                     .unwrap()
-                            )
-                        }
+                                )
+                            }
                         }
                     }
                     (None, true, false) => {
@@ -401,45 +406,79 @@ fn main() -> Result<(), CliError> {
                         handle_publish(facade, remote_repo_url, statuses, &cache_said, &summary)?;
                     }
                     (Some(directory), false, true) => {
-                        let (rebuilt, cache) = rebuild(directory.as_path(), facade, &nodes, &summary)?;
+                        let (rebuilt, cache) =
+                            rebuild(directory.as_path(), facade, &nodes, &summary)?;
                         if let SummaryOptions::Json = summary {
                             let mut summary_info = vec![];
                             rebuilt.iter().for_each(|node| {
                                 let file = read_to_string(&node.path).unwrap();
                                 let said = cache.get(&file).unwrap().unwrap();
                                 if rebuilt.contains(node) {
-                                    summary_info.push(PublishedInfo { name: node.refn.clone(), said, built: true, published: false });
+                                    summary_info.push(PublishedInfo {
+                                        name: node.refn.clone(),
+                                        said,
+                                        built: true,
+                                        published: false,
+                                    });
                                 } else {
-                                    summary_info.push(PublishedInfo { name: node.refn.clone(), said, built: false, published: false });
+                                    summary_info.push(PublishedInfo {
+                                        name: node.refn.clone(),
+                                        said,
+                                        built: false,
+                                        published: false,
+                                    });
                                 }
                             });
-                            println!("{}", serde_json::to_string_pretty(&json!({"published": summary_info})).unwrap());
+                            println!(
+                                "{}",
+                                serde_json::to_string_pretty(&json!({"published": summary_info}))
+                                    .unwrap()
+                            );
                         }
-
                     }
                     (Some(directory), false, false) => {
-                        let (rebuilt, cache) = rebuild(directory.as_path(), facade, &nodes, &summary)?;
+                        let (rebuilt, cache) =
+                            rebuild(directory.as_path(), facade, &nodes, &summary)?;
                         if let SummaryOptions::Json = summary {
                             let mut summary_info = vec![];
                             nodes.into_iter().for_each(|node| {
                                 let file = read_to_string(&node.path).unwrap();
                                 let said = cache.get(&file).unwrap().unwrap();
                                 if rebuilt.contains(&node) {
-                                    summary_info.push(PublishedInfo { name: node.refn.clone(), said, built: true, published: false });
+                                    summary_info.push(PublishedInfo {
+                                        name: node.refn.clone(),
+                                        said,
+                                        built: true,
+                                        published: false,
+                                    });
                                 } else {
-                                    summary_info.push(PublishedInfo { name: node.refn.clone(), said, built: false, published: false });
+                                    summary_info.push(PublishedInfo {
+                                        name: node.refn.clone(),
+                                        said,
+                                        built: false,
+                                        published: false,
+                                    });
                                 }
                             });
-                            println!("{}", serde_json::to_string_pretty(&json!({"published": summary_info})).unwrap());
+                            println!(
+                                "{}",
+                                serde_json::to_string_pretty(&json!({"published": summary_info}))
+                                    .unwrap()
+                            );
                         }
-                        
                     }
                     (Some(directory), true, true) => {
                         let remote_repo_url =
                             load_remote_repo_url(&None, remote_repo_url_from_config)?;
                         let (rebuilt_nodes, cache) =
                             rebuild(directory.as_path(), facade.clone(), &nodes, &summary)?;
-                        handle_publish(facade, remote_repo_url, rebuilt_nodes.into_iter().map(NodeStatus::Rebuilt), &cache, &summary)?;
+                        handle_publish(
+                            facade,
+                            remote_repo_url,
+                            rebuilt_nodes.into_iter().map(NodeStatus::Rebuilt),
+                            &cache,
+                            &summary,
+                        )?;
                     }
                     (None, true, true) => {
                         println!("Error: --diff is only available with -d or --directory option");
@@ -503,7 +542,7 @@ fn main() -> Result<(), CliError> {
                                                                 name,
                                                                 said: said.clone(),
                                                                 built: false,
-                                                                published: true
+                                                                published: true,
                                                             });
                                                         }
                                                         summary::SummaryOptions::None => {}
