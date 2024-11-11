@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.6] - 2024-11-11
+
+### ⚙️ Miscellaneous Tasks
+
+- Update README
+
 ## [0.4.6-rc.14] - 2024-11-05
 
 ### 🐛 Bug Fixes
@@ -11,6 +17,10 @@ All notable changes to this project will be documented in this file.
 ### 🚜 Refactor
 
 - Reformat code
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.4.6-rc.14 version
 
 ## [0.4.6-rc.13] - 2024-11-05
 
