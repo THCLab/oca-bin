@@ -16,6 +16,6 @@ See https://oca.colossi.network/ecosystem/oca-bin.html or run:
 
 ## License
 
-EUPL 1.2 
+EUPL 1.2
 
 We have distilled the most crucial license specifics to make your adoption seamless: [see here for details](https://github.com/THCLab/licensing).
