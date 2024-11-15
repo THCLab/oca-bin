@@ -2,11 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2024-11-15
+
+### ⚙️ Miscellaneous Tasks
+
+- [**breaking**] Update oca-rs package to 0.6.0
+
 ## [0.4.6] - 2024-11-11
 
 ### ⚙️ Miscellaneous Tasks
 
 - Update README
+- Release 0.4.6 version
 
 ## [0.4.6-rc.14] - 2024-11-05
 
