@@ -17,9 +17,9 @@ path = "src/main.rs"
 dirs = "5.0.1"
 clap = { version = "4.0.29", features = ["derive"] }
 log = "0.4.20"
-oca-rs = { version = "0.5.4", features = ["local-references"] }
-oca-ast-semantics = { version = "0.5.4"}
-oca-bundle-semantics = { version = "0.5.4"}
+oca-rs = { version = "0.6.0", features = ["local-references"] }
+oca-ast-semantics = { version = "0.6.0"}
+oca-bundle-semantics = { version = "0.6.0"}
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
 reqwest = { version = "0.11", features = ["json", "blocking"] }

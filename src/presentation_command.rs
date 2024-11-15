@@ -370,7 +370,7 @@ mod tests {
 
         let presentation = handle_generate(array_bundle_said.clone(), &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"ELzcfyie-N2rp6OfERt36TOG-LxuEsauorTCA1yF39cB","l":[],"d":"EJw2gOTgFeD_u_D8O8ZW4HbR8uTqT12v7XMUw1ao0l_7","p":[{"n":"page 1","ao":["list","name"]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EAOjNMY1GIP-w_3dsY2gIgaPq5i-TPoztRzcG2r5Y0dy","l":[],"d":"ENJc1ClDOXr_EP6DAIPxZhmJFr_vjiVy1ZpbcH9jxzRI","p":[{"n":"page 1","ao":["list","name"]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -395,7 +395,7 @@ mod tests {
 
         let presentation = handle_generate(digest0.clone(), &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"ENmCXdYwYLC2lDNywG8OUhJ4-xg5KepXp45jSb0Cd9FQ","l":[],"d":"EFxGHn7vj6JGvK5rXKujgwtEcLEzxj8xo2uybCFi-LsV","p":[{"n":"page 1","ao":["name","number"]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EIFYS-K-4X4MJVdtqf2ZG9nkS3yvngW6WTBLeCMoLcoi","l":[],"d":"ENWL8lTtuhNBJZFLGpSFjis7N4dU41Byc-On6zIxFod_","p":[{"n":"page 1","ao":["name","number"]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -412,7 +412,7 @@ mod tests {
 
         let presentation = handle_generate(person_bundle_said.clone(), &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EN1gss9dAe7d8SzRLCekA6K6vSZj0cfmGJ-gB6cXhena","l":[],"d":"ENyN9Fza7l7UZgw7iL4YU3rtjVgLfjBKE0RCMfDD5TeB","p":[{"n":"page 1","ao":[{"n":"person","ao":["name","number"]}]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EHezPQN-8eSonW8olkz4z73ct45TD-B274rSSDhYTR60","l":[],"d":"EMh5fo9ZsDTStovCE1i15S0BvDooaf0F_nOCxPxTQAz_","p":[{"n":"page 1","ao":[{"n":"person","ao":["name","number"]}]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -445,7 +445,7 @@ mod tests {
 
         let presentation = handle_generate(many_person_bundle_digest, &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EOgTmYu_842l_u3ldgVQOwHAG0zM5VMyctiv6xTRJedK","l":[],"d":"EKxkjqfAZwpBU-fp1Oc2TE38vRLiPfptXmLTAaXFDUsW","p":[{"n":"page 1","ao":[{"n":"many_persons","ao":[{"n":"person","ao":["name","number"]}]}]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EDw_P8EixBGMlfV7Sd-92Xko2oc_9vU_mqIVhZC1TbAm","l":[],"d":"EN8IOJweVYXF2TzfkFMf2R4rq4JUsw6xnDdu5ah81b7Q","p":[{"n":"page 1","ao":[{"n":"many_persons","ao":[{"n":"person","ao":["name","number"]}]}]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -483,7 +483,9 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
         let digest = mechanics.said.unwrap();
 
         let presentation = handle_generate(digest, &facade).unwrap();
-        assert_eq!(presentation.languages, vec![Language::Epo, Language::Pol]);
+        let mut sorted_languages = presentation.languages.clone();
+        sorted_languages.sort();
+        assert_eq!(sorted_languages, vec![Language::Epo, Language::Pol]);
         let translations = &presentation.pages_label;
         let eng_expected: BTreeMap<String, String> =
             serde_json::from_str(r#"{"page 1": "Page 1"}"#).unwrap();
