@@ -128,43 +128,31 @@ pub fn build(
             .build_from_ocafile(unparsed_file.clone())
             .map_err(|e| CliError::BuildingError(path.clone(), e.into()))?
     };
-
-    match oca_bundle_element {
-        BundleElement::Mechanics(oca_bundle) => {
-            let said = oca_bundle.said.as_ref().unwrap();
-            if let Some(said_cache) = said_cache {
-                said_cache
-                    .insert(&unparsed_file, said.clone())
-                    .map_err(CacheError::from)?;
-            };
-            let refs = {
-                let facade_locked = facade.lock().unwrap();
-                facade_locked.fetch_all_refs().unwrap()
-            };
-            let schema_name = refs.iter().find(|&(_, v)| *v == said.to_string());
-            if let SummaryOptions::Human = summary {
-                if let Some((refs, _)) = schema_name {
-                    println!(
-                        "OCA bundle created in local repository with SAID: {} and name: {}",
-                        &said, refs
-                    );
-                } else {
-                    println!(
-                        "OCA bundle created in local repository with SAID: {:?}",
-                        &said
-                    );
-                };
-            };
-            Ok(Some((said.clone(), unparsed_file)))
-        }
-        BundleElement::Transformation(transformation_file) => {
-            let code = HashFunctionCode::Blake3_256;
-            let format = SerializationFormats::JSON;
-            let transformation_file_json = transformation_file.encode(&code, &format).unwrap();
-            println!("{}", String::from_utf8(transformation_file_json).unwrap());
-            Ok(None)
-        }
-    }
+    let said = oca_bundle_element.said.as_ref().unwrap();
+    if let Some(said_cache) = said_cache {
+        said_cache
+            .insert(&unparsed_file, said.clone())
+            .map_err(CacheError::from)?;
+    };
+    let refs = {
+        let facade_locked = facade.lock().unwrap();
+        facade_locked.fetch_all_refs().unwrap()
+    };
+    let schema_name = refs.iter().find(|&(_, v)| *v == said.to_string());
+    if let SummaryOptions::Human = summary {
+        if let Some((refs, _)) = schema_name {
+            println!(
+                "OCA bundle created in local repository with SAID: {} and name: {}",
+                &said, refs
+            );
+        } else {
+            println!(
+                "OCA bundle created in local repository with SAID: {:?}",
+                &said
+            );
+        };
+    };
+    Ok(Some((said.clone(), unparsed_file)))
 }
 
 // pub fn compute_hash(content: &str) -> String {

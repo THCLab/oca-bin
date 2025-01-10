@@ -83,8 +83,14 @@ impl std::fmt::Display for BuildingFailures {
             .0
             .iter()
             .flat_map(|e| match e {
-                oca_rs::facade::build::Error::ValidationError(valdation_errors) => {
-                    valdation_errors.iter().map(|e| e.to_string())
+                oca_rs::facade::build::Error::ValidationError(validation_errors) => {
+                    validation_errors
+                        .iter()
+                        .map(|e| e.to_string())
+                        .collect::<Vec<_>>()
+                }
+                oca_rs::facade::build::Error::Deprecated => {
+                    vec!["Deprecated error occurred".to_string()]
                 }
             })
             .collect::<Vec<_>>();
