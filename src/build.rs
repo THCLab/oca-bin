@@ -5,7 +5,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use oca_rs::{facade::bundle::BundleElement, Facade, HashFunctionCode, SerializationFormats};
+use oca_sdk_rs::Facade;
 use said::SelfAddressingIdentifier;
 use serde::Serialize;
 use serde_json::json;
@@ -19,7 +19,6 @@ use crate::{
     publish_oca_file_for,
     summary::SummaryOptions,
 };
-use oca_rs::EncodeBundle;
 
 #[derive(thiserror::Error, Debug)]
 pub enum CacheError {

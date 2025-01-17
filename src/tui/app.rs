@@ -11,7 +11,7 @@ use std::{
 pub use super::bundle_list::BundleListError;
 use anyhow::Result;
 use crossterm::event::{self, poll, Event, KeyCode, KeyModifiers, MouseEventKind};
-use oca_rs::Facade;
+use oca_sdk_rs::Facade;
 use ratatui::{
     backend::Backend,
     buffer::Buffer,

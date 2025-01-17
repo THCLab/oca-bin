@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use oca_rs::Facade;
+use oca_sdk_rs::Facade;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,

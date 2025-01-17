@@ -1343,10 +1343,9 @@ dependencies = [
  "kv",
  "lazy_static",
  "log",
- "oca-ast-semantics",
- "oca-bundle-semantics",
  "oca-presentation",
  "oca-rs",
+ "oca-sdk-rs",
  "petgraph",
  "ratatui",
  "recursion",
@@ -1372,9 +1371,9 @@ dependencies = [
 
 [[package]]
 name = "oca-ast-semantics"
-version = "0.6.6"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "802305d9cbbaad1c77826192a2ba9d3db56d2203df87ec2197b599434a22aac0"
+checksum = "e16ec427959c86d02b53830cb91ab63932fa516e0b0fb8dcc3f8a0da5fd40977"
 dependencies = [
  "env_logger",
  "indexmap 1.9.3",
@@ -1392,9 +1391,9 @@ dependencies = [
 
 [[package]]
 name = "oca-ast-transformation"
-version = "0.6.6"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8e6954e9db639b1a0b89bbc8c6120a79418828787060850fbff6e791d3d74a0"
+checksum = "e51c936ec4be513402e3099775869dc81228dd65c20e62e8efcafdb6c9517648"
 dependencies = [
  "env_logger",
  "indexmap 1.9.3",
@@ -1412,9 +1411,9 @@ dependencies = [
 
 [[package]]
 name = "oca-bundle-semantics"
-version = "0.6.6"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "134577ecec2827b42e9f52cb1a2951dceac042fd50e5eaa1fd4a954773e06cfc"
+checksum = "bf56425494302493964dd47ce9754318c8c2dfa4bee6110f76cc0219a39d5b2f"
 dependencies = [
  "cascade",
  "convert_case",
@@ -1441,9 +1440,9 @@ dependencies = [
 
 [[package]]
 name = "oca-dag-semantics"
-version = "0.6.6"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddb7f5a56f6e58c803dc3f2054b877b75d6149a927c8643fd9c4861157e90f3f"
+checksum = "f069a5ff44a968b18353d7d5b7c6f111c4640d39954125e9c8e19b1eca117f0b"
 dependencies = [
  "dyn-clonable",
  "indexmap 1.9.3",
@@ -1458,9 +1457,9 @@ dependencies = [
 
 [[package]]
 name = "oca-file"
-version = "0.6.6"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d63db1f08ba992104342da378f4444e5269e79c06bad16c7d9fc51a812482062"
+checksum = "882e0955cd4cc77ccab3341762a35d9ba74aad5887486179612778fc998ddf71"
 dependencies = [
  "clap 4.5.2",
  "convert_case",
@@ -1482,9 +1481,9 @@ dependencies = [
 
 [[package]]
 name = "oca-file-semantics"
-version = "0.6.6"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5221f6c7dcb98af7b8727568ef37a27b54eb30544192b579ae3e4d0e8cb2c210"
+checksum = "ed75b4cc90d80983e024958b49efab069f43ef8fbf91e7f135087ea79159b9ef"
 dependencies = [
  "clap 4.5.2",
  "convert_case",
@@ -1505,9 +1504,9 @@ dependencies = [
 
 [[package]]
 name = "oca-file-transformation"
-version = "0.6.6"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f27aefb84b69d8768cdd30b2bc8375b4b373e5ea7805f454c61df1b6f0c34f86"
+checksum = "2f2a9d6724fadb976f2bff5340246e681d2c613c3ce05abb81992f23d44b4f3b"
 dependencies = [
  "clap 4.5.2",
  "convert_case",
@@ -1543,9 +1542,9 @@ dependencies = [
 
 [[package]]
 name = "oca-rs"
-version = "0.6.6"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b80983884db7d33169d1263eb515bedf33faa9c1c06fbcbd4148bf72ccba996"
+checksum = "ed39db2e0c2fc4baf724745b44ce2ef654d87556cb24f71cf45aba20bd99ce2c"
 dependencies = [
  "dyn-clonable",
  "isolang",
@@ -1562,6 +1561,20 @@ dependencies = [
  "serde_json",
  "sled",
  "thiserror",
+ "transformation-file",
+]
+
+[[package]]
+name = "oca-sdk-rs"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d66e47d62bb912d4755da9371c6ea5cf611e4a292992dbd62eb78e5d511744f"
+dependencies = [
+ "oca-ast-semantics",
+ "oca-bundle-semantics",
+ "oca-rs",
+ "serde",
+ "serde_json",
  "transformation-file",
 ]
 
@@ -2800,9 +2813,9 @@ dependencies = [
 
 [[package]]
 name = "transformation-file"
-version = "0.6.6"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebb5aae9a35be39475d8e19f39f7ce0b60c86ce59d79667e378f9bbd64e539a4"
+checksum = "4e53ae1f03ea586b775f3d41058d17a697f7381c744af07a1a821189bf0ce736"
 dependencies = [
  "indexmap 1.9.3",
  "oca-ast-transformation",

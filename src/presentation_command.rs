@@ -2,16 +2,16 @@ use clap::Subcommand;
 use indexmap::IndexMap;
 use isolang::Language;
 use itertools::Itertools;
-use oca_ast_semantics::ast::recursive_attributes::NestedAttrTypeFrame;
-use oca_ast_semantics::ast::{AttributeType, NestedAttrType, OverlayType, RefValue};
-use oca_bundle_semantics::state::oca::OCABundle;
 use oca_presentation::page::recursion_setup::PageElementFrame;
 use oca_presentation::presentation::AttrType;
 use oca_presentation::{
     page::{Page, PageElement},
     presentation::{self, Presentation},
 };
-use oca_rs::Facade;
+use oca_sdk_rs::{
+    AttributeType, Facade, NestedAttrType, NestedAttrTypeFrame, OCABundle,
+    OverlayType, RefValue,
+};
 use recursion::{CollapsibleExt, ExpandableExt};
 use said::{
     derivation::HashFunctionCode,
@@ -267,18 +267,9 @@ mod tests {
     use std::collections::BTreeMap;
 
     use isolang::Language;
-    use oca_bundle_semantics::state::oca::OCABundle;
     use oca_presentation::{page::PageElement, presentation::AttrType};
-    use oca_rs::facade::bundle::BundleElement;
 
     use crate::{get_oca_facade, presentation_command::handle_generate};
-
-    fn extract_mechanics(element: BundleElement) -> OCABundle {
-        match element {
-            BundleElement::Mechanics(mechanics) => mechanics,
-            _ => panic!("Expected BundleElement::Mechanics"),
-        }
-    }
 
     #[test]
     fn test_handle_references() {
@@ -290,8 +281,7 @@ mod tests {
 
         // Value oca bundle
         let oca_bundle0 = facade.build_from_ocafile(oca_file0).unwrap();
-        let mechanics0 = extract_mechanics(oca_bundle0);
-        let digest0 = mechanics0.said.unwrap();
+        let digest0 = oca_bundle0.said.unwrap();
 
         let oca_file1 = format!(
             "ADD ATTRIBUTE person=refs:{}\nADD ATTRIBUTE like_cats=Boolean",
@@ -300,8 +290,7 @@ mod tests {
 
         // Reference oca bundle
         let oca_bundle1 = facade.build_from_ocafile(oca_file1).unwrap();
-        let mechanics1 = extract_mechanics(oca_bundle1);
-        let digest1 = mechanics1.said.unwrap();
+        let digest1 = oca_bundle1.said.unwrap();
 
         let presentation = handle_generate(digest1.clone(), &facade).unwrap();
 
@@ -328,8 +317,7 @@ mod tests {
 
         // Reference to Reference oca bundle
         let oca_bundle2 = facade.build_from_ocafile(oca_file2).unwrap();
-        let mechanics2 = extract_mechanics(oca_bundle2);
-        let digest2 = mechanics2.said.unwrap();
+        let digest2 = oca_bundle2.said.unwrap();
 
         let presentation = handle_generate(digest2.clone(), &facade).unwrap();
 
@@ -365,8 +353,7 @@ mod tests {
 
         // Reference oca bundle
         let array_bundle = facade.build_from_ocafile(oca_file0.clone()).unwrap();
-        let array_mechanics = extract_mechanics(array_bundle);
-        let array_bundle_said = array_mechanics.said.unwrap();
+        let array_bundle_said = array_bundle.said.unwrap();
 
         let presentation = handle_generate(array_bundle_said.clone(), &facade).unwrap();
 
@@ -390,8 +377,7 @@ mod tests {
 
         // Value oca bundle
         let oca_bundle0 = facade.build_from_ocafile(oca_file1.clone()).unwrap();
-        let mechanics0 = extract_mechanics(oca_bundle0);
-        let digest0 = mechanics0.said.unwrap();
+        let digest0 = oca_bundle0.said.unwrap();
 
         let presentation = handle_generate(digest0.clone(), &facade).unwrap();
 
@@ -407,8 +393,7 @@ mod tests {
 
         // Reference oca bundle
         let person_oca_bundle = facade.build_from_ocafile(oca_file1.clone()).unwrap();
-        let person_mechanics = extract_mechanics(person_oca_bundle);
-        let person_bundle_said = person_mechanics.said.unwrap();
+        let person_bundle_said = person_oca_bundle.said.unwrap();
 
         let presentation = handle_generate(person_bundle_said.clone(), &facade).unwrap();
 
@@ -440,8 +425,7 @@ mod tests {
         );
 
         let many_persons_bundle = facade.build_from_ocafile(oca_file2.clone()).unwrap();
-        let many_persons_mechanics = extract_mechanics(many_persons_bundle);
-        let many_person_bundle_digest = many_persons_mechanics.said.unwrap();
+        let many_person_bundle_digest = many_persons_bundle.said.unwrap();
 
         let presentation = handle_generate(many_person_bundle_digest, &facade).unwrap();
 
@@ -479,8 +463,7 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
 "#;
 
         let oca_bundle = facade.build_from_ocafile(oca_file.to_string()).unwrap();
-        let mechanics = extract_mechanics(oca_bundle);
-        let digest = mechanics.said.unwrap();
+        let digest = oca_bundle.said.unwrap();
 
         let presentation = handle_generate(digest, &facade).unwrap();
         let mut sorted_languages = presentation.languages.clone();
@@ -503,8 +486,7 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
         let oca_file = r#"ADD ATTRIBUTE radio=Text dt=DateTime img=Binary"#;
 
         let oca_bundle = facade.build_from_ocafile(oca_file.to_string()).unwrap();
-        let mechanics = extract_mechanics(oca_bundle);
-        let digest = mechanics.said.unwrap();
+        let digest = oca_bundle.said.unwrap();
 
         let presentation = handle_generate(digest, &facade).unwrap();
         let interaction_attrs = presentation.interaction[0].clone().attr_properties;
@@ -529,13 +511,11 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
         let oca_file = r#"ADD ATTRIBUTE radio=Text dt=DateTime img=Binary"#;
 
         let oca_bundle = facade.build_from_ocafile(oca_file.to_string()).unwrap();
-        let mechanics = extract_mechanics(oca_bundle);
-        let digest = mechanics.said.unwrap();
+        let digest = oca_bundle.said.unwrap();
 
         let oca_file_2 = format!(r#"ADD ATTRIBUTE nested=refs:{}"#, digest.to_string());
         let oca_bundle2 = facade.build_from_ocafile(oca_file_2.to_string()).unwrap();
-        let mechanics2 = extract_mechanics(oca_bundle2);
-        let nested_digest = mechanics2.said.unwrap();
+        let nested_digest = oca_bundle2.said.unwrap();
 
         let oca_file_3 = format!(
             r#"ADD ATTRIBUTE again=refs:{} once=refs:{}"#,
@@ -543,8 +523,7 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
             digest.to_string()
         );
         let oca_bundle3 = facade.build_from_ocafile(oca_file_3.to_string()).unwrap();
-        let mechanics3 = extract_mechanics(oca_bundle3);
-        let nested_digest = mechanics3.said.unwrap();
+        let nested_digest = oca_bundle3.said.unwrap();
 
         let presentation = handle_generate(nested_digest, &facade).unwrap();
         let interaction_attrs = presentation.interaction[0].clone().attr_properties;
@@ -567,8 +546,7 @@ ADD ENTRY pl ATTRS radio={"o1": "etykieta1", "o2": "etykieta2", "o3": "etykieta3
 
         let oca_file_4 = format!(r#"ADD ATTRIBUTE list=Array[refs:{}]"#, digest.to_string());
         let oca_bundle4 = facade.build_from_ocafile(oca_file_4.to_string()).unwrap();
-        let mechanics4 = extract_mechanics(oca_bundle4);
-        let array_digest = mechanics4.said.unwrap();
+        let array_digest = oca_bundle4.said.unwrap();
         let presentation = handle_generate(array_digest, &facade).unwrap();
         let interaction_attrs = presentation.interaction[0].clone().attr_properties;
         assert_eq!(

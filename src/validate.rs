@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use oca_rs::Facade;
+use oca_sdk_rs::Facade;
 
 use crate::{
     dependency_graph::{parse_name, MutableGraph},

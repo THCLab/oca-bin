@@ -1,5 +1,4 @@
-use oca_ast_semantics::ast::{NestedAttrType, RefValue};
-use oca_rs::Facade;
+use oca_sdk_rs::{Facade, NestedAttrType, RefValue};
 use said::SelfAddressingIdentifier;
 use serde_json::{Map, Value};
 
@@ -84,16 +83,7 @@ fn handle_reference(
 #[cfg(test)]
 mod tests {
     use crate::{dependency_graph::DependencyGraph, get_oca_facade, mapping::mapping};
-    use oca_bundle_semantics::state::oca::OCABundle;
-    use oca_rs::facade::bundle::BundleElement;
     use std::{fs::File, io::Write};
-
-    fn extract_mechanics(element: BundleElement) -> OCABundle {
-        match element {
-            BundleElement::Mechanics(mechanics) => mechanics,
-            _ => panic!("Expected BundleElement::Mechanics"),
-        }
-    }
 
     #[test]
     fn test_handle_references() {
@@ -105,8 +95,7 @@ mod tests {
 
         // Value oca bundle
         let oca_bundle0 = facade.build_from_ocafile(oca_file0.clone()).unwrap();
-        let mechanics0 = extract_mechanics(oca_bundle0);
-        let digest0 = mechanics0.said.unwrap();
+        let digest0 = oca_bundle0.said.unwrap();
 
         let oca_file1 = format!(
             "ADD ATTRIBUTE person=refs:{}\nADD ATTRIBUTE like_cats=Boolean",
@@ -115,8 +104,7 @@ mod tests {
 
         // Reference oca bundle
         let oca_bundle1 = facade.build_from_ocafile(oca_file1.clone()).unwrap();
-        let mechanics1 = extract_mechanics(oca_bundle1);
-        let digest1 = mechanics1.said.unwrap();
+        let digest1 = oca_bundle1.said.unwrap();
 
         let oca_file2 = format!(
             "ADD ATTRIBUTE cat_lover=refs:{}\nADD ATTRIBUTE favorite_cat=Text",
@@ -125,8 +113,7 @@ mod tests {
 
         // Reference to Reference oca bundle
         let oca_bundle2 = facade.build_from_ocafile(oca_file2.clone()).unwrap();
-        let mechanics2 = extract_mechanics(oca_bundle2);
-        let digest2 = mechanics2.said.unwrap();
+        let digest2 = oca_bundle2.said.unwrap();
 
         // Build temporary directory with test ocafiles.
         let list = [
@@ -170,15 +157,13 @@ mod tests {
 
         // Value oca bundle
         let oca_bundle0 = facade.build_from_ocafile(oca_file1.clone()).unwrap();
-        let mechanics0 = extract_mechanics(oca_bundle0);
-        let digest0 = mechanics0.said.unwrap();
+        let digest0 = oca_bundle0.said.unwrap();
 
         let oca_file2 = format!("ADD ATTRIBUTE person=refs:{}", digest0.to_string());
 
         // Reference oca bundle
         let person_oca_bundle = facade.build_from_ocafile(oca_file2.clone()).unwrap();
-        let person_mechanics = extract_mechanics(person_oca_bundle);
-        let person_bundle_said = person_mechanics.said.unwrap();
+        let person_bundle_said = person_oca_bundle.said.unwrap();
 
         // Array of references oca bundle
         let oca_file3 = format!(
@@ -187,8 +172,7 @@ mod tests {
         );
 
         let many_persons_bundle = facade.build_from_ocafile(oca_file3.clone()).unwrap();
-        let many_persons_mechanics = extract_mechanics(many_persons_bundle);
-        let many_person_bundle_digest = many_persons_mechanics.said.unwrap();
+        let many_person_bundle_digest = many_persons_bundle.said.unwrap();
 
         // Build temporary directory with test ocafiles.
         let list = [

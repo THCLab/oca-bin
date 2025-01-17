@@ -9,7 +9,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use oca_rs::Facade;
+use oca_sdk_rs::Facade;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},

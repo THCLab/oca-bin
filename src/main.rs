@@ -31,7 +31,8 @@ use utils::visit_dirs_recursive;
 
 use clap::Parser as ClapParser;
 use clap::Subcommand;
-use oca_rs::{repositories::SQLiteConfig, Facade};
+use oca_rs::repositories::SQLiteConfig;
+use oca_sdk_rs::Facade;
 use url::Url;
 
 use crate::config::{init_or_read_config, write_config, Config, OCA_DIR_NAME};
