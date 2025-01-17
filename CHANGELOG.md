@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.2] - 2025-01-17
+
+### ⚙️ Miscellaneous Tasks
+
+- Update oca dependencies and refactor imports to use oca_sdk_rs
+
+## [0.5.1] - 2025-01-10
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.5.1 version
+
 ## [0.5.0] - 2024-11-15
 
 ### ⚙️ Miscellaneous Tasks
