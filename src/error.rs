@@ -69,9 +69,9 @@ pub enum CliError {
     FileUpdated(PathBuf),
 }
 
-impl From<Vec<oca_rs::facade::build::Error>> for BuildingFailures {
-    fn from(value: Vec<oca_rs::facade::build::Error>) -> Self {
-        Self(value)
+impl From<oca_rs::facade::build::Error> for BuildingFailures {
+    fn from(value: oca_rs::facade::build::Error) -> Self {
+        Self(vec![value])
     }
 }
 
