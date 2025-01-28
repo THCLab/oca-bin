@@ -2,11 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.3] - 2025-01-28
+
+### ⚙️ Miscellaneous Tasks
+
+- Update oca-rs to 0.6.9 and oca-sdk-rs to 0.1.4
+
 ## [0.5.2] - 2025-01-17
 
 ### ⚙️ Miscellaneous Tasks
 
 - Update oca dependencies and refactor imports to use oca_sdk_rs
+- Release 0.5.2 version
 
 ## [0.5.1] - 2025-01-10
 
@@ -301,15 +308,15 @@ All notable changes to this project will be documented in this file.
 - *(tui)* Unselect elements that were built
 - *(tui)* Unselect elements that were published
 
+### 💼 Other
+
+- Use git cliff to auto-update CHANGELOG.md
+
 ### ⚙️ Miscellaneous Tasks
 
 - Release 0.4.0 version
 - Rewamp CHANGELOG
 - Release 0.4.1 version
-
-### Build
-
-- Use git cliff to auto-update CHANGELOG.md
 
 ## [0.4.0-rc.13] - 2024-06-17
 
@@ -317,6 +324,10 @@ All notable changes to this project will be documented in this file.
 
 - Allow setting publishing timeout in tui
 - Show deleted files in changes
+
+### 💼 Other
+
+- Change mapping format
 
 ### 🚜 Refactor
 
@@ -327,10 +338,6 @@ All notable changes to this project will be documented in this file.
 - Bump oca-presentation version
 - Release 0.4.0-rc.13 version
 - Changelog for rc13
-
-### Fit
-
-- Change mapping format
 
 ## [0.4.0-rc.12] - 2024-06-12
 
@@ -520,6 +527,10 @@ All notable changes to this project will be documented in this file.
 - Add namespaces in `i` section
 - Generate namespaces for arrays
 
+### 💼 Other
+
+- Reformat
+
 ### 🚜 Refactor
 
 - Update presentation command
@@ -535,10 +546,6 @@ All notable changes to this project will be documented in this file.
 
 - Update cargo.toml
 - Release 0.4.0-rc.5 version
-
-### Fir
-
-- Reformat
 
 ## [0.4.0-rc.4] - 2024-01-09
 
@@ -556,16 +563,16 @@ All notable changes to this project will be documented in this file.
 
 ## [0.4.0-rc.2] - 2024-01-09
 
+### 💼 Other
+
+- 0.4.0-rc.2
+
 ### ⚙️ Miscellaneous Tasks
 
 - Add release configuration
 - Exclude gitattributes
 - Fix version in cargo
 - Release 0.4.0-rc.2 version
-
-### Release
-
-- 0.4.0-rc.2
 
 ## [0.4.0-rc.1] - 2024-01-09
 
