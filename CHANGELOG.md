@@ -2,11 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2025-03-06
+
+### ⚙️ Miscellaneous Tasks
+
+- [**breaking**] Update oca-rs to 0.7.1 and oca-sdk-rs to 0.2.0
+
 ## [0.5.4] - 2025-01-28
 
 ### ⚙️ Miscellaneous Tasks
 
 - Update oca-rs to 0.6.10 and oca-sdk-rs to 0.1.5
+- Release 0.5.4 version
 
 ## [0.5.3] - 2025-01-28
 
