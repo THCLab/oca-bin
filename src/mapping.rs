@@ -134,7 +134,7 @@ mod tests {
         let o = mapping(digest2, &facade, &dependency_graph).unwrap();
 
         let expected_json = r#"{
-  "capture_base": "EISBmsuugPcYzhuKMDLaitrm005sKzXKRDyLZSKVLD5Q",
+  "capture_base": "EEtOmBVVrvKnqHoiKbrJuMKy51Q1UM1GZP6UrLNROKKJ",
   "attribute_mapping": {
     "cat_lover.like_cats": "",
     "cat_lover.person.name": "",
@@ -198,7 +198,7 @@ mod tests {
         .unwrap();
 
         let expected_json = r#"{
-  "capture_base": "EKBAD8ojANsgx9iEsIQgLwDhziebxGBkqjuROFd0AdbP",
+  "capture_base": "EEh6yfBJmAKmjx4NjfZyVKYlPXiR-lkhuC6IFqIq1kDl",
   "attribute_mapping": {
     "many_persons.person.name": "",
     "many_persons.person.number": ""

@@ -10,7 +10,7 @@ use oca_presentation::{
 };
 use oca_sdk_rs::{
     AttributeType, Facade, NestedAttrType, NestedAttrTypeFrame, OCABundle,
-    OverlayType, RefValue,
+    RefValue,
 };
 use recursion::{CollapsibleExt, ExpandableExt};
 use said::{
@@ -173,7 +173,7 @@ pub fn handle_generate(
         .clone()
         .into_iter()
         .filter_map(|overlay| {
-            if overlay.overlay_type() == &OverlayType::Label {
+            if overlay.overlay_type().to_string().eq("Label") {
                 overlay.language().copied()
             } else {
                 None
@@ -357,7 +357,7 @@ mod tests {
 
         let presentation = handle_generate(array_bundle_said.clone(), &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EAOjNMY1GIP-w_3dsY2gIgaPq5i-TPoztRzcG2r5Y0dy","l":[],"d":"ENJc1ClDOXr_EP6DAIPxZhmJFr_vjiVy1ZpbcH9jxzRI","p":[{"n":"page 1","ao":["list","name"]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EHwN0liTAiG3It0mWeVD9cICflrszKISldmpai-UE_CL","l":[],"d":"EI2AicITRPoY_zXQgzY_HafF-pEFEsSTQV-NUbCeSRoy","p":[{"n":"page 1","ao":["list","name"]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -381,7 +381,7 @@ mod tests {
 
         let presentation = handle_generate(digest0.clone(), &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EIFYS-K-4X4MJVdtqf2ZG9nkS3yvngW6WTBLeCMoLcoi","l":[],"d":"ENWL8lTtuhNBJZFLGpSFjis7N4dU41Byc-On6zIxFod_","p":[{"n":"page 1","ao":["name","number"]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EBCWw8uKZxkWlFlw4TJUKxI84avzJ5HvgWaiMbPVVi1N","l":[],"d":"EKvUDNIl8Yu0d2DK4ruPXm-FwGsDO8NMJWEp8QUe61iy","p":[{"n":"page 1","ao":["name","number"]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -397,7 +397,7 @@ mod tests {
 
         let presentation = handle_generate(person_bundle_said.clone(), &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EHezPQN-8eSonW8olkz4z73ct45TD-B274rSSDhYTR60","l":[],"d":"EMh5fo9ZsDTStovCE1i15S0BvDooaf0F_nOCxPxTQAz_","p":[{"n":"page 1","ao":[{"n":"person","ao":["name","number"]}]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EF3SuS9Egmi0D0ZY8cbkjSG9HN3H1x1Okdx33i4wDpnK","l":[],"d":"EPM-xokNT5s33iUF1RrJxqBx0ZHRZ-Rhj8fNu-QiVAWD","p":[{"n":"page 1","ao":[{"n":"person","ao":["name","number"]}]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -429,7 +429,7 @@ mod tests {
 
         let presentation = handle_generate(many_person_bundle_digest, &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EDw_P8EixBGMlfV7Sd-92Xko2oc_9vU_mqIVhZC1TbAm","l":[],"d":"EN8IOJweVYXF2TzfkFMf2R4rq4JUsw6xnDdu5ah81b7Q","p":[{"n":"page 1","ao":[{"n":"many_persons","ao":[{"n":"person","ao":["name","number"]}]}]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EBI5HT_HaPvrS-DqXUr7TmBLOHL0qJclgyVnEwHs9roX","l":[],"d":"EKnCqwqMueykpPpU-8MXDKJGDM8q3dWcWomZVayd618B","p":[{"n":"page 1","ao":[{"n":"many_persons","ao":[{"n":"person","ao":["name","number"]}]}]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
