@@ -357,7 +357,7 @@ mod tests {
 
         let presentation = handle_generate(array_bundle_said.clone(), &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EAOjNMY1GIP-w_3dsY2gIgaPq5i-TPoztRzcG2r5Y0dy","l":[],"d":"ENJc1ClDOXr_EP6DAIPxZhmJFr_vjiVy1ZpbcH9jxzRI","p":[{"n":"page 1","ao":["list","name"]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"ELGnS2OVuNzRzEuT9sT_xz_xunJJc-UkXBM5ZiCig8BS","l":[],"d":"EMzc-zH5-flpGVISWvYtz0ss4pyfu3XQ0MsuQgVlbH-g","p":[{"n":"page 1","ao":["list","name"]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -381,7 +381,7 @@ mod tests {
 
         let presentation = handle_generate(digest0.clone(), &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EIFYS-K-4X4MJVdtqf2ZG9nkS3yvngW6WTBLeCMoLcoi","l":[],"d":"ENWL8lTtuhNBJZFLGpSFjis7N4dU41Byc-On6zIxFod_","p":[{"n":"page 1","ao":["name","number"]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EO1qj1bC8r6ET5PnUKpdhbAuGD3VecMNYr4f4H2H8YIi","l":[],"d":"EPxj62cPGOPIbIfosBqaJU4d_irafSv5BAL5ihUhPa9i","p":[{"n":"page 1","ao":["name","number"]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -397,7 +397,7 @@ mod tests {
 
         let presentation = handle_generate(person_bundle_said.clone(), &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EHezPQN-8eSonW8olkz4z73ct45TD-B274rSSDhYTR60","l":[],"d":"EMh5fo9ZsDTStovCE1i15S0BvDooaf0F_nOCxPxTQAz_","p":[{"n":"page 1","ao":[{"n":"person","ao":["name","number"]}]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EHIE5TptIQ886VLvGY5w2ZDyw0JjBejb4y-vTb768Pc9","l":[],"d":"EF4UAUXOEr4f4oYdGFcC-DII971a5HaeVs3LgtQreJWU","p":[{"n":"page 1","ao":[{"n":"person","ao":["name","number"]}]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -429,7 +429,7 @@ mod tests {
 
         let presentation = handle_generate(many_person_bundle_digest, &facade).unwrap();
 
-        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EDw_P8EixBGMlfV7Sd-92Xko2oc_9vU_mqIVhZC1TbAm","l":[],"d":"EN8IOJweVYXF2TzfkFMf2R4rq4JUsw6xnDdu5ah81b7Q","p":[{"n":"page 1","ao":[{"n":"many_persons","ao":[{"n":"person","ao":["name","number"]}]}]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
+        let expected_presentation_json = r#"{"v":"1.0.0","bd":"EKhwOt6Bfuf0v5h_2jnOMY4nj4UvBbfD82MWA_pLG5AR","l":[],"d":"EK4iN28h0QFwpgLa4KE27Aeo5YJQ8Bi8E2JXziZ_nvBV","p":[{"n":"page 1","ao":[{"n":"many_persons","ao":[{"n":"person","ao":["name","number"]}]}]}],"po":["page1"],"pl":{"eng":{"page 1":"Page 1"}},"i":[{"m":"web","c":"capture","a":{}}]}"#;
         assert_eq!(
             expected_presentation_json,
             serde_json::to_string(&presentation).unwrap()
@@ -455,7 +455,6 @@ mod tests {
         let oca_file = r#"ADD ATTRIBUTE name=Text age=Numeric radio=Text
 ADD LABEL eo ATTRS name="Nomo" age="aĝo" radio="radio"
 ADD LABEL pl ATTRS name="Imię" age="wiek" radio="radio"
-ADD INFORMATION en ATTRS name="Object" age="Object"
 ADD CHARACTER_ENCODING ATTRS name="utf-8" age="utf-8"
 ADD ENTRY_CODE ATTRS radio=["o1", "o2", "o3"]
 ADD ENTRY eo ATTRS radio={"o1": "etikedo1", "o2": "etikedo2", "o3": "etikiedo3"}

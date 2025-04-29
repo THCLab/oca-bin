@@ -17,8 +17,8 @@ path = "src/main.rs"
 dirs = "5.0.1"
 clap = { version = "4.0.29", features = ["derive"] }
 log = "0.4.20"
-oca-rs = { version = "0.6.10", features = ["local-references"] }
-oca-sdk-rs = "0.1.5"
+oca-rs = { version = "2.0.0-rc2", features = ["local-references"], path = "../oca-rs/oca" }
+oca-sdk-rs = { version = "2.0.0-rc1", path = "../oca-sdk-rs" }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
 reqwest = { version = "0.11", features = ["json", "blocking"] }
@@ -46,8 +46,8 @@ lazy_static = "1.4.0"
 color-eyre = "0.6.3"
 url = "2.5.2"
 common-path = "1.0.0"
-sha2 = "0.10" 
-base64 = "0.21" 
+sha2 = "0.10"
+base64 = "0.21"
 kv = {version = "0.24.0", features = ["json-value"]}
 
 [dev-dependencies]
