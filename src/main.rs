@@ -11,6 +11,9 @@ use dependency_graph::parse_name;
 use dependency_graph::GraphError;
 use error::CliError;
 use oca_presentation::presentation::Presentation;
+use oca_rs::HashFunctionCode;
+use oca_rs::SerializationFormats;
+use oca_rs::EncodeBundle;
 use presentation_command::PresentationCommand;
 use serde_json::json;
 use std::collections::HashSet;
@@ -717,11 +720,35 @@ fn main() -> Result<(), CliError> {
                 let oca_bundles = facade
                     .get_oca_bundle(said, *with_dependencies)
                     .map_err(CliError::OcaBundleAstError)?;
-                let content = serde_json::to_value(oca_bundles).map_err(CliError::ReadOcaError)?;
+                let code = HashFunctionCode::Blake3_256;
+                let format = SerializationFormats::JSON;
+                let version = serde_json::from_str::<serde_json::Value>(
+                    &String::from_utf8(
+                        oca_bundles.encode(&code, &format).unwrap()
+                    ).unwrap()
+                ).unwrap().get("v").unwrap().clone();
+                let output = serde_json::to_string(&serde_json::json!({
+                    "v": version,
+                    "bundle":
+                        serde_json::from_str::<serde_json::Value>(
+                            &String::from_utf8(
+                                oca_bundles.bundle.encode(&code, &format).unwrap()
+                            ).unwrap()
+                        ).unwrap(),
+                    "dependencies": oca_bundles.dependencies.iter().map(|d| {
+                        serde_json::from_str::<serde_json::Value>(
+                            &String::from_utf8(
+                                d.encode(&code, &format).unwrap()
+                            ).unwrap()
+                        ).unwrap()
+                    }).collect::<Vec<serde_json::Value>>(),
+                }))
+                .expect("Failed to serialize oca_bundle");
                 println!(
                     "{}",
-                    serde_json::to_string_pretty(&content).map_err(CliError::WriteOcaError)?
+                    &output
                 );
+
                 Ok(())
             }
             Some(Commands::Presentation { command }) => {
