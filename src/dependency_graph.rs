@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use oca_rs::facade::build::References;
+use oca_store::facade::build::References;
 use petgraph::{
     algo::toposort,
     graph::NodeIndex,
@@ -14,7 +14,7 @@ use petgraph::{
     Directed, Graph,
 };
 use regex::Regex;
-use said::SelfAddressingIdentifier;
+use oca_sdk_rs::SelfAddressingIdentifier;
 use thiserror::Error;
 
 use crate::utils::visit_current_dir;
@@ -423,7 +423,7 @@ impl References for MutableGraph {
     }
 }
 
-impl oca_rs::facade::build::References for DependencyGraph {
+impl oca_store::facade::build::References for DependencyGraph {
     fn find(&self, refn: &str) -> Option<String> {
         self.get_said(refn).map(|said| said.to_string()).ok()
     }

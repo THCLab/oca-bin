@@ -2,9 +2,10 @@ use std::path::Path;
 
 use base64::{prelude::BASE64_STANDARD, Engine};
 use kv::{Bucket, Config, Json, Store};
-use said::SelfAddressingIdentifier;
+use oca_sdk_rs::SelfAddressingIdentifier;
 use sha2::{Digest, Sha256};
 
+// TODO Move to oca-store
 pub struct BuiltOCACache {
     store: Store,
 }

@@ -11,7 +11,7 @@ use std::{
 pub use super::bundle_list::BundleListError;
 use anyhow::Result;
 use crossterm::event::{self, poll, Event, KeyCode, KeyModifiers, MouseEventKind};
-use oca_sdk_rs::Facade;
+use oca_sdk_rs::{overlay_registry::OverlayLocalRegistry, Facade};
 use ratatui::{
     backend::Backend,
     buffer::Buffer,
@@ -191,12 +191,15 @@ impl App {
                         KeyCode::Char('v') => {
                             let selected = self.bundles.selected_oca_bundle();
                             let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
+                            // TODO take from config
+                            let registry = OverlayLocalRegistry::from_dir("../oca-rs/overlay-file/core_overlays/").unwrap();
                             self.output.set_currently_validated(paths);
 
                             self.output.handle_validate(
                                 self.facade.clone(),
                                 self.graph.clone(),
                                 selected,
+                                registry.clone(),
                             )
                         }
                         KeyCode::Char('b') => {
@@ -233,7 +236,7 @@ impl App {
                     match dependent {
                         Ok(dependent) => {
                             self.details.set(Details {
-                                id: pointed.oca_bundle.said.unwrap(),
+                                id: pointed.oca_bundle.digest.unwrap(),
                                 name: pointed.refn,
                                 dependent,
                             });
@@ -279,6 +282,7 @@ impl App {
         let list = self.bundles.items.clone();
         let to_show_dir = Arc::new(self.base.clone());
         let changes = self.changes.changes();
+        let registry = OverlayLocalRegistry::from_dir("../oca-rs/overlay-file/core_overlays/").unwrap();
 
         thread::spawn(move || {
             let start = Instant::now();
@@ -307,6 +311,7 @@ impl App {
                             name.clone(),
                             facade.clone(),
                             &mut graph,
+                            registry.clone(),
                             errs.clone(),
                             &cache,
                         ) {
@@ -371,7 +376,7 @@ impl App {
                 .into_iter()
                 .map(|el| match el {
                     Element::Ok(oks) => {
-                        let said = oks.get().oca_bundle.said.clone().unwrap();
+                        let said = oks.get().oca_bundle.digest.clone().unwrap();
                         if let Some(index) = oks.index() {
                             said_index_map.insert(said.clone(), index);
                         }

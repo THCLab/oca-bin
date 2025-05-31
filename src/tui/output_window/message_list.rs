@@ -149,7 +149,7 @@ impl<'a> MessageLine<'a> {
                 .0
                 .iter()
                 .flat_map(|err| match err {
-                    oca_rs::facade::build::Error::ValidationError(ve) => ve
+                    oca_store::facade::build::Error::ValidationError(ve) => ve
                         .iter()
                         .flat_map(move |atomic_error| {
                             vec![
@@ -172,7 +172,7 @@ impl<'a> MessageLine<'a> {
                             ]
                         })
                         .collect::<Vec<_>>(),
-                    oca_rs::facade::build::Error::Deprecated => {
+                    oca_store::facade::build::Error::Deprecated => {
                         vec![Span::styled(
                             "! Building error in file ".to_string(),
                             Style::default()

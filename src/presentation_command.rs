@@ -8,16 +8,9 @@ use oca_presentation::{
     page::{Page, PageElement},
     presentation::{self, Presentation},
 };
-use oca_sdk_rs::{
-    AttributeType, Facade, NestedAttrType, NestedAttrTypeFrame, OCABundle,
-    OverlayType, RefValue,
-};
+use oca_sdk_rs::{AttributeType, Facade, NestedAttrType, NestedAttrTypeFrame, OCABundleModel, RefValue};
 use recursion::{CollapsibleExt, ExpandableExt};
-use said::{
-    derivation::HashFunctionCode,
-    sad::{SerializationFormats, SAD},
-    SelfAddressingIdentifier,
-};
+use oca_sdk_rs::SelfAddressingIdentifier;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -105,112 +98,116 @@ pub fn handle_generate(
     said: SelfAddressingIdentifier,
     facade: &Facade,
 ) -> Result<Presentation, PresentationError> {
-    let oca_bundles = facade
-        .get_oca_bundle(said, true)
-        .map_err(PresentationError::OcaBundleErrors)?;
-    let dependencies = oca_bundles.dependencies;
-    let bundle = oca_bundles.bundle;
-    let attributes = bundle.capture_base.attributes;
+    // let oca_bundles = facade
+    //     .get_oca_bundle(said, true)
+    //     .map_err(PresentationError::OcaBundleErrors)?;
+    // let dependencies = oca_bundles.dependencies;
+    // let bundle = oca_bundles.bundle;
+    // let attributes = bundle.capture_base.attributes;
+    //
+    // let mut attr_order = vec![];
+    // let mut interactions: IndexMap<String, AttrType> = IndexMap::new();
+    // for (name, attr) in attributes {
+    //     let mut reference_name: Option<String> = None;
+    //     // Convert NestedAttrType to PageElement
+    //     let page_element = PageElement::expand_frames((name, attr), |(name, attr)| match attr {
+    //         NestedAttrType::Array(arr) => {
+    //             reference_name = match &reference_name {
+    //                 Some(nested) => Some([nested, ".", &name].concat()),
+    //                 None => Some(name.to_string()),
+    //             };
+    //             // Array elements can have nested references inside
+    //             arr.collapse_frames(|frame| match frame {
+    //                 NestedAttrTypeFrame::Reference(RefValue::Said(said)) => {
+    //                     let more_nested_attributes = handle_reference(said.clone(), &dependencies);
+    //                     PageElementFrame::Page {
+    //                         name: name.clone(),
+    //                         attribute_order: more_nested_attributes.unwrap(),
+    //                     }
+    //                 }
+    //                 NestedAttrTypeFrame::Value(value) => {
+    //                     save_interaction(
+    //                         &name,
+    //                         value,
+    //                         reference_name.as_deref(),
+    //                         &mut interactions,
+    //                     );
+    //                     PageElementFrame::Value(name.clone())
+    //                 }
+    //                 NestedAttrTypeFrame::Null => PageElementFrame::Value(name.clone()),
+    //                 NestedAttrTypeFrame::Array(arr) => arr,
+    //                 NestedAttrTypeFrame::Reference(RefValue::Name(_name)) => todo!(),
+    //             })
+    //         }
+    //         NestedAttrType::Value(value) => {
+    //             save_interaction(&name, value, reference_name.as_deref(), &mut interactions);
+    //             PageElementFrame::Value(name)
+    //         }
+    //         NestedAttrType::Null => PageElementFrame::Value(name),
+    //         NestedAttrType::Reference(RefValue::Said(said)) => {
+    //             let more_nested_attributes = handle_reference(said, &dependencies);
+    //             reference_name = match &reference_name {
+    //                 Some(nested) => Some([nested, ".", &name].concat()),
+    //                 None => Some(name.to_string()),
+    //             };
+    //             PageElementFrame::Page {
+    //                 name,
+    //                 attribute_order: more_nested_attributes.unwrap(),
+    //             }
+    //         }
+    //         NestedAttrType::Reference(RefValue::Name(_name)) => todo!(),
+    //     });
+    //
+    //     attr_order.push(page_element);
+    // }
+    //
+    // // TODO FIX Hardcoded
+    // let languages: Vec<_> = bundle
+    //     .overlays
+    //     .clone()
+    //     .into_iter()
+    //     .filter_map(|overlay| {
+    //         if overlay.name == "Label/2.0.0" {
+    //             Language::from_str("pl").ok()
+    //         } else {
+    //             None
+    //         }
+    //     })
+    //     .unique()
+    //     .collect();
+    //
+    // let page_name = "page 1".to_string();
+    // let mut page_translation = IndexMap::new();
+    // let mut eng_translation = BTreeMap::new();
+    // eng_translation.insert(page_name.clone(), "Page 1".to_string());
+    // page_translation.insert(Language::Eng, eng_translation);
+    // let page = Page {
+    //     name: page_name.clone(),
+    //     attribute_order: attr_order,
+    // };
+    //
+    // let mut presentation_base = presentation::Presentation {
+    //     version: "1.0.0".to_string(),
+    //     bundle_digest: bundle.said.clone().unwrap(),
+    //     said: None,
+    //     pages: vec![page],
+    //     pages_order: vec!["page1".to_string()],
+    //     pages_label: page_translation,
+    //     interaction: vec![presentation::Interaction {
+    //         interaction_method: presentation::InteractionMethod::Web,
+    //         context: presentation::Context::Capture,
+    //         attr_properties: interactions,
+    //     }],
+    //     languages,
+    // };
+    // let code = HashFunctionCode::Blake3_256;
+    // let format = SerializationFormats::JSON;
+    // presentation_base.compute_digest(&code, &format);
 
-    let mut attr_order = vec![];
-    let mut interactions: IndexMap<String, AttrType> = IndexMap::new();
-    for (name, attr) in attributes {
-        let mut reference_name: Option<String> = None;
-        // Convert NestedAttrType to PageElement
-        let page_element = PageElement::expand_frames((name, attr), |(name, attr)| match attr {
-            NestedAttrType::Array(arr) => {
-                reference_name = match &reference_name {
-                    Some(nested) => Some([nested, ".", &name].concat()),
-                    None => Some(name.to_string()),
-                };
-                // Array elements can have nested references inside
-                arr.collapse_frames(|frame| match frame {
-                    NestedAttrTypeFrame::Reference(RefValue::Said(said)) => {
-                        let more_nested_attributes = handle_reference(said.clone(), &dependencies);
-                        PageElementFrame::Page {
-                            name: name.clone(),
-                            attribute_order: more_nested_attributes.unwrap(),
-                        }
-                    }
-                    NestedAttrTypeFrame::Value(value) => {
-                        save_interaction(
-                            &name,
-                            value,
-                            reference_name.as_deref(),
-                            &mut interactions,
-                        );
-                        PageElementFrame::Value(name.clone())
-                    }
-                    NestedAttrTypeFrame::Null => PageElementFrame::Value(name.clone()),
-                    NestedAttrTypeFrame::Array(arr) => arr,
-                    NestedAttrTypeFrame::Reference(RefValue::Name(_name)) => todo!(),
-                })
-            }
-            NestedAttrType::Value(value) => {
-                save_interaction(&name, value, reference_name.as_deref(), &mut interactions);
-                PageElementFrame::Value(name)
-            }
-            NestedAttrType::Null => PageElementFrame::Value(name),
-            NestedAttrType::Reference(RefValue::Said(said)) => {
-                let more_nested_attributes = handle_reference(said, &dependencies);
-                reference_name = match &reference_name {
-                    Some(nested) => Some([nested, ".", &name].concat()),
-                    None => Some(name.to_string()),
-                };
-                PageElementFrame::Page {
-                    name,
-                    attribute_order: more_nested_attributes.unwrap(),
-                }
-            }
-            NestedAttrType::Reference(RefValue::Name(_name)) => todo!(),
-        });
-
-        attr_order.push(page_element);
-    }
-
-    let languages: Vec<_> = bundle
-        .overlays
-        .clone()
-        .into_iter()
-        .filter_map(|overlay| {
-            if overlay.overlay_type() == &OverlayType::Label {
-                overlay.language().copied()
-            } else {
-                None
-            }
-        })
-        .unique()
-        .collect();
-
-    let page_name = "page 1".to_string();
-    let mut page_translation = IndexMap::new();
-    let mut eng_translation = BTreeMap::new();
-    eng_translation.insert(page_name.clone(), "Page 1".to_string());
-    page_translation.insert(Language::Eng, eng_translation);
-    let page = Page {
-        name: page_name.clone(),
-        attribute_order: attr_order,
-    };
-
-    let mut presentation_base = presentation::Presentation {
-        version: "1.0.0".to_string(),
-        bundle_digest: bundle.said.clone().unwrap(),
-        said: None,
-        pages: vec![page],
-        pages_order: vec!["page1".to_string()],
-        pages_label: page_translation,
-        interaction: vec![presentation::Interaction {
-            interaction_method: presentation::InteractionMethod::Web,
-            context: presentation::Context::Capture,
-            attr_properties: interactions,
-        }],
-        languages,
-    };
-    let code = HashFunctionCode::Blake3_256;
-    let format = SerializationFormats::JSON;
-    presentation_base.compute_digest(&code, &format);
-
-    Ok(presentation_base)
+    // Ok(presentation_base)
+    Err(PresentationError::OcaBundleErrors(vec![
+        "This function is not implemented yet.".to_string(),
+    ]))
 }
 
 fn save_interaction(

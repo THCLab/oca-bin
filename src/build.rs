@@ -5,8 +5,8 @@ use std::{
 };
 
 use itertools::Itertools;
-use oca_sdk_rs::Facade;
-use said::SelfAddressingIdentifier;
+use oca_sdk_rs::{overlay_registry::OverlayLocalRegistry, Facade};
+use oca_sdk_rs::SelfAddressingIdentifier;
 use serde::Serialize;
 use serde_json::json;
 use url::Url;
@@ -121,13 +121,15 @@ pub fn build(
     let unparsed_file =
         fs::read_to_string(path).map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
     // let hash = compute_hash(unparsed_file.trim());
+    // TODO move that to init function and get configuration for it
+    let registry = OverlayLocalRegistry::from_dir("../oca-rs/overlay-file/core_overlays/").unwrap();
     let oca_bundle_element = {
         let mut facade_locked = facade.lock().unwrap();
         facade_locked
-            .build_from_ocafile(unparsed_file.clone())
+            .build_from_ocafile(unparsed_file.clone(), registry)
             .map_err(|e| CliError::BuildingError(path.clone(), e.into()))?
     };
-    let said = oca_bundle_element.said.as_ref().unwrap();
+    let said = oca_bundle_element.digest.as_ref().unwrap();
     if let Some(said_cache) = said_cache {
         said_cache
             .insert(&unparsed_file, said.clone())

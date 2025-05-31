@@ -4,7 +4,7 @@ use ratatui::{
     text::Line,
     widgets::{Block, Paragraph, Widget},
 };
-use said::SelfAddressingIdentifier;
+use oca_sdk_rs::SelfAddressingIdentifier;
 
 use crate::dependency_graph::Node;
 

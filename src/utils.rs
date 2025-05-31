@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use said::SelfAddressingIdentifier;
+use oca_sdk_rs::SelfAddressingIdentifier;
 use url::Url;
 use walkdir::WalkDir;
 

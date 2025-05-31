@@ -9,7 +9,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use oca_sdk_rs::Facade;
+use oca_sdk_rs::{overlay_registry::OverlayLocalRegistry, Facade};
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
@@ -147,6 +147,7 @@ impl OutputWindow {
         facade: Arc<Mutex<Facade>>,
         graph: MutableGraph,
         bundle_infos: Vec<Element>,
+        registry: OverlayLocalRegistry,
     ) -> Result<bool, CliError> {
         {
             let mut errors = self.errors.lock().unwrap();
@@ -170,7 +171,7 @@ impl OutputWindow {
                     };
                     let res = std::panic::catch_unwind(AssertUnwindSafe(|| {
                         let (to_cache, validation_errors) =
-                            validate_directory(facade.clone(), &mut graph.clone(), name, &cache)
+                            validate_directory(facade.clone(), &mut graph.clone(), name, registry.clone(), &cache)
                                 .unwrap();
                         cache.extend(to_cache);
 

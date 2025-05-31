@@ -1,5 +1,5 @@
 use oca_sdk_rs::{Facade, NestedAttrType, RefValue};
-use said::SelfAddressingIdentifier;
+use oca_sdk_rs::SelfAddressingIdentifier;
 use serde_json::{Map, Value};
 
 use crate::{dependency_graph::DependencyGraph, error::CliError};
@@ -10,11 +10,10 @@ pub fn mapping(
     facade: &Facade,
     dep_graph: &DependencyGraph,
 ) -> Result<Map<String, Value>, CliError> {
-    let oca_bundles = facade
-        .get_oca_bundle(said.clone(), true)
+    let bundle = facade
+        .get_oca_bundle_model(said.clone())
         .map_err(CliError::OcaBundleAstError)?;
-    let bundle = oca_bundles.bundle;
-    let capture_base_said = bundle.capture_base.said.clone().unwrap();
+    let capture_base_said = bundle.capture_base.digest.clone().unwrap();
     let mut map = Map::new();
     map.insert(
         "capture_base".to_string(),
@@ -65,8 +64,7 @@ fn handle_reference(
     facade: &Facade,
     dep_graph: &DependencyGraph,
 ) -> Vec<String> {
-    let oca_bundles = facade.get_oca_bundle(said, true).unwrap();
-    let bundle = oca_bundles.bundle;
+    let bundle = facade.get_oca_bundle_model(said).unwrap();
     let attributes = bundle.capture_base.attributes;
 
     attributes

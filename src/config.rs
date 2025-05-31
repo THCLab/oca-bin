@@ -2,7 +2,7 @@ use std::io::{self, Error, Write};
 use std::{env, path::PathBuf};
 use std::{fs, process};
 
-use oca_rs::data_storage::{DataStorage, SledDataStorage, SledDataStorageConfig};
+use oca_store::data_storage::{DataStorage, SledDataStorage, SledDataStorageConfig};
 use serde::{Deserialize, Serialize};
 
 pub const OCA_CACHE_DB_DIR: &str = "oca_cache";

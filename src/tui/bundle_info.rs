@@ -1,8 +1,7 @@
 use std::fmt::Display;
 
-use oca_sdk_rs::OCABundle;
-
 use crate::dependency_graph::Node;
+use oca_sdk_rs::OCABundleModel;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Status {
@@ -21,7 +20,7 @@ impl Status {
 
 #[derive(Debug, Clone)]
 pub struct BundleInfo {
-    pub oca_bundle: OCABundle,
+    pub oca_bundle: OCABundleModel,
     pub refn: String,
     pub dependencies: Vec<Node>,
 }
