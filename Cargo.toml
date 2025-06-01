@@ -6,6 +6,7 @@ authors = ["Marcin Olichwiruk <marcin.olichwiruk@opensoftware.pl>", "Robert Mitw
 license = "EUPL-1.2"
 readme = "README.md"
 description = "Tool to deal with OCA ecosystem"
+include = ["src/**", "config/semantic.overlayfile", "Cargo.toml", "README.md"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

@@ -25,12 +25,7 @@ use thiserror::Error;
 use url::Url;
 
 use crate::{
-    dependency_graph::{parse_name, DependencyGraph, MutableGraph, Node, NodeParsingError},
-    error::CliError,
-    publish_oca_file_for, saids_to_publish,
-    tui::{details::Details, get_oca_bundle_by_said, output_window::message_list::Message},
-    utils::{handle_panic, parse_url},
-    validate::build,
+    config::Config, dependency_graph::{parse_name, DependencyGraph, MutableGraph, Node, NodeParsingError}, error::CliError, publish_oca_file_for, saids_to_publish, tui::{details::Details, get_oca_bundle_by_said, output_window::message_list::Message}, utils::{handle_panic, parse_url}, validate::build
 };
 
 use super::{
@@ -61,10 +56,11 @@ pub struct App {
     graph: MutableGraph,
     active_window: Window,
     base: PathBuf,
-    remote_repository: Option<String>,
     changes: ChangesWindow,
     details: DetailsWindow,
+    // TODO move to config
     publish_timeout: Option<u64>,
+    config: Config,
 }
 
 enum Window {
@@ -81,8 +77,8 @@ impl App {
         facade: Arc<Mutex<Facade>>,
         paths: Vec<PathBuf>,
         size: usize,
-        remote_repo_url: Option<String>,
         publish_timeout: Option<u64>,
+        config: Config,
     ) -> Result<App, AppError> {
         let graph = match DependencyGraph::from_paths(&paths) {
             Ok(graph) => Ok(Arc::new(graph)),
@@ -103,10 +99,10 @@ impl App {
             graph: mut_graph,
             facade,
             base,
-            remote_repository: remote_repo_url,
             changes,
             publish_timeout,
             details,
+            config,
         })
     }
 }
@@ -282,7 +278,7 @@ impl App {
         let list = self.bundles.items.clone();
         let to_show_dir = Arc::new(self.base.clone());
         let changes = self.changes.changes();
-        let registry = OverlayLocalRegistry::from_dir("../oca-rs/overlay-file/core_overlays/").unwrap();
+        let registry = OverlayLocalRegistry::from_dir(self.config.overlay_definition_path.clone()).unwrap();
 
         thread::spawn(move || {
             let start = Instant::now();
@@ -311,9 +307,9 @@ impl App {
                             name.clone(),
                             facade.clone(),
                             &mut graph,
-                            registry.clone(),
                             errs.clone(),
                             &cache,
+                            registry.clone(),
                         ) {
                             Ok(mut cached) => {
                                 cache.append(&mut cached);
@@ -361,7 +357,7 @@ impl App {
         let current_path = self.output.current_path();
         let errs = self.output.error_list_mut();
         let remote_repository: Url = parse_url(
-            self.remote_repository
+            self.config.repository_url
                 .as_ref()
                 .ok_or(CliError::UnknownRemoteRepoUrl)?
                 .clone(),

@@ -80,9 +80,9 @@ pub fn build(
     selected_bundle: Option<String>,
     facade: Arc<Mutex<Facade>>,
     graph: &mut MutableGraph,
-    registry: OverlayLocalRegistry,
     infos: Arc<Mutex<MessageList>>,
     cache: &[String],
+    registry: OverlayLocalRegistry,
 ) -> Result<Vec<String>, Vec<CliError>> {
     let dependent_nodes = match selected_bundle {
         Some(refn) => {

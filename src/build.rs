@@ -115,14 +115,12 @@ pub fn build(
     node: &Node,
     said_cache: Option<&BuiltOCACache>,
     summary: &SummaryOptions,
+    registry: OverlayLocalRegistry,
 ) -> Result<Option<(SelfAddressingIdentifier, String)>, CliError> {
     info!("Building: {:?}", node);
     let path = &node.path;
     let unparsed_file =
         fs::read_to_string(path).map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
-    // let hash = compute_hash(unparsed_file.trim());
-    // TODO move that to init function and get configuration for it
-    let registry = OverlayLocalRegistry::from_dir("../oca-rs/overlay-file/core_overlays/").unwrap();
     let oca_bundle_element = {
         let mut facade_locked = facade.lock().unwrap();
         facade_locked
@@ -197,6 +195,7 @@ pub fn rebuild(
     facade: Arc<Mutex<Facade>>,
     nodes: &[Node],
     summary: &SummaryOptions,
+    registry: OverlayLocalRegistry,
 ) -> Result<(Vec<Node>, BuiltOCACache), CliError> {
     let (cache, nodes_to_build) = {
         let mut cache_path = directory.to_path_buf();
@@ -232,7 +231,7 @@ pub fn rebuild(
 
     // Handle build
     for node in nodes_to_build.iter() {
-        build(facade.clone(), node, Some(&cache), summary)?;
+        build(facade.clone(), node, Some(&cache), summary, registry.clone())?;
     }
     // cache_saids.save()?;
     // cached_digests.save()?;

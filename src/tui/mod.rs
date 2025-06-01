@@ -14,8 +14,7 @@ use std::{
 };
 
 use crate::{
-    dependency_graph::{Node, NodeParsingError},
-    error::CliError,
+    config::Config, dependency_graph::{Node, NodeParsingError}, error::CliError
 };
 
 use self::app::AppError;
@@ -34,8 +33,8 @@ pub fn draw<I>(
     nodes_to_show: I,
     paths: Vec<PathBuf>,
     facade: Arc<Mutex<Facade>>,
-    repository_url: Option<String>,
     publish_timeout: Option<u64>,
+    config: Config,
 ) -> Result<(), AppError>
 where
     I: IntoIterator<Item = Result<Node, NodeParsingError>> + Clone,
@@ -52,8 +51,8 @@ where
         facade,
         paths,
         size as usize,
-        repository_url,
         publish_timeout,
+        config,
     )?
     .run(terminal);
 
