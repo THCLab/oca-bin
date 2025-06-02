@@ -213,23 +213,21 @@ fn dependant_saids(
 ) -> Option<Vec<SelfAddressingIdentifier>> {
     let facade_locked = facade.lock().unwrap();
     let bundles = facade_locked
-        .get_oca_bundle_set(said.clone(), true)
+        .get_oca_bundle_set(said.clone())
         .unwrap();
-    let _saids = bundles.dependencies;
-    // TODO find out how to do it
-    None
+    let saids = bundles.dependencies;
 
-    // if saids.is_empty() {
-    //     None
-    // } else {
-    //     Some(
-    //         saids
-    //             .iter()
-    //             .map(|bdle|
-    //                 bdle.said.as_ref().unwrap().clone())
-    //             .collect::<Vec<_>>(),
-    //     )
-    // }
+    if saids.is_empty() {
+        None
+    } else {
+        Some(
+            saids
+                .iter()
+                .map(|bdle|
+                    bdle.model.digest.as_ref().unwrap().clone())
+                .collect::<Vec<_>>(),
+        )
+    }
 }
 
 /// Publish oca bundle pointed by SAID to configured repository
@@ -753,12 +751,27 @@ fn main() -> Result<(), CliError> {
 
                 let facade = get_oca_facade(local_repository_path);
                 let said = SelfAddressingIdentifier::from_str(said)?;
-                let bundle_set = facade
-                    .get_oca_bundle_set(said, *with_dependencies)
-                    .map_err(CliError::OcaBundleAstError)?;
+                if *with_dependencies {
+                    match facade.get_oca_bundle_set(said.clone()) {
+                        Ok(bundle) =>  {
+                            serde_json::to_writer_pretty(std::io::stdout(), &bundle)
+                                .expect("Failed to format oca bundle set");
+                        }
+                        Err(e) => return Err(CliError::OcaBundleAstError(e)),
+                    }
+                } else {
+                    println!("Fetching OCA bundle with dependencies for SAID: {}", said);
+                    match facade.get_oca_bundle_model(said.clone()) {
+                        Ok(bundle) => {
+                            serde_json::to_writer_pretty(std::io::stdout(), &bundle)
+                                .expect("Failed to format oca bundle model");
+                        }
+                        Err(e) => return Err(CliError::OcaBundleAstError(e)),
+                    }
+                }
+                // Flush new line to avoid % at the end on some terminals
+                println!();
 
-                let result_json = bundle_set.to_json().unwrap();
-                println!("{}", &result_json);
 
                 Ok(())
             }
