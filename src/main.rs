@@ -760,7 +760,7 @@ fn main() -> Result<(), CliError> {
                         Err(e) => return Err(CliError::OcaBundleAstError(e)),
                     }
                 } else {
-                    match facade.get_oca_bundle_model(said.clone()) {
+                    match facade.get_oca_bundle(said.clone()) {
                         Ok(bundle) => {
                             serde_json::to_writer_pretty(std::io::stdout(), &bundle)
                                 .expect("Failed to format oca bundle model");

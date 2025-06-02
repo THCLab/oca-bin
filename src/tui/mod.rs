@@ -4,7 +4,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
-use oca_sdk_rs::{Facade, OCABundleModel};
+use oca_sdk_rs::{Facade, OCABundle};
 use ratatui::prelude::*;
 use oca_sdk_rs::SelfAddressingIdentifier;
 use std::{
@@ -66,13 +66,13 @@ where
     Ok(())
 }
 
-pub fn get_oca_bundle(refn: &str, facade: Arc<Mutex<Facade>>) -> Result<OCABundleModel, CliError> {
+pub fn get_oca_bundle(refn: &str, facade: Arc<Mutex<Facade>>) -> Result<OCABundle, CliError> {
     let f = facade.lock().unwrap();
     let refs = f.fetch_all_refs().unwrap();
     refs.into_iter()
         .find(|(name, _s)| *name == refn)
         .and_then(|(_, said)| {
-            f.get_oca_bundle_model(said.parse().unwrap())
+            f.get_oca_bundle(said.parse().unwrap())
                 .ok()
         })
         .ok_or(CliError::OCABundleRefnNotFound(refn.to_string()))
@@ -81,14 +81,14 @@ pub fn get_oca_bundle(refn: &str, facade: Arc<Mutex<Facade>>) -> Result<OCABundl
 pub fn get_oca_bundle_by_said(
     said: &SelfAddressingIdentifier,
     facade: Arc<Mutex<Facade>>,
-) -> Result<(String, OCABundleModel), CliError> {
+) -> Result<(String, OCABundle), CliError> {
     let f = facade.lock().unwrap();
     let refs = f.fetch_all_refs().unwrap();
     refs.into_iter()
         .find(|(_name, s)| *s == said.to_string())
         .map(|(refn, _s)| -> Result<_, CliError> {
             let oca_bun = f
-                .get_oca_bundle_model(said.clone())
+                .get_oca_bundle(said.clone())
                 .map_err(CliError::OcaBundleAstError)?;
             Ok((refn, oca_bun))
         })
