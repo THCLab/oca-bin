@@ -760,7 +760,6 @@ fn main() -> Result<(), CliError> {
                         Err(e) => return Err(CliError::OcaBundleAstError(e)),
                     }
                 } else {
-                    println!("Fetching OCA bundle with dependencies for SAID: {}", said);
                     match facade.get_oca_bundle_model(said.clone()) {
                         Ok(bundle) => {
                             serde_json::to_writer_pretty(std::io::stdout(), &bundle)
