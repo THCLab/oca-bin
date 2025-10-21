@@ -431,7 +431,8 @@ fn handle_reference_type<'a>(
                         .add_modifier(Modifier::ITALIC),
                 ),
             ];
-            let children: Vec<TreeItem<'a, String>> = oca_bundle.model
+            let children: Vec<TreeItem<'a, String>> = oca_bundle
+                .model
                 .capture_base
                 .attributes
                 .into_iter()

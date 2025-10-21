@@ -170,9 +170,14 @@ impl OutputWindow {
                         }
                     };
                     let res = std::panic::catch_unwind(AssertUnwindSafe(|| {
-                        let (to_cache, validation_errors) =
-                            validate_directory(facade.clone(), &mut graph.clone(), name, registry.clone(), &cache)
-                                .unwrap();
+                        let (to_cache, validation_errors) = validate_directory(
+                            facade.clone(),
+                            &mut graph.clone(),
+                            name,
+                            registry.clone(),
+                            &cache,
+                        )
+                        .unwrap();
                         cache.extend(to_cache);
 
                         validation_errors

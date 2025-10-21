@@ -61,7 +61,11 @@ pub fn validate_directory(
 
             let facade = facade.lock().unwrap();
             Some(
-                match facade.validate_ocafile_with_external_references(file_contents, graph, registry.clone()) {
+                match facade.validate_ocafile_with_external_references(
+                    file_contents,
+                    graph,
+                    registry.clone(),
+                ) {
                     Ok(_) => {
                         out_cached.insert(node.refn.clone());
                         Ok(node)
@@ -70,7 +74,7 @@ pub fn validate_directory(
                 },
             )
         })
-        .filter_map(|e| if let Err(e) = e { Some(e) } else { None })
+        .filter_map(|e| e.err())
         .collect::<Vec<_>>();
 
     Ok((out_cached, errs))

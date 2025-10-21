@@ -63,8 +63,6 @@ mod tui;
 mod utils;
 mod validate;
 
-
-
 #[derive(clap::Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -212,9 +210,7 @@ fn dependant_saids(
     said: &SelfAddressingIdentifier,
 ) -> Option<Vec<SelfAddressingIdentifier>> {
     let facade_locked = facade.lock().unwrap();
-    let bundles = facade_locked
-        .get_oca_bundle_set(said.clone())
-        .unwrap();
+    let bundles = facade_locked.get_oca_bundle_set(said.clone()).unwrap();
     let saids = bundles.dependencies;
 
     if saids.is_empty() {
@@ -223,8 +219,7 @@ fn dependant_saids(
         Some(
             saids
                 .iter()
-                .map(|bdle|
-                    bdle.model.digest.as_ref().unwrap().clone())
+                .map(|bdle| bdle.model.digest.as_ref().unwrap().clone())
                 .collect::<Vec<_>>(),
         )
     }
@@ -275,8 +270,8 @@ fn main() -> Result<(), CliError> {
                     Ok(path) => {
                         println!("Initialize repository at: {:?}", path);
                         let local_repository_path = path.join(OCA_DIR_NAME);
-                        let overlay_definition_path = local_repository_path
-                            .join(OVERLAY_DEF_DIR_NAME);
+                        let overlay_definition_path =
+                            local_repository_path.join(OVERLAY_DEF_DIR_NAME);
                         let config = Config::new(local_repository_path, overlay_definition_path);
                         let config_file = path.join(OCA_DIR_NAME).join("config.toml");
                         match write_config(&config, &config_file) {
@@ -310,7 +305,8 @@ fn main() -> Result<(), CliError> {
                 );
                 println!("Index DB: {:?}", local_repository_path.join(OCA_INDEX_DIR));
 
-                let config_content = std::fs::read_to_string(local_repository_path.join("config.toml"))?;
+                let config_content =
+                    std::fs::read_to_string(local_repository_path.join("config.toml"))?;
 
                 println!("=== Config file: \n {}", config_content);
 
@@ -327,7 +323,8 @@ fn main() -> Result<(), CliError> {
                 let config = init_or_read_config();
                 let local_repository_path = config.local_repository_path.clone();
                 let remote_repo_url_from_config = config.repository_url.clone();
-                let registry = OverlayLocalRegistry::from_dir(config.overlay_definition_path).unwrap();
+                let registry =
+                    OverlayLocalRegistry::from_dir(config.overlay_definition_path).unwrap();
 
                 let summary = match (publish, summary) {
                     (true, None) => SummaryOptions::Human,
@@ -343,7 +340,13 @@ fn main() -> Result<(), CliError> {
                         // No directory, no cache.
                         let mut summary_info = vec![];
                         for node in nodes.iter() {
-                            let built = build::build(facade.clone(), node, None, &summary, registry.clone())?;
+                            let built = build::build(
+                                facade.clone(),
+                                node,
+                                None,
+                                &summary,
+                                registry.clone(),
+                            )?;
                             match built {
                                 Some((said, _)) => {
                                     summary_info.push(PublishedInfo {
@@ -371,7 +374,8 @@ fn main() -> Result<(), CliError> {
                         let saids: Result<Vec<_>, _> = nodes
                             .iter()
                             .filter_map(|node| {
-                                build::build(facade.clone(), node, None, &summary, registry.clone()).transpose()
+                                build::build(facade.clone(), node, None, &summary, registry.clone())
+                                    .transpose()
                             })
                             .collect();
                         let remote_repo_url =
@@ -418,8 +422,13 @@ fn main() -> Result<(), CliError> {
                     (Some(directory), true, false) => {
                         let remote_repo_url =
                             load_remote_repo_url(repository_url, remote_repo_url_from_config)?;
-                        let (rebuilt_nodes, cache_said) =
-                            rebuild(directory.as_path(), facade.clone(), &nodes, &summary, registry)?;
+                        let (rebuilt_nodes, cache_said) = rebuild(
+                            directory.as_path(),
+                            facade.clone(),
+                            &nodes,
+                            &summary,
+                            registry,
+                        )?;
                         let statuses = nodes.into_iter().map(|node| {
                             if rebuilt_nodes.contains(&node) {
                                 NodeStatus::Rebuilt(node)
@@ -494,8 +503,13 @@ fn main() -> Result<(), CliError> {
                     (Some(directory), true, true) => {
                         let remote_repo_url =
                             load_remote_repo_url(&None, remote_repo_url_from_config)?;
-                        let (rebuilt_nodes, cache) =
-                            rebuild(directory.as_path(), facade.clone(), &nodes, &summary, registry)?;
+                        let (rebuilt_nodes, cache) = rebuild(
+                            directory.as_path(),
+                            facade.clone(),
+                            &nodes,
+                            &summary,
+                            registry,
+                        )?;
                         handle_publish(
                             facade,
                             remote_repo_url,
@@ -527,7 +541,8 @@ fn main() -> Result<(), CliError> {
                 let config = init_or_read_config();
                 let local_repository_path = config.local_repository_path.clone();
                 let remote_repo_url_from_config = config.repository_url.clone();
-                let registry = OverlayLocalRegistry::from_dir(config.overlay_definition_path).unwrap();
+                let registry =
+                    OverlayLocalRegistry::from_dir(config.overlay_definition_path).unwrap();
 
                 let summary = summary.summary();
                 match (said, directory, diff, all) {
@@ -615,8 +630,13 @@ fn main() -> Result<(), CliError> {
                         let nodes = load_nodes(None, Some(directory))?;
                         let facade =
                             Arc::new(Mutex::new(get_oca_facade(local_repository_path.clone())));
-                        let (rebuilt_nodes, said_cache) =
-                            rebuild(directory.as_path(), facade.clone(), &nodes, &summary, registry)?;
+                        let (rebuilt_nodes, said_cache) = rebuild(
+                            directory.as_path(),
+                            facade.clone(),
+                            &nodes,
+                            &summary,
+                            registry,
+                        )?;
 
                         let remote_repo_url =
                             load_remote_repo_url(repository_url, remote_repo_url_from_config)?;
@@ -636,8 +656,13 @@ fn main() -> Result<(), CliError> {
                         let nodes = load_nodes(None, Some(directory))?;
                         let facade =
                             Arc::new(Mutex::new(get_oca_facade(local_repository_path.clone())));
-                        let (rebuilt_nodes, said_cache) =
-                            rebuild(directory.as_path(), facade.clone(), &nodes, &summary, registry)?;
+                        let (rebuilt_nodes, said_cache) = rebuild(
+                            directory.as_path(),
+                            facade.clone(),
+                            &nodes,
+                            &summary,
+                            registry,
+                        )?;
 
                         let remote_repo_url =
                             load_remote_repo_url(&None, remote_repo_url_from_config)?;
@@ -753,7 +778,7 @@ fn main() -> Result<(), CliError> {
                 let said = SelfAddressingIdentifier::from_str(said)?;
                 if *with_dependencies {
                     match facade.get_oca_bundle_set(said.clone()) {
-                        Ok(bundle) =>  {
+                        Ok(bundle) => {
                             serde_json::to_writer_pretty(std::io::stdout(), &bundle)
                                 .expect("Failed to format oca bundle set");
                         }
@@ -770,7 +795,6 @@ fn main() -> Result<(), CliError> {
                 }
                 // Flush new line to avoid % at the end on some terminals
                 println!();
-
 
                 Ok(())
             }
@@ -881,9 +905,7 @@ fn main() -> Result<(), CliError> {
                 let facade = get_oca_facade(local_repository_path);
                 let facade = Arc::new(Mutex::new(facade));
                 let mut graph = MutableGraph::new(paths)?;
-                let registry =
-                    OverlayLocalRegistry::from_dir(overlay_definition_path)
-                        .unwrap();
+                let registry = OverlayLocalRegistry::from_dir(overlay_definition_path).unwrap();
                 match ocafile {
                     Some(oca_file) => {
                         let mut cache = HashSet::new();

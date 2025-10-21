@@ -43,7 +43,6 @@ pub fn write_config(config: &Config, path: &PathBuf) -> Result<(), Error> {
         fs::create_dir_all(&config.overlay_definition_path)?;
         let mut file = fs::File::create(config.overlay_definition_path.join("core.overlayfile"))?;
         file.write_all(DEFAULT_OVERLAY_DEFINITIONS.as_bytes())?;
-
     }
     fs::write(path, content)?;
     Ok(())
@@ -51,8 +50,7 @@ pub fn write_config(config: &Config, path: &PathBuf) -> Result<(), Error> {
 
 pub fn write_default_config(path: &PathBuf) -> Result<Config, Error> {
     let local_repository_path = path.parent().unwrap().to_path_buf();
-    let overlay_definition_path = local_repository_path
-        .join(OVERLAY_DEF_DIR_NAME);
+    let overlay_definition_path = local_repository_path.join(OVERLAY_DEF_DIR_NAME);
     let config = Config::new(local_repository_path, overlay_definition_path);
     write_config(&config, path)?;
     Ok(config)

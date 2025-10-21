@@ -5,8 +5,8 @@ use std::{
 };
 
 use itertools::Itertools;
-use oca_sdk_rs::{overlay_registry::OverlayLocalRegistry, Facade};
 use oca_sdk_rs::SelfAddressingIdentifier;
+use oca_sdk_rs::{overlay_registry::OverlayLocalRegistry, Facade};
 use serde::Serialize;
 use serde_json::json;
 use url::Url;
@@ -231,7 +231,13 @@ pub fn rebuild(
 
     // Handle build
     for node in nodes_to_build.iter() {
-        build(facade.clone(), node, Some(&cache), summary, registry.clone())?;
+        build(
+            facade.clone(),
+            node,
+            Some(&cache),
+            summary,
+            registry.clone(),
+        )?;
     }
     // cache_saids.save()?;
     // cached_digests.save()?;

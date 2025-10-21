@@ -1,14 +1,11 @@
 use std::{io, path::PathBuf};
 
-use oca_store::facade::build::ValidationError;
-use oca_sdk_rs::SelfAddressingIdentifier;
 use oca_sdk_rs::said_error;
+use oca_sdk_rs::SelfAddressingIdentifier;
+use oca_store::facade::build::ValidationError;
 use thiserror::Error;
 
-use crate::{
-    build::CacheError, dependency_graph::GraphError,
-    tui::bundle_list::BundleListError,
-};
+use crate::{build::CacheError, dependency_graph::GraphError, tui::bundle_list::BundleListError};
 
 #[derive(Debug, Error)]
 pub enum CliError {

@@ -4,9 +4,9 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
+use oca_sdk_rs::SelfAddressingIdentifier;
 use oca_sdk_rs::{Facade, OCABundle};
 use ratatui::prelude::*;
-use oca_sdk_rs::SelfAddressingIdentifier;
 use std::{
     io::stdout,
     path::PathBuf,
@@ -14,7 +14,9 @@ use std::{
 };
 
 use crate::{
-    config::Config, dependency_graph::{Node, NodeParsingError}, error::CliError
+    config::Config,
+    dependency_graph::{Node, NodeParsingError},
+    error::CliError,
 };
 
 use self::app::AppError;
@@ -71,10 +73,7 @@ pub fn get_oca_bundle(refn: &str, facade: Arc<Mutex<Facade>>) -> Result<OCABundl
     let refs = f.fetch_all_refs().unwrap();
     refs.into_iter()
         .find(|(name, _s)| *name == refn)
-        .and_then(|(_, said)| {
-            f.get_oca_bundle(said.parse().unwrap())
-                .ok()
-        })
+        .and_then(|(_, said)| f.get_oca_bundle(said.parse().unwrap()).ok())
         .ok_or(CliError::OCABundleRefnNotFound(refn.to_string()))
 }
 

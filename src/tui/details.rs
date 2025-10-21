@@ -1,10 +1,10 @@
+use oca_sdk_rs::SelfAddressingIdentifier;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
     text::Line,
     widgets::{Block, Paragraph, Widget},
 };
-use oca_sdk_rs::SelfAddressingIdentifier;
 
 use crate::dependency_graph::Node;
 

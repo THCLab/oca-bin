@@ -5,14 +5,14 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use oca_sdk_rs::SelfAddressingIdentifier;
+use oca_sdk_rs::{HashFunction, HashFunctionCode};
 use petgraph::{graph::NodeIndex, graphmap::GraphMap, visit::EdgeRef, Directed};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
     widgets::{Block, Scrollbar, ScrollbarOrientation, StatefulWidget},
 };
-use oca_sdk_rs::SelfAddressingIdentifier;
-use oca_sdk_rs::{HashFunction, HashFunctionCode};
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
 use crate::{

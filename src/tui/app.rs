@@ -25,7 +25,13 @@ use thiserror::Error;
 use url::Url;
 
 use crate::{
-    config::Config, dependency_graph::{parse_name, DependencyGraph, MutableGraph, Node, NodeParsingError}, error::CliError, publish_oca_file_for, saids_to_publish, tui::{details::Details, get_oca_bundle_by_said, output_window::message_list::Message}, utils::{handle_panic, parse_url}, validate::build
+    config::Config,
+    dependency_graph::{parse_name, DependencyGraph, MutableGraph, Node, NodeParsingError},
+    error::CliError,
+    publish_oca_file_for, saids_to_publish,
+    tui::{details::Details, get_oca_bundle_by_said, output_window::message_list::Message},
+    utils::{handle_panic, parse_url},
+    validate::build,
 };
 
 use super::{
@@ -188,7 +194,10 @@ impl App {
                             let selected = self.bundles.selected_oca_bundle();
                             let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
                             // TODO take from config
-                            let registry = OverlayLocalRegistry::from_dir("../oca-rs/overlay-file/core_overlays/").unwrap();
+                            let registry = OverlayLocalRegistry::from_dir(
+                                "../oca-rs/overlay-file/core_overlays/",
+                            )
+                            .unwrap();
                             self.output.set_currently_validated(paths);
 
                             self.output.handle_validate(
@@ -278,7 +287,8 @@ impl App {
         let list = self.bundles.items.clone();
         let to_show_dir = Arc::new(self.base.clone());
         let changes = self.changes.changes();
-        let registry = OverlayLocalRegistry::from_dir(self.config.overlay_definition_path.clone()).unwrap();
+        let registry =
+            OverlayLocalRegistry::from_dir(self.config.overlay_definition_path.clone()).unwrap();
 
         thread::spawn(move || {
             let start = Instant::now();
@@ -357,7 +367,8 @@ impl App {
         let current_path = self.output.current_path();
         let errs = self.output.error_list_mut();
         let remote_repository: Url = parse_url(
-            self.config.repository_url
+            self.config
+                .repository_url
                 .as_ref()
                 .ok_or(CliError::UnknownRemoteRepoUrl)?
                 .clone(),

@@ -194,7 +194,7 @@ impl<'a> MessageLine<'a> {
     }
 }
 
-impl<'a> Widget for MessageLine<'a> {
+impl Widget for MessageLine<'_> {
     fn render(self, area: Rect, buf: &mut Buffer)
     where
         Self: Sized,
@@ -205,7 +205,7 @@ impl<'a> Widget for MessageLine<'a> {
     }
 }
 
-impl<'a> ListableWidget for MessageLine<'a> {
+impl ListableWidget for MessageLine<'_> {
     fn size(&self, _scroll_direction: &tui_widget_list::ScrollAxis) -> usize {
         self.1
     }

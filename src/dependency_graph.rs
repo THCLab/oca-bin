@@ -5,6 +5,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use oca_sdk_rs::SelfAddressingIdentifier;
 use oca_store::facade::build::References;
 use petgraph::{
     algo::toposort,
@@ -14,7 +15,6 @@ use petgraph::{
     Directed, Graph,
 };
 use regex::Regex;
-use oca_sdk_rs::SelfAddressingIdentifier;
 use thiserror::Error;
 
 use crate::utils::visit_current_dir;
