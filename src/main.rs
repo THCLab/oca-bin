@@ -909,8 +909,8 @@ fn main() -> Result<(), CliError> {
                 if let Some(overlayfile) = overlayfile {
                     let definitions = OverlayLocalRegistry::from_file(overlayfile);
                     match definitions {
-                        Ok(definitions) => {
-                            println!("Overlayfile definitions valid");
+                        Ok(_) => {
+                            println!("Validation Successful");
                         }
                         Err(e) => {
                             println!("Error loading overlayfile: {}", &e.to_string());
