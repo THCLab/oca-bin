@@ -101,14 +101,17 @@ enum Commands {
         summary: Option<SummaryGroup>,
     },
     /// Validate oca objects out of ocafile
-    #[clap(group = clap::ArgGroup::new("build").multiple(true).required(true).args(&["ocafile", "directory"]))]
+    #[clap(group = clap::ArgGroup::new("validate_group").multiple(true).required(true).args(&["ocafile", "directory"]))]
     Validate {
         /// Specify ocafile to validate from
-        #[arg(short = 'f', long, group = "build")]
+        #[arg(short = 'f', long, group = "validate_group")]
         ocafile: Option<Vec<PathBuf>>,
         /// Validate oca objects from directory (recursive)
-        #[arg(short, long, group = "build")]
+        #[arg(short, long, group = "validate_group")]
         directory: Option<PathBuf>,
+        /// Specify overlay file to validate it
+        #[arg(short, long, group = "validate_group")]
+        overlayfile: Option<PathBuf>,
     },
     /// Publish oca objects into online repository
     #[clap(group = clap::ArgGroup::new("publish").required(true).args(&["said", "directory"]))]
@@ -892,67 +895,83 @@ fn main() -> Result<(), CliError> {
             //         }
             //     }
             // }
-            Some(Commands::Validate { ocafile, directory }) => {
-                let paths = match (ocafile, directory) {
-                    (None, None) => unreachable!("At least one argument expected"),
-                    (_, Some(dir)) => visit_dirs_recursive(dir)?,
-                    (Some(oca_file), None) => oca_file.clone(),
+            Some(Commands::Validate {
+                ocafile,
+                directory,
+                overlayfile,
+            }) => {
+                let paths = match (ocafile, directory, overlayfile) {
+                    (None, None, None) => unreachable!("At least one argument expected"),
+                    (_, Some(dir), _) => visit_dirs_recursive(dir)?,
+                    (Some(oca_file), None, _) => oca_file.clone(),
+                    (_, _, Some(overlay_file)) => vec![overlay_file.clone()],
                 };
-                let config = init_or_read_config();
-                let local_repository_path = config.local_repository_path.clone();
-                let overlay_definition_path = config.overlay_definition_path.clone();
+                if let Some(overlayfile) = overlayfile {
+                    let definitions = OverlayLocalRegistry::from_file(overlayfile);
+                    match definitions {
+                        Ok(definitions) => {
+                            println!("Overlayfile definitions valid");
+                        }
+                        Err(e) => {
+                            println!("Error loading overlayfile: {}", &e.to_string());
+                        }
+                    }
+                } else {
+                    let config = init_or_read_config();
+                    let local_repository_path = config.local_repository_path.clone();
+                    let overlay_definition_path = config.overlay_definition_path.clone();
 
-                let facade = get_oca_facade(local_repository_path);
-                let facade = Arc::new(Mutex::new(facade));
-                let mut graph = MutableGraph::new(paths)?;
-                let registry = OverlayLocalRegistry::from_dir(overlay_definition_path).unwrap();
-                match ocafile {
-                    Some(oca_file) => {
-                        let mut cache = HashSet::new();
-                        for file in oca_file {
-                            // Insert ocafile to graph, if not present
-                            let (node, dependencies) =
-                                parse_node(file).map_err(|e| CliError::GraphError(e.into()))?;
-                            match graph.insert_node(node.clone(), dependencies) {
-                                Ok(_) => (),
-                                // node already in graph
-                                Err(GraphError::DuplicateKey {
-                                    refn: _,
-                                    first_path: _,
-                                    second_path: _,
-                                }) => (),
-                                Err(e) => return Err(e.into()),
-                            };
-                            println!("Validating {}", &node.refn);
-                            let (out_cache, errs) = validate::validate_directory(
-                                facade.clone(),
+                    let facade = get_oca_facade(local_repository_path);
+                    let facade = Arc::new(Mutex::new(facade));
+                    let mut graph = MutableGraph::new(paths)?;
+                    let registry = OverlayLocalRegistry::from_dir(overlay_definition_path).unwrap();
+                    match ocafile {
+                        Some(oca_file) => {
+                            let mut cache = HashSet::new();
+                            for file in oca_file {
+                                // Insert ocafile to graph, if not present
+                                let (node, dependencies) =
+                                    parse_node(file).map_err(|e| CliError::GraphError(e.into()))?;
+                                match graph.insert_node(node.clone(), dependencies) {
+                                    Ok(_) => (),
+                                    // node already in graph
+                                    Err(GraphError::DuplicateKey {
+                                        refn: _,
+                                        first_path: _,
+                                        second_path: _,
+                                    }) => (),
+                                    Err(e) => return Err(e.into()),
+                                };
+                                println!("Validating {}", &node.refn);
+                                let (out_cache, errs) = validate::validate_directory(
+                                    facade.clone(),
+                                    &mut graph,
+                                    Some(node.refn),
+                                    // TODO does not need to be clone it is read only
+                                    registry.clone(),
+                                    &cache,
+                                )?;
+                                cache.extend(out_cache);
+                                for err in errs {
+                                    println!("{}", err)
+                                }
+                            }
+                        }
+                        None => {
+                            let (_cache, errs) = validate::validate_directory(
+                                facade,
                                 &mut graph,
-                                Some(node.refn),
-                                // TODO does not need to be clone it is read only
-                                registry.clone(),
-                                &cache,
+                                None,
+                                registry,
+                                &HashSet::new(),
                             )?;
-                            cache.extend(out_cache);
+
                             for err in errs {
                                 println!("{}", err)
                             }
                         }
-                    }
-                    None => {
-                        let (_cache, errs) = validate::validate_directory(
-                            facade,
-                            &mut graph,
-                            None,
-                            registry,
-                            &HashSet::new(),
-                        )?;
-
-                        for err in errs {
-                            println!("{}", err)
-                        }
-                    }
-                };
-
+                    };
+                }
                 Ok(())
             }
             Some(Commands::Tui { dir, timeout }) => {
