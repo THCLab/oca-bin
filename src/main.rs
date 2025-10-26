@@ -273,9 +273,9 @@ fn main() -> Result<(), CliError> {
                     Ok(path) => {
                         println!("Initialize repository at: {:?}", path);
                         let local_repository_path = path.join(OCA_DIR_NAME);
-                        let overlay_definition_path =
+                        let overlay_definitions_path =
                             local_repository_path.join(OVERLAY_DEF_DIR_NAME);
-                        let config = Config::new(local_repository_path, overlay_definition_path);
+                        let config = Config::new(local_repository_path, overlay_definitions_path);
                         let config_file = path.join(OCA_DIR_NAME).join("config.toml");
                         match write_config(&config, &config_file) {
                             Ok(it) => Ok(it),
@@ -327,7 +327,7 @@ fn main() -> Result<(), CliError> {
                 let local_repository_path = config.local_repository_path.clone();
                 let remote_repo_url_from_config = config.repository_url.clone();
                 let registry =
-                    OverlayLocalRegistry::from_dir(config.overlay_definition_path).unwrap();
+                    OverlayLocalRegistry::from_dir(config.overlay_definitions_path).unwrap();
 
                 let summary = match (publish, summary) {
                     (true, None) => SummaryOptions::Human,
@@ -545,7 +545,7 @@ fn main() -> Result<(), CliError> {
                 let local_repository_path = config.local_repository_path.clone();
                 let remote_repo_url_from_config = config.repository_url.clone();
                 let registry =
-                    OverlayLocalRegistry::from_dir(config.overlay_definition_path).unwrap();
+                    OverlayLocalRegistry::from_dir(config.overlay_definitions_path).unwrap();
 
                 let summary = summary.summary();
                 match (said, directory, diff, all) {
@@ -919,12 +919,12 @@ fn main() -> Result<(), CliError> {
                 } else {
                     let config = init_or_read_config();
                     let local_repository_path = config.local_repository_path.clone();
-                    let overlay_definition_path = config.overlay_definition_path.clone();
+                    let overlay_definitions_path = config.overlay_definitions_path.clone();
 
                     let facade = get_oca_facade(local_repository_path);
                     let facade = Arc::new(Mutex::new(facade));
                     let mut graph = MutableGraph::new(paths)?;
-                    let registry = OverlayLocalRegistry::from_dir(overlay_definition_path).unwrap();
+                    let registry = OverlayLocalRegistry::from_dir(overlay_definitions_path).unwrap();
                     match ocafile {
                         Some(oca_file) => {
                             let mut cache = HashSet::new();

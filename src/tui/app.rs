@@ -288,7 +288,7 @@ impl App {
         let to_show_dir = Arc::new(self.base.clone());
         let changes = self.changes.changes();
         let registry =
-            OverlayLocalRegistry::from_dir(self.config.overlay_definition_path.clone()).unwrap();
+            OverlayLocalRegistry::from_dir(self.config.overlay_definitions_path.clone()).unwrap();
 
         thread::spawn(move || {
             let start = Instant::now();

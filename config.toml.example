@@ -1,2 +1,3 @@
 local_repository_path = "/home/user/repo/example/.oca"
 repository_url = "https://repository.oca.argo.colossi.network/"
+overlay_definitions_path = "/home/user/repo/example/overlay_definitions/"

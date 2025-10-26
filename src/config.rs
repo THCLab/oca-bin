@@ -16,14 +16,14 @@ const DEFAULT_OVERLAY_DEFINITIONS: &str = include_str!("../config/core.overlayfi
 pub struct Config {
     pub local_repository_path: PathBuf,
     pub repository_url: Option<String>,
-    pub overlay_definition_path: PathBuf,
+    pub overlay_definitions_path: PathBuf,
 }
 
 impl Config {
-    pub fn new(local_repository_path: PathBuf, overlay_definition_path: PathBuf) -> Self {
+    pub fn new(local_repository_path: PathBuf, overlay_definitions_path: PathBuf) -> Self {
         Config {
             local_repository_path,
-            overlay_definition_path,
+            overlay_definitions_path,
             ..Default::default()
         }
     }
@@ -40,8 +40,8 @@ pub fn write_config(config: &Config, path: &PathBuf) -> Result<(), Error> {
     if let Some(parent) = path.parent() {
         info!("Create local repository: {:?}", parent);
         fs::create_dir_all(parent)?;
-        fs::create_dir_all(&config.overlay_definition_path)?;
-        let mut file = fs::File::create(config.overlay_definition_path.join("core.overlayfile"))?;
+        fs::create_dir_all(&config.overlay_definitions_path)?;
+        let mut file = fs::File::create(config.overlay_definitions_path.join("core.overlayfile"))?;
         file.write_all(DEFAULT_OVERLAY_DEFINITIONS.as_bytes())?;
     }
     fs::write(path, content)?;
@@ -50,8 +50,8 @@ pub fn write_config(config: &Config, path: &PathBuf) -> Result<(), Error> {
 
 pub fn write_default_config(path: &PathBuf) -> Result<Config, Error> {
     let local_repository_path = path.parent().unwrap().to_path_buf();
-    let overlay_definition_path = local_repository_path.join(OVERLAY_DEF_DIR_NAME);
-    let config = Config::new(local_repository_path, overlay_definition_path);
+    let overlay_definitions_path = local_repository_path.join(OVERLAY_DEF_DIR_NAME);
+    let config = Config::new(local_repository_path, overlay_definitions_path);
     write_config(&config, path)?;
     Ok(config)
 }
