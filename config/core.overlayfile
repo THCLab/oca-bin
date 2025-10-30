@@ -17,71 +17,71 @@ ADD OVERLAY meta
 
 ADD OVERLAY character_encoding
   VERSION 2.0.0
-  ADD OBJECT attribute_character_encoding
+  ADD OBJECT attribute_character_encodings
     WITH KEYS attr-names
     WITH VALUES Text
 
 ADD OVERLAY conformance
   VERSION 2.0.0
-  ADD OBJECT attribute_conformance
-    with keys ATTR-NAMES
-    with values TEXT
+  ADD OBJECT attribute_conformances
+    WITH KEYS attr-names
+    WITH VALUES text
 
-add OVERLAY format
-  version 2.0.0
-  add object attribute_formats
-    with keys attr-names
-    with values text
+ADD OVERLAY format
+  VERSION 2.0.0
+  ADD OBJECT attribute_formats
+    WITH KEYS attr-names
+    WITH VALUES text
 
 ADD OVERLAY unit
   VERSION 2.0.0
   ADD ATTRIBUTES metric_system=Text
   ADD OBJECT attribute_units
-    with keys ATTR-NAMES
-    with values TEXT
+    WITH KEYS attr-names
+    WITH VALUES text
 
 ADD OVERLAY cardinality
   VERSION 2.0.0
-  ADD OBJECT attribute_cardinality
-    with keys ATTR-NAMES
-    with values TEXT
+  ADD OBJECT attribute_cardinalities
+    WITH KEYS attr-names
+    WITH VALUES text
 
 ADD OVERLAY entry_code
   VERSION 2.0.0
   ADD OBJECT attribute_entry_codes
-    with keys ATTR-NAMES
-    with values REF|ARRAY
-      with values TEXT
+    WITH KEYS attr-names
+    WITH VALUES ref|array
+      WITH VALUES text
 
 ADD OVERLAY entry
   VERSION 2.0.0
   ADD ATTRIBUTES language=Lang
   ADD OBJECT attribute_entries
-    with keys ATTR-NAMES
-    with values REF|OBJECT
-      with keys TEXT
-      with values TEXT
+    WITH KEYS attr-names
+    WITH VALUES ref|object
+      WITH KEYS text
+      WITH VALUES Text
 
 ADD overlay sensitive
   VERSION 2.0.0
   ADD ARRAY attributes
-    with values ATTR-NAMES
+    WITH VALUES attr-names
 
 ADD OVERLAY standard
   VERSION 2.0.0
   ADD OBJECT attribute_standards
-    with keys ATTR-NAMES
-    with values TEXT
+    WITH KEYS attr-names
+    WITH VALUES text
 
 ADD OVERLAY mapping
   VERSION 2.0.0
-  ADD OBJECT attribute_mapping
-    with keys ATTR-NAMES
-    with values TEXT
+  ADD OBJECT attribute_mappings
+    WITH KEYS attr-names
+    WITH VALUES text
 
 ADD OVERLAY entry_code_mapping
   VERSION 2.0.0
-  ADD OBJECT attribute_entry_codes_mapping
-    with keys TEXT
-    with values REF|ARRAY
-      with values TEXT
+  ADD OBJECT attribute_entry_codes_mappings
+    WITH KEYS text
+    WITH VALUES ref|array
+      WITH VALUES text
