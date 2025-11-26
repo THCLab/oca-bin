@@ -11,7 +11,7 @@ use std::{
 pub use super::bundle_list::BundleListError;
 use anyhow::Result;
 use crossterm::event::{self, poll, Event, KeyCode, KeyModifiers, MouseEventKind};
-use oca_sdk_rs::{overlay_registry::OverlayLocalRegistry, Facade};
+use oca_sdk_rs::{overlay_registry::OverlayLocalRegistry, Store};
 use ratatui::{
     backend::Backend,
     buffer::Buffer,
@@ -58,7 +58,7 @@ pub enum AppError {
 pub struct App {
     bundles: BundleList,
     output: OutputWindow,
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     graph: MutableGraph,
     active_window: Window,
     base: PathBuf,
@@ -80,7 +80,7 @@ impl App {
     pub fn new<I: IntoIterator<Item = Result<Node, NodeParsingError>> + Clone>(
         base: PathBuf,
         to_show: I,
-        facade: Arc<Mutex<Facade>>,
+        facade: Arc<Mutex<Store>>,
         paths: Vec<PathBuf>,
         size: usize,
         publish_timeout: Option<u64>,
@@ -270,7 +270,7 @@ impl App {
     pub fn handle_build(
         &mut self,
         selected_bundle: Vec<Element>,
-        facade: Arc<Mutex<Facade>>,
+        facade: Arc<Mutex<Store>>,
         mut graph: MutableGraph,
     ) -> Result<bool, CliError> {
         if let Err(e) = self.graph.reload(&self.base) {
@@ -361,7 +361,7 @@ impl App {
     pub fn handle_publish(
         &self,
         selected_bundle: Vec<Element>,
-        facade: Arc<Mutex<Facade>>,
+        facade: Arc<Mutex<Store>>,
     ) -> Result<bool, CliError> {
         info!("Handling publish");
         let current_path = self.output.current_path();

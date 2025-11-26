@@ -4,8 +4,8 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
-use oca_sdk_rs::SelfAddressingIdentifier;
-use oca_sdk_rs::{Facade, OCABundle};
+use oca_sdk_rs::{OCABundleModel, SelfAddressingIdentifier};
+use oca_store::Facade as Store;
 use ratatui::prelude::*;
 use std::{
     io::stdout,
@@ -34,7 +34,7 @@ pub fn draw<I>(
     base_dir: PathBuf,
     nodes_to_show: I,
     paths: Vec<PathBuf>,
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     publish_timeout: Option<u64>,
     config: Config,
 ) -> Result<(), AppError>
@@ -68,7 +68,7 @@ where
     Ok(())
 }
 
-pub fn get_oca_bundle(refn: &str, facade: Arc<Mutex<Facade>>) -> Result<OCABundle, CliError> {
+pub fn get_oca_bundle(refn: &str, facade: Arc<Mutex<Store>>) -> Result<OCABundleModel, CliError> {
     let f = facade.lock().unwrap();
     let refs = f.fetch_all_refs().unwrap();
     refs.into_iter()
@@ -79,8 +79,8 @@ pub fn get_oca_bundle(refn: &str, facade: Arc<Mutex<Facade>>) -> Result<OCABundl
 
 pub fn get_oca_bundle_by_said(
     said: &SelfAddressingIdentifier,
-    facade: Arc<Mutex<Facade>>,
-) -> Result<(String, OCABundle), CliError> {
+    facade: Arc<Mutex<Store>>,
+) -> Result<(String, OCABundleModel), CliError> {
     let f = facade.lock().unwrap();
     let refs = f.fetch_all_refs().unwrap();
     refs.into_iter()

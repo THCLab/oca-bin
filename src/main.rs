@@ -33,7 +33,7 @@ use utils::visit_dirs_recursive;
 
 use clap::Parser as ClapParser;
 use clap::Subcommand;
-use oca_sdk_rs::Facade;
+use oca_sdk_rs::Store;
 use oca_store::repositories::SQLiteConfig;
 
 use url::Url;
@@ -183,17 +183,17 @@ enum Commands {
     },
 }
 
-fn get_oca_facade(local_repository_path: PathBuf) -> Facade {
+fn get_oca_facade(local_repository_path: PathBuf) -> Store {
     let db = create_or_open_local_storage(local_repository_path.join(OCA_REPOSITORY_DIR));
     let cache = create_or_open_local_storage(local_repository_path.join(OCA_CACHE_DB_DIR));
     let cache_storage_config = SQLiteConfig::build()
         .path(local_repository_path.join(OCA_INDEX_DIR))
         .unwrap();
-    Facade::new(Box::new(db.clone()), Box::new(cache), cache_storage_config)
+    Store::new(Box::new(db.clone()), Box::new(cache), cache_storage_config)
 }
 
 fn saids_to_publish(
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     saids: &[SelfAddressingIdentifier],
 ) -> HashSet<SelfAddressingIdentifier> {
     let mut to_publish = HashSet::new();
@@ -209,7 +209,7 @@ fn saids_to_publish(
 }
 
 fn dependant_saids(
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     said: &SelfAddressingIdentifier,
 ) -> Option<Vec<SelfAddressingIdentifier>> {
     let facade_locked = facade.lock().unwrap();
@@ -222,7 +222,7 @@ fn dependant_saids(
         Some(
             saids
                 .iter()
-                .map(|bdle| bdle.model.digest.as_ref().unwrap().clone())
+                .map(|bdle| bdle.digest.as_ref().unwrap().clone())
                 .collect::<Vec<_>>(),
         )
     }
@@ -235,7 +235,7 @@ fn dependant_saids(
 ///
 ///
 fn publish_oca_file_for(
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     said: SelfAddressingIdentifier,
     timeout: &Option<u64>,
     repository_url: Url,
@@ -924,7 +924,8 @@ fn main() -> Result<(), CliError> {
                     let facade = get_oca_facade(local_repository_path);
                     let facade = Arc::new(Mutex::new(facade));
                     let mut graph = MutableGraph::new(paths)?;
-                    let registry = OverlayLocalRegistry::from_dir(overlay_definitions_path).unwrap();
+                    let registry =
+                        OverlayLocalRegistry::from_dir(overlay_definitions_path).unwrap();
                     match ocafile {
                         Some(oca_file) => {
                             let mut cache = HashSet::new();

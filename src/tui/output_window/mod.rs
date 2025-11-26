@@ -9,7 +9,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use oca_sdk_rs::{overlay_registry::OverlayLocalRegistry, Facade};
+use oca_sdk_rs::{overlay_registry::OverlayLocalRegistry, Store};
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
@@ -144,7 +144,7 @@ impl OutputWindow {
 
     pub fn handle_validate(
         &self,
-        facade: Arc<Mutex<Facade>>,
+        facade: Arc<Mutex<Store>>,
         graph: MutableGraph,
         bundle_infos: Vec<Element>,
         registry: OverlayLocalRegistry,

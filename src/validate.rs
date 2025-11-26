@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use oca_sdk_rs::{overlay_registry::OverlayLocalRegistry, Facade};
+use oca_sdk_rs::{overlay_registry::OverlayLocalRegistry, Store};
 
 use crate::{
     dependency_graph::{parse_name, MutableGraph},
@@ -13,7 +13,7 @@ use crate::{
 };
 
 pub fn validate_directory(
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     graph: &mut MutableGraph,
     selected_bundle: Option<String>,
     registry: OverlayLocalRegistry,
@@ -82,7 +82,7 @@ pub fn validate_directory(
 
 pub fn build(
     selected_bundle: Option<String>,
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     graph: &mut MutableGraph,
     infos: Arc<Mutex<MessageList>>,
     cache: &[String],

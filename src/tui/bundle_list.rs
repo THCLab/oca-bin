@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use oca_sdk_rs::Facade;
+use oca_sdk_rs::Store;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -53,7 +53,7 @@ impl Indexer {
 impl BundleList {
     pub fn from_nodes<I: IntoIterator<Item = Result<Node, NodeParsingError>>>(
         to_show: I,
-        facade: Arc<Mutex<Facade>>,
+        facade: Arc<Mutex<Store>>,
         graph: Arc<DependencyGraph>,
         directory: PathBuf,
     ) -> Result<Self, BundleListError> {
