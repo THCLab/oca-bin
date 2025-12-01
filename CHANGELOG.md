@@ -1,47 +1,67 @@
-# Changelog
+## [0.7.1] - 2025-12-01
 
-All notable changes to this project will be documented in this file.
+### 🚀 Features
 
+- Add validation command for overlayfile
+
+### 🐛 Bug Fixes
+
+- Fix dependencies, update digest in test
+- Get command retrun always cesr encoded bundle
+- Remove print
+- Serialization to bundle
+- Update core overlays
+- Output of validation of overlayfile
+- Align name for overlay definitions path in config
+- Update core overlays
+
+### 💼 Other
+
+- Adopt tooling for OCA 2.0.0
+- Add config for overlay_definitions
+- Improve the dependency retrival and fix serialization for get command
+
+### ⚙️ Miscellaneous Tasks
+
+- Run fmt and clippy
+- Update dependencies and change Facade to Store
+- Update to latest dependencies
+- Update gitignore
 ## [0.5.4] - 2025-01-28
 
 ### ⚙️ Miscellaneous Tasks
 
 - Update oca-rs to 0.6.10 and oca-sdk-rs to 0.1.5
-
+- Release 0.5.4 version
 ## [0.5.3] - 2025-01-28
 
 ### ⚙️ Miscellaneous Tasks
 
 - Update oca-rs to 0.6.9 and oca-sdk-rs to 0.1.4
 - Release 0.5.3 version
-
 ## [0.5.2] - 2025-01-17
 
 ### ⚙️ Miscellaneous Tasks
 
 - Update oca dependencies and refactor imports to use oca_sdk_rs
 - Release 0.5.2 version
-
 ## [0.5.1] - 2025-01-10
 
 ### ⚙️ Miscellaneous Tasks
 
 - Release 0.5.1 version
-
 ## [0.5.0] - 2024-11-15
 
 ### ⚙️ Miscellaneous Tasks
 
 - [**breaking**] Update oca-rs package to 0.6.0
 - Release 0.5.0 version
-
 ## [0.4.6] - 2024-11-11
 
 ### ⚙️ Miscellaneous Tasks
 
 - Update README
 - Release 0.4.6 version
-
 ## [0.4.6-rc.14] - 2024-11-05
 
 ### 🐛 Bug Fixes
@@ -55,7 +75,6 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Release 0.4.6-rc.14 version
-
 ## [0.4.6-rc.13] - 2024-11-05
 
 ### 🚀 Features
@@ -69,7 +88,6 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Release 0.4.6-rc.13 version
-
 ## [0.4.6-rc.12] - 2024-10-29
 
 ### 🐛 Bug Fixes
@@ -79,7 +97,6 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Release 0.4.6-rc.12 version
-
 ## [0.4.6-rc.11] - 2024-10-28
 
 ### 🚀 Features
@@ -100,7 +117,6 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Release 0.4.6-rc.11 version
-
 ## [0.4.6-rc.10] - 2024-10-22
 
 ### 🐛 Bug Fixes
@@ -110,21 +126,18 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Release 0.4.6-rc.10 version
-
 ## [0.4.6-rc.9] - 2024-10-21
 
 ### ⚙️ Miscellaneous Tasks
 
 - Customize name for pkg
 - Release 0.4.6-rc.9 version
-
 ## [0.4.6-rc.8] - 2024-10-15
 
 ### ⚙️ Miscellaneous Tasks
 
 - Add ubuntu-20.04 to supported OS
 - Release 0.4.6-rc.8 version
-
 ## [0.4.6-rc.7] - 2024-10-15
 
 ### 🚀 Features
@@ -138,7 +151,6 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Release 0.4.6-rc.7 version
-
 ## [0.4.6-rc.6] - 2024-10-10
 
 ### 🚀 Features
@@ -152,7 +164,6 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Release 0.4.6-rc.6 version
-
 ## [0.4.6-rc.5] - 2024-10-07
 
 ### 🚀 Features
@@ -171,7 +182,6 @@ All notable changes to this project will be documented in this file.
 
 - Fix clippy warnings
 - Release 0.4.6-rc.5 version
-
 ## [0.4.6-rc.4] - 2024-09-26
 
 ### 🚀 Features
@@ -192,7 +202,6 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Release 0.4.6-rc.4 version
-
 ## [0.4.6-rc.3] - 2024-09-18
 
 ### 🚀 Features
@@ -212,7 +221,6 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Release 0.4.6-rc.3 version
-
 ## [0.4.6-rc.2] - 2024-09-12
 
 ### 🚀 Features
@@ -227,7 +235,6 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Release 0.4.6-rc.2 version
-
 ## [0.4.6-rc.1] - 2024-09-12
 
 ### 🚀 Features
@@ -247,7 +254,6 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Release 0.4.6-rc.1 version
-
 ## [0.4.5] - 2024-08-28
 
 ### 🐛 Bug Fixes
@@ -259,7 +265,6 @@ All notable changes to this project will be documented in this file.
 
 - Fix clippy warnings
 - Release 0.4.5 version
-
 ## [0.4.4] - 2024-08-23
 
 ### 🚀 Features
@@ -269,7 +274,6 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Release 0.4.4 version
-
 ## [0.4.3] - 2024-08-20
 
 ### 🐛 Bug Fixes
@@ -282,7 +286,6 @@ All notable changes to this project will be documented in this file.
 - Update README.md
 - Update said package to 0.4.1 and oca packages to 0.5.4
 - Release 0.4.3 version
-
 ## [0.4.2] - 2024-07-16
 
 ### 🐛 Bug Fixes
@@ -295,7 +298,6 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Release 0.4.2 version
-
 ## [0.4.1] - 2024-07-08
 
 ### 🚀 Features
@@ -324,7 +326,6 @@ All notable changes to this project will be documented in this file.
 - Release 0.4.0 version
 - Rewamp CHANGELOG
 - Release 0.4.1 version
-
 ## [0.4.0-rc.13] - 2024-06-17
 
 ### 🚀 Features
@@ -345,7 +346,6 @@ All notable changes to this project will be documented in this file.
 - Bump oca-presentation version
 - Release 0.4.0-rc.13 version
 - Changelog for rc13
-
 ## [0.4.0-rc.12] - 2024-06-12
 
 ### 🚀 Features
@@ -373,7 +373,6 @@ All notable changes to this project will be documented in this file.
 
 - Release 0.4.0-rc.12 version
 - Add changelog for rc12
-
 ## [0.4.0-rc.11] - 2024-05-08
 
 ### 🚀 Features
@@ -451,7 +450,6 @@ All notable changes to this project will be documented in this file.
 - Fix clippy warnings and reformat
 - Update dependencies
 - Release 0.4.0-rc.11 version
-
 ## [0.4.0-rc.10] - 2024-03-08
 
 ### 🚀 Features
@@ -462,7 +460,6 @@ All notable changes to this project will be documented in this file.
 
 - Add changelog for rc.10
 - Release 0.4.0-rc.10 version
-
 ## [0.4.0-rc.9] - 2024-03-07
 
 ### 🚀 Features
@@ -474,14 +471,12 @@ All notable changes to this project will be documented in this file.
 - Default reduce verbosity
 - Add changelog for rc.9
 - Release 0.4.0-rc.9 version
-
 ## [0.4.0-rc.8] - 2024-03-07
 
 ### ⚙️ Miscellaneous Tasks
 
 - Update presentation crate
 - Release 0.4.0-rc.8 version
-
 ## [0.4.0-rc.7] - 2024-02-26
 
 ### 🚀 Features
@@ -495,7 +490,6 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Release 0.4.0-rc.7 version
-
 ## [0.4.0-rc.6] - 2024-02-02
 
 ### 🚀 Features
@@ -510,7 +504,6 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Release 0.4.0-rc.6 version
-
 ## [0.4.0-rc.5] - 2024-01-29
 
 ### 🚀 Features
@@ -553,7 +546,6 @@ All notable changes to this project will be documented in this file.
 
 - Update cargo.toml
 - Release 0.4.0-rc.5 version
-
 ## [0.4.0-rc.4] - 2024-01-09
 
 ### 🚀 Features
@@ -567,7 +559,6 @@ All notable changes to this project will be documented in this file.
 - Release 0.4.0-rc.3 version
 - Remove unused code
 - Release 0.4.0-rc.4 version
-
 ## [0.4.0-rc.2] - 2024-01-09
 
 ### 💼 Other
@@ -580,7 +571,6 @@ All notable changes to this project will be documented in this file.
 - Exclude gitattributes
 - Fix version in cargo
 - Release 0.4.0-rc.2 version
-
 ## [0.4.0-rc.1] - 2024-01-09
 
 ### 🚀 Features
@@ -603,7 +593,6 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Adopt to changes from string to SAID in oca-rs
-
 ## [0.3.0] - 2023-11-15
 
 ### 🚀 Features
@@ -619,7 +608,6 @@ All notable changes to this project will be documented in this file.
 - Update dependencies
 - Update documentation on subcomands
 - Remove dep path to compile project on github action
-
 ## [0.2.0] - 2023-11-03
 
 ### 🚀 Features
@@ -627,11 +615,8 @@ All notable changes to this project will be documented in this file.
 - Add config subcommand
 - Add publish command
 - Implement configuration
-
 ## [0.1.0] - 2023-10-17
 
 ### 🐛 Bug Fixes
 
 - Bundled sql dependency to pass builds on windows
-
-<!-- generated by git-cliff -->
