@@ -6,7 +6,8 @@ use std::{
 };
 
 use itertools::Itertools;
-use oca_sdk_rs::{NestedAttrType, RefValue, Store};
+use oca_sdk_rs::{NestedAttrType, RefValue};
+use oca_store::Facade as Store;
 use ratatui::{
     style::{Color, Modifier, Style},
     text::{Line, Span},

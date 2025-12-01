@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use oca_sdk_rs::Store;
+use oca_store::Facade as Store;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,

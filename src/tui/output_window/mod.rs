@@ -9,7 +9,8 @@ use std::{
 };
 
 use itertools::Itertools;
-use oca_sdk_rs::{overlay_registry::OverlayLocalRegistry, Store};
+use oca_sdk_rs::overlay_registry::OverlayLocalRegistry;
+use oca_store::Facade as Store;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},

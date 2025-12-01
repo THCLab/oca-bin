@@ -4,7 +4,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use oca_sdk_rs::{overlay_registry::OverlayLocalRegistry, Store};
+use oca_sdk_rs::overlay_registry::OverlayLocalRegistry;
+use oca_store::Facade as Store;
 
 use crate::{
     dependency_graph::{parse_name, MutableGraph},

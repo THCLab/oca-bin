@@ -5,8 +5,9 @@ use std::{
 };
 
 use itertools::Itertools;
+use oca_sdk_rs::overlay_registry::OverlayLocalRegistry;
 use oca_sdk_rs::SelfAddressingIdentifier;
-use oca_sdk_rs::{overlay_registry::OverlayLocalRegistry, Store};
+use oca_store::Facade as Store;
 use serde::Serialize;
 use serde_json::json;
 use url::Url;

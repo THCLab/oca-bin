@@ -13,6 +13,7 @@ use dependency_graph::GraphError;
 use error::CliError;
 // use oca_presentation::presentation::Presentation;
 use oca_sdk_rs::overlay_registry::OverlayLocalRegistry;
+use oca_store::Facade as Store;
 // use presentation_command::PresentationCommand;
 use serde_json::json;
 use std::collections::HashSet;
@@ -33,7 +34,6 @@ use utils::visit_dirs_recursive;
 
 use clap::Parser as ClapParser;
 use clap::Subcommand;
-use oca_sdk_rs::Store;
 use oca_store::repositories::SQLiteConfig;
 
 use url::Url;
@@ -251,6 +251,7 @@ fn publish_oca_file_for(
 
 fn main() -> Result<(), CliError> {
     // TODO why we need if TUI is not started?
+    // it is for all so maybe moving it away from TUI would make sense
     initialize_logging().unwrap();
     info!("Initializing OCA CLI application");
 
