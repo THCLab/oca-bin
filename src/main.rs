@@ -13,6 +13,7 @@ use dependency_graph::GraphError;
 use error::CliError;
 // use oca_presentation::presentation::Presentation;
 use oca_sdk_rs::overlay_registry::OverlayLocalRegistry;
+use oca_sdk_rs::OCABundle;
 use oca_store::Facade as Store;
 // use presentation_command::PresentationCommand;
 use serde_json::json;
@@ -790,8 +791,9 @@ fn main() -> Result<(), CliError> {
                     }
                 } else {
                     match facade.get_oca_bundle(said.clone()) {
-                        Ok(bundle) => {
-                            serde_json::to_writer_pretty(std::io::stdout(), &bundle)
+                        Ok(oca_bundle_model) => {
+                            let oca_bundle = OCABundle::from(oca_bundle_model);
+                            serde_json::to_writer_pretty(std::io::stdout(), &oca_bundle)
                                 .expect("Failed to format oca bundle model");
                         }
                         Err(e) => return Err(CliError::OcaBundleAstError(e)),
