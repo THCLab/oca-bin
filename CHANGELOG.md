@@ -1,3 +1,8 @@
+## [0.7.2] - 2025-12-18
+
+### 🐛 Bug Fixes
+
+- Serialize bundle instead of model for get
 ## [0.7.1] - 2025-12-01
 
 ### 🚀 Features
@@ -27,6 +32,7 @@
 - Update dependencies and change Facade to Store
 - Update to latest dependencies
 - Update gitignore
+- Release 0.7.1 version
 ## [0.5.4] - 2025-01-28
 
 ### ⚙️ Miscellaneous Tasks
