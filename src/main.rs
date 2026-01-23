@@ -1,4 +1,4 @@
-use crate::mapping::mapping;
+// use crate::mapping::mapping;
 use build::handle_publish;
 use build::rebuild;
 use build::NodeStatus;
@@ -7,18 +7,22 @@ use config::create_or_open_local_storage;
 use config::OCA_CACHE_DB_DIR;
 use config::OCA_INDEX_DIR;
 use config::OCA_REPOSITORY_DIR;
+use config::OVERLAY_DEF_DIR_NAME;
 use dependency_graph::parse_name;
 use dependency_graph::GraphError;
 use error::CliError;
-use oca_presentation::presentation::Presentation;
-use presentation_command::PresentationCommand;
+// use oca_presentation::presentation::Presentation;
+use oca_sdk_rs::overlay_registry::OverlayLocalRegistry;
+use oca_sdk_rs::OCABundle;
+use oca_store::Facade as Store;
+// use presentation_command::PresentationCommand;
 use serde_json::json;
 use std::collections::HashSet;
 use std::fs::read_to_string;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::{env, fs, fs::File, io::Write, path::PathBuf, process, str::FromStr};
+use std::{env, path::PathBuf, process, str::FromStr};
 use summary::SummaryGroup;
 use summary::SummaryOptions;
 use tui::app::App;
@@ -31,19 +35,17 @@ use utils::visit_dirs_recursive;
 
 use clap::Parser as ClapParser;
 use clap::Subcommand;
-use oca_rs::repositories::SQLiteConfig;
-use oca_sdk_rs::Facade;
+use oca_store::repositories::SQLiteConfig;
+
 use url::Url;
 
 use crate::config::{init_or_read_config, write_config, Config, OCA_DIR_NAME};
 use crate::dependency_graph::parse_node;
-use crate::dependency_graph::DependencyGraph;
 use crate::dependency_graph::MutableGraph;
-use crate::presentation_command::{handle_generate, handle_validate, Format};
+// use crate::presentation_command::{handle_generate, handle_validate, Format};
 use crate::tui::logging::initialize_logging;
 use crate::utils::{load_ocafiles_all, visit_current_dir};
-use said::SelfAddressingIdentifier;
-use serde::{Deserialize, Serialize};
+use oca_sdk_rs::SelfAddressingIdentifier;
 
 extern crate dirs;
 
@@ -55,8 +57,8 @@ mod cache;
 mod config;
 mod dependency_graph;
 pub mod error;
-mod mapping;
-pub mod presentation_command;
+// mod mapping;
+// pub mod presentation_command;
 mod summary;
 mod tui;
 mod utils;
@@ -100,14 +102,17 @@ enum Commands {
         summary: Option<SummaryGroup>,
     },
     /// Validate oca objects out of ocafile
-    #[clap(group = clap::ArgGroup::new("build").multiple(true).required(true).args(&["ocafile", "directory"]))]
+    #[clap(group = clap::ArgGroup::new("validate_group").multiple(true).required(true).args(&["ocafile", "directory"]))]
     Validate {
         /// Specify ocafile to validate from
-        #[arg(short = 'f', long, group = "build")]
+        #[arg(short = 'f', long, group = "validate_group")]
         ocafile: Option<Vec<PathBuf>>,
         /// Validate oca objects from directory (recursive)
-        #[arg(short, long, group = "build")]
+        #[arg(short, long, group = "validate_group")]
         directory: Option<PathBuf>,
+        /// Specify overlay file to validate it
+        #[arg(short, long, group = "validate_group")]
+        overlayfile: Option<PathBuf>,
     },
     /// Publish oca objects into online repository
     #[clap(group = clap::ArgGroup::new("publish").required(true).args(&["said", "directory"]))]
@@ -149,11 +154,11 @@ enum Commands {
     },
     /// List of all oca objects stored in local repository
     List {},
-    /// Generate or parse presentation for oca object
-    Presentation {
-        #[command(subcommand)]
-        command: PresentationCommand,
-    },
+    // /// Generate or parse presentation for oca object
+    // Presentation {
+    //     #[command(subcommand)]
+    //     command: PresentationCommand,
+    // },
     /// Launches a terminal user interface application to browse OCA objects
     Tui {
         /// Browse oca objects from directory (recursive)
@@ -164,10 +169,10 @@ enum Commands {
         timeout: Option<u64>,
     },
     /// Generate json file with all fields of oca object for specified said
-    Mapping {
-        #[arg(short, long)]
-        said: String,
-    },
+    // Mapping {
+    //     #[arg(short, long)]
+    //     said: String,
+    // },
     /// Returns list of oca objects that uses provided ocafile as dependency
     Deps {
         /// Specify ocafile
@@ -179,17 +184,17 @@ enum Commands {
     },
 }
 
-fn get_oca_facade(local_repository_path: PathBuf) -> Facade {
+fn get_oca_facade(local_repository_path: PathBuf) -> Store {
     let db = create_or_open_local_storage(local_repository_path.join(OCA_REPOSITORY_DIR));
     let cache = create_or_open_local_storage(local_repository_path.join(OCA_CACHE_DB_DIR));
     let cache_storage_config = SQLiteConfig::build()
         .path(local_repository_path.join(OCA_INDEX_DIR))
         .unwrap();
-    Facade::new(Box::new(db.clone()), Box::new(cache), cache_storage_config)
+    Store::new(Box::new(db.clone()), Box::new(cache), cache_storage_config)
 }
 
 fn saids_to_publish(
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     saids: &[SelfAddressingIdentifier],
 ) -> HashSet<SelfAddressingIdentifier> {
     let mut to_publish = HashSet::new();
@@ -205,11 +210,11 @@ fn saids_to_publish(
 }
 
 fn dependant_saids(
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     said: &SelfAddressingIdentifier,
 ) -> Option<Vec<SelfAddressingIdentifier>> {
     let facade_locked = facade.lock().unwrap();
-    let bundles = facade_locked.get_oca_bundle(said.clone(), true).unwrap();
+    let bundles = facade_locked.get_oca_bundle_set(said.clone()).unwrap();
     let saids = bundles.dependencies;
 
     if saids.is_empty() {
@@ -218,7 +223,7 @@ fn dependant_saids(
         Some(
             saids
                 .iter()
-                .map(|bdle| bdle.said.as_ref().unwrap().clone())
+                .map(|bdle| bdle.digest.as_ref().unwrap().clone())
                 .collect::<Vec<_>>(),
         )
     }
@@ -231,7 +236,7 @@ fn dependant_saids(
 ///
 ///
 fn publish_oca_file_for(
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     said: SelfAddressingIdentifier,
     timeout: &Option<u64>,
     repository_url: Url,
@@ -246,7 +251,10 @@ fn publish_oca_file_for(
 }
 
 fn main() -> Result<(), CliError> {
+    // TODO why we need if TUI is not started?
+    // it is for all so maybe moving it away from TUI would make sense
     initialize_logging().unwrap();
+    info!("Initializing OCA CLI application");
 
     App::setup_panic_hooks()?;
     let args = Args::parse();
@@ -259,20 +267,17 @@ fn main() -> Result<(), CliError> {
     // default is one repo for all in home dir
     //
 
-    let config = init_or_read_config();
-    info!("Config: {:?}", config);
-    let local_repository_path = config.local_repository_path;
-    let remote_repo_url_from_config = config.repository_url;
-
     let unwind_res = std::panic::catch_unwind(AssertUnwindSafe(|| {
         match &args.command {
             Some(Commands::Init {}) => {
                 info!("Initialize local repository");
                 match env::current_dir() {
                     Ok(path) => {
-                        info!("Initialize repository at: {:?}", path);
+                        println!("Initialize repository at: {:?}", path);
                         let local_repository_path = path.join(OCA_DIR_NAME);
-                        let config = Config::new(local_repository_path);
+                        let overlay_definitions_path =
+                            local_repository_path.join(OVERLAY_DEF_DIR_NAME);
+                        let config = Config::new(local_repository_path, overlay_definitions_path);
                         let config_file = path.join(OCA_DIR_NAME).join("config.toml");
                         match write_config(&config, &config_file) {
                             Ok(it) => Ok(it),
@@ -286,7 +291,15 @@ fn main() -> Result<(), CliError> {
                 }
             }
             Some(Commands::Config {}) => {
-                info!("Configuration of oca");
+                let config = init_or_read_config();
+                let local_repository_path = config.local_repository_path.clone();
+
+                info!("=== Configuration of oca");
+                println!(
+                    "OCA configuration file: {:?}",
+                    local_repository_path.join("config.toml")
+                );
+                println!("== Build-in configuration:");
                 println!(
                     "Local repository: {:?} ",
                     local_repository_path.join(OCA_REPOSITORY_DIR)
@@ -296,6 +309,12 @@ fn main() -> Result<(), CliError> {
                     local_repository_path.join(OCA_CACHE_DB_DIR)
                 );
                 println!("Index DB: {:?}", local_repository_path.join(OCA_INDEX_DIR));
+
+                let config_content =
+                    std::fs::read_to_string(local_repository_path.join("config.toml"))?;
+
+                println!("=== Config file: \n {}", config_content);
+
                 Ok(())
             }
             Some(Commands::Build {
@@ -306,6 +325,12 @@ fn main() -> Result<(), CliError> {
                 repository_url,
                 summary,
             }) => {
+                let config = init_or_read_config();
+                let local_repository_path = config.local_repository_path.clone();
+                let remote_repo_url_from_config = config.repository_url.clone();
+                let registry =
+                    OverlayLocalRegistry::from_dir(config.overlay_definitions_path).unwrap();
+
                 let summary = match (publish, summary) {
                     (true, None) => SummaryOptions::Human,
                     (true, Some(s)) => s.summary(),
@@ -320,7 +345,13 @@ fn main() -> Result<(), CliError> {
                         // No directory, no cache.
                         let mut summary_info = vec![];
                         for node in nodes.iter() {
-                            let built = build::build(facade.clone(), node, None, &summary)?;
+                            let built = build::build(
+                                facade.clone(),
+                                node,
+                                None,
+                                &summary,
+                                registry.clone(),
+                            )?;
                             match built {
                                 Some((said, _)) => {
                                     summary_info.push(PublishedInfo {
@@ -348,7 +379,8 @@ fn main() -> Result<(), CliError> {
                         let saids: Result<Vec<_>, _> = nodes
                             .iter()
                             .filter_map(|node| {
-                                build::build(facade.clone(), node, None, &summary).transpose()
+                                build::build(facade.clone(), node, None, &summary, registry.clone())
+                                    .transpose()
                             })
                             .collect();
                         let remote_repo_url =
@@ -395,8 +427,13 @@ fn main() -> Result<(), CliError> {
                     (Some(directory), true, false) => {
                         let remote_repo_url =
                             load_remote_repo_url(repository_url, remote_repo_url_from_config)?;
-                        let (rebuilt_nodes, cache_said) =
-                            rebuild(directory.as_path(), facade.clone(), &nodes, &summary)?;
+                        let (rebuilt_nodes, cache_said) = rebuild(
+                            directory.as_path(),
+                            facade.clone(),
+                            &nodes,
+                            &summary,
+                            registry,
+                        )?;
                         let statuses = nodes.into_iter().map(|node| {
                             if rebuilt_nodes.contains(&node) {
                                 NodeStatus::Rebuilt(node)
@@ -408,7 +445,7 @@ fn main() -> Result<(), CliError> {
                     }
                     (Some(directory), false, true) => {
                         let (rebuilt, cache) =
-                            rebuild(directory.as_path(), facade, &nodes, &summary)?;
+                            rebuild(directory.as_path(), facade, &nodes, &summary, registry)?;
                         if let SummaryOptions::Json = summary {
                             let mut summary_info = vec![];
                             rebuilt.iter().for_each(|node| {
@@ -439,7 +476,7 @@ fn main() -> Result<(), CliError> {
                     }
                     (Some(directory), false, false) => {
                         let (rebuilt, cache) =
-                            rebuild(directory.as_path(), facade, &nodes, &summary)?;
+                            rebuild(directory.as_path(), facade, &nodes, &summary, registry)?;
                         if let SummaryOptions::Json = summary {
                             let mut summary_info = vec![];
                             nodes.into_iter().for_each(|node| {
@@ -471,8 +508,13 @@ fn main() -> Result<(), CliError> {
                     (Some(directory), true, true) => {
                         let remote_repo_url =
                             load_remote_repo_url(&None, remote_repo_url_from_config)?;
-                        let (rebuilt_nodes, cache) =
-                            rebuild(directory.as_path(), facade.clone(), &nodes, &summary)?;
+                        let (rebuilt_nodes, cache) = rebuild(
+                            directory.as_path(),
+                            facade.clone(),
+                            &nodes,
+                            &summary,
+                            registry,
+                        )?;
                         handle_publish(
                             facade,
                             remote_repo_url,
@@ -501,6 +543,12 @@ fn main() -> Result<(), CliError> {
                 all,
                 summary,
             }) => {
+                let config = init_or_read_config();
+                let local_repository_path = config.local_repository_path.clone();
+                let remote_repo_url_from_config = config.repository_url.clone();
+                let registry =
+                    OverlayLocalRegistry::from_dir(config.overlay_definitions_path).unwrap();
+
                 let summary = summary.summary();
                 match (said, directory, diff, all) {
                     (Some(said), None, false, _) => {
@@ -587,8 +635,13 @@ fn main() -> Result<(), CliError> {
                         let nodes = load_nodes(None, Some(directory))?;
                         let facade =
                             Arc::new(Mutex::new(get_oca_facade(local_repository_path.clone())));
-                        let (rebuilt_nodes, said_cache) =
-                            rebuild(directory.as_path(), facade.clone(), &nodes, &summary)?;
+                        let (rebuilt_nodes, said_cache) = rebuild(
+                            directory.as_path(),
+                            facade.clone(),
+                            &nodes,
+                            &summary,
+                            registry,
+                        )?;
 
                         let remote_repo_url =
                             load_remote_repo_url(repository_url, remote_repo_url_from_config)?;
@@ -608,8 +661,13 @@ fn main() -> Result<(), CliError> {
                         let nodes = load_nodes(None, Some(directory))?;
                         let facade =
                             Arc::new(Mutex::new(get_oca_facade(local_repository_path.clone())));
-                        let (rebuilt_nodes, said_cache) =
-                            rebuild(directory.as_path(), facade.clone(), &nodes, &summary)?;
+                        let (rebuilt_nodes, said_cache) = rebuild(
+                            directory.as_path(),
+                            facade.clone(),
+                            &nodes,
+                            &summary,
+                            registry,
+                        )?;
 
                         let remote_repo_url =
                             load_remote_repo_url(&None, remote_repo_url_from_config)?;
@@ -640,6 +698,9 @@ fn main() -> Result<(), CliError> {
                 }
             }
             Some(Commands::List {}) => {
+                let config = init_or_read_config();
+                let local_repository_path = config.local_repository_path.clone();
+
                 info!(
                     "List OCA object from local repository: {:?}",
                     local_repository_path
@@ -662,7 +723,7 @@ fn main() -> Result<(), CliError> {
                     count += records.len();
                     info!("Processing {} objects", records.len());
                     for bundle in records {
-                        let said = bundle.said.unwrap();
+                        let said = bundle.digest.as_ref().unwrap();
                         let matching_ref = refs.iter().find(|&(_, v)| *v == said.to_string());
                         match matching_ref {
                             Some((refs, _)) => {
@@ -683,6 +744,9 @@ fn main() -> Result<(), CliError> {
                 ast,
                 dereference,
             }) => {
+                let config = init_or_read_config();
+                let local_repository_path = config.local_repository_path.clone();
+
                 info!("Search for OCA object in local repository");
                 let facade = get_oca_facade(local_repository_path);
                 match SelfAddressingIdentifier::from_str(said) {
@@ -712,166 +776,206 @@ fn main() -> Result<(), CliError> {
                 said,
                 with_dependencies,
             }) => {
+                let config = init_or_read_config();
+                let local_repository_path = config.local_repository_path.clone();
+
                 let facade = get_oca_facade(local_repository_path);
                 let said = SelfAddressingIdentifier::from_str(said)?;
-                let oca_bundles = facade
-                    .get_oca_bundle(said, *with_dependencies)
-                    .map_err(CliError::OcaBundleAstError)?;
-                let content = serde_json::to_value(oca_bundles).map_err(CliError::ReadOcaError)?;
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&content).map_err(CliError::WriteOcaError)?
-                );
-                Ok(())
-            }
-            Some(Commands::Presentation { command }) => {
-                match command {
-                    PresentationCommand::Generate { said, format } => {
-                        let said = SelfAddressingIdentifier::from_str(said)?;
-                        let facade = get_oca_facade(local_repository_path);
-                        let presentation = handle_generate(said, &facade)?;
-                        let wrapped_presentation = WrappedPresentation { presentation };
-                        let output = match format {
-                            Some(f) => f.format(&wrapped_presentation),
-                            None => Format::JSON.format(&wrapped_presentation),
-                        };
-                        println!("{}", output);
-                        Ok(())
+                if *with_dependencies {
+                    match facade.get_oca_bundle_set(said.clone()) {
+                        Ok(bundle) => {
+                            serde_json::to_writer_pretty(std::io::stdout(), &bundle)
+                                .expect("Failed to format oca bundle set");
+                        }
+                        Err(e) => return Err(CliError::OcaBundleAstError(e)),
                     }
-                    PresentationCommand::Validate {
-                        from_file,
-                        output,
-                        format,
-                        recalculate,
-                    } => {
-                        let ext = from_file.extension();
-                        let extension = match ext {
-                            Some(ext) => match ext.to_str() {
-                                Some(ext) => Format::from_str(ext)
-                                    .map_err(|e| CliError::FileExtensionError(e.to_string())),
-                                None => Err(CliError::FileExtensionError(
-                                    "Unsupported file extension".to_string(),
-                                )),
-                            },
-                            None => {
-                                warn!("Missing input file extension. Using JSON");
-                                Ok(Format::JSON)
-                            }
-                        }?;
-
-                        let file_contents = fs::read_to_string(from_file)
-                            .map_err(|e| CliError::ReadFileFailed(from_file.clone(), e))?;
-                        let pres: WrappedPresentation = match extension {
-                            Format::JSON => serde_json::from_str(&file_contents).unwrap(),
-                            Format::YAML => serde_yaml::from_str(&file_contents).unwrap(),
-                        };
-                        let pres = handle_validate(pres.presentation, *recalculate);
-                        match pres {
-                            Ok(pres) => {
-                                let presentation_wrapped =
-                                    WrappedPresentation { presentation: pres };
-                                // save to file
-                                let (path, content) = match (output, format) {
-                                    (None, None) => {
-                                        (from_file.into(), extension.format(&presentation_wrapped))
-                                    }
-                                    (None, Some(format)) => match format {
-                                        Format::JSON => {
-                                            let mut output_path = from_file.clone();
-                                            output_path.set_extension("json");
-                                            (
-                                                output_path,
-                                                serde_json::to_string_pretty(&presentation_wrapped)
-                                                    .unwrap(),
-                                            )
-                                        }
-                                        Format::YAML => {
-                                            let mut output_path = from_file.clone();
-                                            output_path.set_extension("yaml");
-                                            (
-                                                output_path,
-                                                serde_yaml::to_string(&presentation_wrapped)
-                                                    .unwrap(),
-                                            )
-                                        }
-                                    },
-                                    (Some(out), None) => {
-                                        (out.into(), extension.format(&presentation_wrapped))
-                                    }
-                                    (Some(out), Some(format)) => {
-                                        (out.into(), format.format(&presentation_wrapped))
-                                    }
-                                };
-
-                                let mut file =
-                                    File::create(path).map_err(CliError::WriteFileFailed)?;
-
-                                file.write_all(content.as_bytes())
-                                    .map_err(CliError::WriteFileFailed)?;
-                                println!("Presentation SAID is valid");
-                            }
-                            Err(e) => {
-                                println!("Error: {}", &e.to_string());
-                            }
-                        };
-                        Ok(())
+                } else {
+                    match facade.get_oca_bundle(said.clone()) {
+                        Ok(oca_bundle_model) => {
+                            let oca_bundle = OCABundle::from(oca_bundle_model);
+                            serde_json::to_writer_pretty(std::io::stdout(), &oca_bundle)
+                                .expect("Failed to format oca bundle model");
+                        }
+                        Err(e) => return Err(CliError::OcaBundleAstError(e)),
                     }
                 }
-            }
-            Some(Commands::Validate { ocafile, directory }) => {
-                let paths = match (ocafile, directory) {
-                    (None, None) => unreachable!("At least one argument expected"),
-                    (_, Some(dir)) => visit_dirs_recursive(dir)?,
-                    (Some(oca_file), None) => oca_file.clone(),
-                };
+                // Flush new line to avoid % at the end on some terminals
+                println!();
 
-                let facade = get_oca_facade(local_repository_path);
-                let facade = Arc::new(Mutex::new(facade));
-                let mut graph = MutableGraph::new(paths)?;
-                match ocafile {
-                    Some(oca_file) => {
-                        let mut cache = HashSet::new();
-                        for file in oca_file {
-                            // Insert ocafile to graph, if not present
-                            let (node, dependencies) =
-                                parse_node(file).map_err(|e| CliError::GraphError(e.into()))?;
-                            match graph.insert_node(node.clone(), dependencies) {
-                                Ok(_) => (),
-                                // node already in graph
-                                Err(GraphError::DuplicateKey {
-                                    refn: _,
-                                    first_path: _,
-                                    second_path: _,
-                                }) => (),
-                                Err(e) => return Err(e.into()),
-                            };
-                            println!("Validating {}", &node.refn);
-                            let (out_cache, errs) = validate::validate_directory(
-                                facade.clone(),
+                Ok(())
+            }
+            // Some(Commands::Presentation { command }) => {
+            //     match command {
+            //         PresentationCommand::Generate { said, format } => {
+            //             let said = SelfAddressingIdentifier::from_str(said)?;
+            //             let facade = get_oca_facade(local_repository_path);
+            //             let presentation = handle_generate(said, &facade)?;
+            //             let wrapped_presentation = WrappedPresentation { presentation };
+            //             let output = match format {
+            //                 Some(f) => f.format(&wrapped_presentation),
+            //                 None => Format::JSON.format(&wrapped_presentation),
+            //             };
+            //             println!("{}", output);
+            //             Ok(())
+            //         }
+            //         PresentationCommand::Validate {
+            //             from_file,
+            //             output,
+            //             format,
+            //             recalculate,
+            //         } => {
+            //             let ext = from_file.extension();
+            //             let extension = match ext {
+            //                 Some(ext) => match ext.to_str() {
+            //                     Some(ext) => Format::from_str(ext)
+            //                         .map_err(|e| CliError::FileExtensionError(e.to_string())),
+            //                     None => Err(CliError::FileExtensionError(
+            //                         "Unsupported file extension".to_string(),
+            //                     )),
+            //                 },
+            //                 None => {
+            //                     warn!("Missing input file extension. Using JSON");
+            //                     Ok(Format::JSON)
+            //                 }
+            //             }?;
+            //
+            //             let file_contents = fs::read_to_string(from_file)
+            //                 .map_err(|e| CliError::ReadFileFailed(from_file.clone(), e))?;
+            //             let pres: WrappedPresentation = match extension {
+            //                 Format::JSON => serde_json::from_str(&file_contents).unwrap(),
+            //                 Format::YAML => serde_yaml::from_str(&file_contents).unwrap(),
+            //             };
+            //             let pres = handle_validate(pres.presentation, *recalculate);
+            //             match pres {
+            //                 Ok(pres) => {
+            //                     let presentation_wrapped =
+            //                         WrappedPresentation { presentation: pres };
+            //                     // save to file
+            //                     let (path, content) = match (output, format) {
+            //                         (None, None) => {
+            //                             (from_file.into(), extension.format(&presentation_wrapped))
+            //                         }
+            //                         (None, Some(format)) => match format {
+            //                             Format::JSON => {
+            //                                 let mut output_path = from_file.clone();
+            //                                 output_path.set_extension("json");
+            //                                 (
+            //                                     output_path,
+            //                                     serde_json::to_string_pretty(&presentation_wrapped)
+            //                                         .unwrap(),
+            //                                 )
+            //                             }
+            //                             Format::YAML => {
+            //                                 let mut output_path = from_file.clone();
+            //                                 output_path.set_extension("yaml");
+            //                                 (
+            //                                     output_path,
+            //                                     serde_yaml::to_string(&presentation_wrapped)
+            //                                         .unwrap(),
+            //                                 )
+            //                             }
+            //                         },
+            //                         (Some(out), None) => {
+            //                             (out.into(), extension.format(&presentation_wrapped))
+            //                         }
+            //                         (Some(out), Some(format)) => {
+            //                             (out.into(), format.format(&presentation_wrapped))
+            //                         }
+            //                     };
+            //
+            //                     let mut file =
+            //                         File::create(path).map_err(CliError::WriteFileFailed)?;
+            //
+            //                     file.write_all(content.as_bytes())
+            //                         .map_err(CliError::WriteFileFailed)?;
+            //                     println!("Presentation SAID is valid");
+            //                 }
+            //                 Err(e) => {
+            //                     println!("Error: {}", &e.to_string());
+            //                 }
+            //             };
+            //             Ok(())
+            //         }
+            //     }
+            // }
+            Some(Commands::Validate {
+                ocafile,
+                directory,
+                overlayfile,
+            }) => {
+                let paths = match (ocafile, directory, overlayfile) {
+                    (None, None, None) => unreachable!("At least one argument expected"),
+                    (_, Some(dir), _) => visit_dirs_recursive(dir)?,
+                    (Some(oca_file), None, _) => oca_file.clone(),
+                    (_, _, Some(overlay_file)) => vec![overlay_file.clone()],
+                };
+                if let Some(overlayfile) = overlayfile {
+                    let definitions = OverlayLocalRegistry::from_file(overlayfile);
+                    match definitions {
+                        Ok(_) => {
+                            println!("Validation Successful");
+                        }
+                        Err(e) => {
+                            println!("Error loading overlayfile: {}", &e.to_string());
+                        }
+                    }
+                } else {
+                    let config = init_or_read_config();
+                    let local_repository_path = config.local_repository_path.clone();
+                    let overlay_definitions_path = config.overlay_definitions_path.clone();
+
+                    let facade = get_oca_facade(local_repository_path);
+                    let facade = Arc::new(Mutex::new(facade));
+                    let mut graph = MutableGraph::new(paths)?;
+                    let registry =
+                        OverlayLocalRegistry::from_dir(overlay_definitions_path).unwrap();
+                    match ocafile {
+                        Some(oca_file) => {
+                            let mut cache = HashSet::new();
+                            for file in oca_file {
+                                // Insert ocafile to graph, if not present
+                                let (node, dependencies) =
+                                    parse_node(file).map_err(|e| CliError::GraphError(e.into()))?;
+                                match graph.insert_node(node.clone(), dependencies) {
+                                    Ok(_) => (),
+                                    // node already in graph
+                                    Err(GraphError::DuplicateKey {
+                                        refn: _,
+                                        first_path: _,
+                                        second_path: _,
+                                    }) => (),
+                                    Err(e) => return Err(e.into()),
+                                };
+                                println!("Validating {}", &node.refn);
+                                let (out_cache, errs) = validate::validate_directory(
+                                    facade.clone(),
+                                    &mut graph,
+                                    Some(node.refn),
+                                    // TODO does not need to be clone it is read only
+                                    registry.clone(),
+                                    &cache,
+                                )?;
+                                cache.extend(out_cache);
+                                for err in errs {
+                                    println!("{}", err)
+                                }
+                            }
+                        }
+                        None => {
+                            let (_cache, errs) = validate::validate_directory(
+                                facade,
                                 &mut graph,
-                                Some(node.refn),
-                                &cache,
+                                None,
+                                registry,
+                                &HashSet::new(),
                             )?;
-                            cache.extend(out_cache);
+
                             for err in errs {
                                 println!("{}", err)
                             }
                         }
-                    }
-                    None => {
-                        let (_cache, errs) = validate::validate_directory(
-                            facade,
-                            &mut graph,
-                            None,
-                            &HashSet::new(),
-                        )?;
-
-                        for err in errs {
-                            println!("{}", err)
-                        }
-                    }
-                };
-
+                    };
+                }
                 Ok(())
             }
             Some(Commands::Tui { dir, timeout }) => {
@@ -881,6 +985,9 @@ fn main() -> Result<(), CliError> {
                             eprintln!("{err}");
                             process::exit(1);
                         });
+                    let config = init_or_read_config();
+                    let local_repository_path = config.local_repository_path.clone();
+
                     let facade = Arc::new(Mutex::new(get_oca_facade(local_repository_path)));
 
                     let to_show = visit_current_dir(directory)?
@@ -891,8 +998,8 @@ fn main() -> Result<(), CliError> {
                         to_show,
                         all_oca_files,
                         facade,
-                        remote_repo_url_from_config,
                         *timeout,
+                        config,
                     )
                     .unwrap_or_else(|err| {
                         eprintln!("{err}");
@@ -904,20 +1011,20 @@ fn main() -> Result<(), CliError> {
                     process::exit(1);
                 }
             }
-            Some(Commands::Mapping { said }) => {
-                let said = SelfAddressingIdentifier::from_str(said)?;
-                let paths = load_ocafiles_all(None, Some(&local_repository_path))?;
-
-                let facade = get_oca_facade(local_repository_path);
-
-                let graph = DependencyGraph::from_paths(paths).unwrap();
-
-                let o = mapping(said, &facade, &graph).unwrap();
-
-                let actual_json = serde_json::to_string_pretty(&o).unwrap();
-                println!("{}", actual_json);
-                Ok(())
-            }
+            // Some(Commands::Mapping { said }) => {
+            //     let said = SelfAddressingIdentifier::from_str(said)?;
+            //     let paths = load_ocafiles_all(None, Some(&local_repository_path))?;
+            //
+            //     let facade = get_oca_facade(local_repository_path);
+            //
+            //     let graph = DependencyGraph::from_paths(paths).unwrap();
+            //
+            //     let o = mapping(said, &facade, &graph).unwrap();
+            //
+            //     let actual_json = serde_json::to_string_pretty(&o).unwrap();
+            //     println!("{}", actual_json);
+            //     Ok(())
+            // }
             Some(Commands::Deps { ocafile, directory }) => {
                 let paths = visit_dirs_recursive(directory)?;
                 let graph = MutableGraph::new(paths)?;
@@ -947,13 +1054,7 @@ fn main() -> Result<(), CliError> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct WrappedPresentation {
-    presentation: Presentation,
-}
-
-// ocafile build -i OCAfile
-// ocafile build -s scid
-// ocafile publish
-// ocafile fetch SAI
-// ocafile inspect
+// #[derive(Serialize, Deserialize, Debug)]
+// pub struct WrappedPresentation {
+//     presentation: Presentation,
+// }

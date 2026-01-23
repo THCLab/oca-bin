@@ -1,4 +1,6 @@
 .gitattributes
+.cargo
+.oca
 target
 Session.vim
 */db_test

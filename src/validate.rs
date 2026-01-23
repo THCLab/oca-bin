@@ -4,7 +4,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use oca_sdk_rs::Facade;
+use oca_sdk_rs::overlay_registry::OverlayLocalRegistry;
+use oca_store::Facade as Store;
 
 use crate::{
     dependency_graph::{parse_name, MutableGraph},
@@ -13,9 +14,10 @@ use crate::{
 };
 
 pub fn validate_directory(
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     graph: &mut MutableGraph,
     selected_bundle: Option<String>,
+    registry: OverlayLocalRegistry,
     cache: &HashSet<String>,
 ) -> Result<(HashSet<String>, Vec<CliError>), CliError> {
     let dependent_nodes = match selected_bundle {
@@ -60,7 +62,11 @@ pub fn validate_directory(
 
             let facade = facade.lock().unwrap();
             Some(
-                match facade.validate_ocafile_with_external_references(file_contents, graph) {
+                match facade.validate_ocafile_with_external_references(
+                    file_contents,
+                    graph,
+                    registry.clone(),
+                ) {
                     Ok(_) => {
                         out_cached.insert(node.refn.clone());
                         Ok(node)
@@ -69,7 +75,7 @@ pub fn validate_directory(
                 },
             )
         })
-        .filter_map(|e| if let Err(e) = e { Some(e) } else { None })
+        .filter_map(|e| e.err())
         .collect::<Vec<_>>();
 
     Ok((out_cached, errs))
@@ -77,10 +83,11 @@ pub fn validate_directory(
 
 pub fn build(
     selected_bundle: Option<String>,
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     graph: &mut MutableGraph,
     infos: Arc<Mutex<MessageList>>,
     cache: &[String],
+    registry: OverlayLocalRegistry,
 ) -> Result<Vec<String>, Vec<CliError>> {
     let dependent_nodes = match selected_bundle {
         Some(refn) => {
@@ -114,7 +121,7 @@ pub fn build(
                 }
                 let mut f = facade.lock().unwrap();
                 Some(
-                    f.validate_ocafile(unparsed_file)
+                    f.validate_ocafile(unparsed_file, registry.clone())
                         .map(|ok| (path.clone(), ok))
                         .map_err(|b| (path.clone(), b)),
                 )
@@ -138,25 +145,25 @@ pub fn build(
     let (_building_oks, building_errs): (Vec<_>, Vec<_>) = oks
         .into_iter()
         .map(|oca_build| {
-            let (path, oca_build) = oca_build.as_ref().unwrap();
+            let (path, mut oca_build) = oca_build.unwrap();
             let mut f = facade.lock().unwrap();
-            match f.build(oca_build) {
+            match f.build(&mut oca_build) {
                 Ok(oca_bundle) => {
                     let refs = f.fetch_all_refs().unwrap();
                     let schema_name = refs
                         .iter()
-                        .find(|&(_, v)| *v == oca_bundle.said.clone().unwrap().to_string());
+                        .find(|&(_, v)| *v == oca_bundle.digest.clone().unwrap().to_string());
                     let msg = if let Some((refs, _)) = schema_name {
                         out_cache.push(refs.clone());
                         format!(
                             "OCA bundle created in local repository with SAID: {} and name: {}",
-                            oca_bundle.said.unwrap(),
+                            oca_bundle.digest.unwrap(),
                             refs
                         )
                     } else {
                         format!(
                             "OCA bundle created in local repository with SAID: {}",
-                            oca_bundle.said.unwrap()
+                            oca_bundle.digest.unwrap()
                         )
                     };
                     let mut i = infos.lock().unwrap();

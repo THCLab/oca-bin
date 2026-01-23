@@ -11,7 +11,8 @@ use std::{
 pub use super::bundle_list::BundleListError;
 use anyhow::Result;
 use crossterm::event::{self, poll, Event, KeyCode, KeyModifiers, MouseEventKind};
-use oca_sdk_rs::Facade;
+use oca_sdk_rs::overlay_registry::OverlayLocalRegistry;
+use oca_store::Facade as Store;
 use ratatui::{
     backend::Backend,
     buffer::Buffer,
@@ -25,6 +26,7 @@ use thiserror::Error;
 use url::Url;
 
 use crate::{
+    config::Config,
     dependency_graph::{parse_name, DependencyGraph, MutableGraph, Node, NodeParsingError},
     error::CliError,
     publish_oca_file_for, saids_to_publish,
@@ -57,14 +59,15 @@ pub enum AppError {
 pub struct App {
     bundles: BundleList,
     output: OutputWindow,
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     graph: MutableGraph,
     active_window: Window,
     base: PathBuf,
-    remote_repository: Option<String>,
     changes: ChangesWindow,
     details: DetailsWindow,
+    // TODO move to config
     publish_timeout: Option<u64>,
+    config: Config,
 }
 
 enum Window {
@@ -78,11 +81,11 @@ impl App {
     pub fn new<I: IntoIterator<Item = Result<Node, NodeParsingError>> + Clone>(
         base: PathBuf,
         to_show: I,
-        facade: Arc<Mutex<Facade>>,
+        facade: Arc<Mutex<Store>>,
         paths: Vec<PathBuf>,
         size: usize,
-        remote_repo_url: Option<String>,
         publish_timeout: Option<u64>,
+        config: Config,
     ) -> Result<App, AppError> {
         let graph = match DependencyGraph::from_paths(&paths) {
             Ok(graph) => Ok(Arc::new(graph)),
@@ -103,10 +106,10 @@ impl App {
             graph: mut_graph,
             facade,
             base,
-            remote_repository: remote_repo_url,
             changes,
             publish_timeout,
             details,
+            config,
         })
     }
 }
@@ -191,12 +194,18 @@ impl App {
                         KeyCode::Char('v') => {
                             let selected = self.bundles.selected_oca_bundle();
                             let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
+                            // TODO take from config
+                            let registry = OverlayLocalRegistry::from_dir(
+                                "../oca-rs/overlay-file/core_overlays/",
+                            )
+                            .unwrap();
                             self.output.set_currently_validated(paths);
 
                             self.output.handle_validate(
                                 self.facade.clone(),
                                 self.graph.clone(),
                                 selected,
+                                registry.clone(),
                             )
                         }
                         KeyCode::Char('b') => {
@@ -233,7 +242,7 @@ impl App {
                     match dependent {
                         Ok(dependent) => {
                             self.details.set(Details {
-                                id: pointed.oca_bundle.said.unwrap(),
+                                id: pointed.oca_bundle.digest.unwrap(),
                                 name: pointed.refn,
                                 dependent,
                             });
@@ -262,7 +271,7 @@ impl App {
     pub fn handle_build(
         &mut self,
         selected_bundle: Vec<Element>,
-        facade: Arc<Mutex<Facade>>,
+        facade: Arc<Mutex<Store>>,
         mut graph: MutableGraph,
     ) -> Result<bool, CliError> {
         if let Err(e) = self.graph.reload(&self.base) {
@@ -279,6 +288,8 @@ impl App {
         let list = self.bundles.items.clone();
         let to_show_dir = Arc::new(self.base.clone());
         let changes = self.changes.changes();
+        let registry =
+            OverlayLocalRegistry::from_dir(self.config.overlay_definitions_path.clone()).unwrap();
 
         thread::spawn(move || {
             let start = Instant::now();
@@ -309,6 +320,7 @@ impl App {
                             &mut graph,
                             errs.clone(),
                             &cache,
+                            registry.clone(),
                         ) {
                             Ok(mut cached) => {
                                 cache.append(&mut cached);
@@ -350,13 +362,14 @@ impl App {
     pub fn handle_publish(
         &self,
         selected_bundle: Vec<Element>,
-        facade: Arc<Mutex<Facade>>,
+        facade: Arc<Mutex<Store>>,
     ) -> Result<bool, CliError> {
         info!("Handling publish");
         let current_path = self.output.current_path();
         let errs = self.output.error_list_mut();
         let remote_repository: Url = parse_url(
-            self.remote_repository
+            self.config
+                .repository_url
                 .as_ref()
                 .ok_or(CliError::UnknownRemoteRepoUrl)?
                 .clone(),
@@ -371,7 +384,7 @@ impl App {
                 .into_iter()
                 .map(|el| match el {
                     Element::Ok(oks) => {
-                        let said = oks.get().oca_bundle.said.clone().unwrap();
+                        let said = oks.get().oca_bundle.digest.clone().unwrap();
                         if let Some(index) = oks.index() {
                             said_index_map.insert(said.clone(), index);
                         }

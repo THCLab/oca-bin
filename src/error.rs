@@ -1,20 +1,18 @@
 use std::{io, path::PathBuf};
 
-use oca_rs::facade::build::ValidationError;
-use said::SelfAddressingIdentifier;
+use oca_sdk_rs::said_error;
+use oca_sdk_rs::SelfAddressingIdentifier;
+use oca_store::facade::build::ValidationError;
 use thiserror::Error;
 
-use crate::{
-    build::CacheError, dependency_graph::GraphError, presentation_command::PresentationError,
-    tui::bundle_list::BundleListError,
-};
+use crate::{build::CacheError, dependency_graph::GraphError, tui::bundle_list::BundleListError};
 
 #[derive(Debug, Error)]
 pub enum CliError {
     #[error(transparent)]
     Input(#[from] io::Error),
-    #[error("Presentation command error: {0}")]
-    Presentation(#[from] PresentationError),
+    // #[error("Presentation command error: {0}")]
+    // Presentation(#[from] PresentationError),
     #[error("Error getting current directory: {0}")]
     CurrentDirFailed(std::io::Error),
     #[error("Error writing file: {0}")]
@@ -24,7 +22,7 @@ pub enum CliError {
     #[error("Oca bundle ast errors: {0:?}")]
     OcaBundleAstError(Vec<String>),
     #[error("Invalid said: {0}")]
-    InvalidSaid(#[from] said::error::Error),
+    InvalidSaid(#[from] said_error::Error),
     #[error("Field to read oca bundle: {0}")]
     ReadOcaError(serde_json::error::Error),
     #[error("Field to read oca bundle: {0}")]
@@ -69,27 +67,27 @@ pub enum CliError {
     FileUpdated(PathBuf),
 }
 
-impl From<oca_rs::facade::build::Error> for BuildingFailures {
-    fn from(value: oca_rs::facade::build::Error) -> Self {
+impl From<oca_store::facade::build::Error> for BuildingFailures {
+    fn from(value: oca_store::facade::build::Error) -> Self {
         Self(vec![value])
     }
 }
 
 #[derive(Debug)]
-pub struct BuildingFailures(pub(crate) Vec<oca_rs::facade::build::Error>);
+pub struct BuildingFailures(pub(crate) Vec<oca_store::facade::build::Error>);
 impl std::fmt::Display for BuildingFailures {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let errs = self
             .0
             .iter()
             .flat_map(|e| match e {
-                oca_rs::facade::build::Error::ValidationError(validation_errors) => {
+                oca_store::facade::build::Error::ValidationError(validation_errors) => {
                     validation_errors
                         .iter()
                         .map(|e| e.to_string())
                         .collect::<Vec<_>>()
                 }
-                oca_rs::facade::build::Error::Deprecated => {
+                oca_store::facade::build::Error::Deprecated => {
                     vec!["Deprecated error occurred".to_string()]
                 }
             })

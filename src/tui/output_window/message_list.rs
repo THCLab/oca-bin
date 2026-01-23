@@ -149,7 +149,7 @@ impl<'a> MessageLine<'a> {
                 .0
                 .iter()
                 .flat_map(|err| match err {
-                    oca_rs::facade::build::Error::ValidationError(ve) => ve
+                    oca_store::facade::build::Error::ValidationError(ve) => ve
                         .iter()
                         .flat_map(move |atomic_error| {
                             vec![
@@ -172,7 +172,7 @@ impl<'a> MessageLine<'a> {
                             ]
                         })
                         .collect::<Vec<_>>(),
-                    oca_rs::facade::build::Error::Deprecated => {
+                    oca_store::facade::build::Error::Deprecated => {
                         vec![Span::styled(
                             "! Building error in file ".to_string(),
                             Style::default()
@@ -194,7 +194,7 @@ impl<'a> MessageLine<'a> {
     }
 }
 
-impl<'a> Widget for MessageLine<'a> {
+impl Widget for MessageLine<'_> {
     fn render(self, area: Rect, buf: &mut Buffer)
     where
         Self: Sized,
@@ -205,7 +205,7 @@ impl<'a> Widget for MessageLine<'a> {
     }
 }
 
-impl<'a> ListableWidget for MessageLine<'a> {
+impl ListableWidget for MessageLine<'_> {
     fn size(&self, _scroll_direction: &tui_widget_list::ScrollAxis) -> usize {
         self.1
     }

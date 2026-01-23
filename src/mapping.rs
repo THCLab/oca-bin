@@ -1,5 +1,5 @@
 use oca_sdk_rs::{Facade, NestedAttrType, RefValue};
-use said::SelfAddressingIdentifier;
+use oca_sdk_rs::SelfAddressingIdentifier;
 use serde_json::{Map, Value};
 
 use crate::{dependency_graph::DependencyGraph, error::CliError};
@@ -10,11 +10,10 @@ pub fn mapping(
     facade: &Facade,
     dep_graph: &DependencyGraph,
 ) -> Result<Map<String, Value>, CliError> {
-    let oca_bundles = facade
-        .get_oca_bundle(said.clone(), true)
+    let bundle = facade
+        .get_oca_bundle_model(said.clone())
         .map_err(CliError::OcaBundleAstError)?;
-    let bundle = oca_bundles.bundle;
-    let capture_base_said = bundle.capture_base.said.clone().unwrap();
+    let capture_base_said = bundle.capture_base.digest.clone().unwrap();
     let mut map = Map::new();
     map.insert(
         "capture_base".to_string(),
@@ -65,8 +64,7 @@ fn handle_reference(
     facade: &Facade,
     dep_graph: &DependencyGraph,
 ) -> Vec<String> {
-    let oca_bundles = facade.get_oca_bundle(said, true).unwrap();
-    let bundle = oca_bundles.bundle;
+    let bundle = facade.get_oca_bundle_model(said).unwrap();
     let attributes = bundle.capture_base.attributes;
 
     attributes
@@ -134,7 +132,7 @@ mod tests {
         let o = mapping(digest2, &facade, &dependency_graph).unwrap();
 
         let expected_json = r#"{
-  "capture_base": "EEtOmBVVrvKnqHoiKbrJuMKy51Q1UM1GZP6UrLNROKKJ",
+  "capture_base": "EIjAptGqCOmqNtZByvmjbHr_s3R2fC0qOUPfwhs605AS",
   "attribute_mapping": {
     "cat_lover.like_cats": "",
     "cat_lover.person.name": "",
@@ -198,7 +196,7 @@ mod tests {
         .unwrap();
 
         let expected_json = r#"{
-  "capture_base": "EEh6yfBJmAKmjx4NjfZyVKYlPXiR-lkhuC6IFqIq1kDl",
+  "capture_base": "EPGvUlO5UBOu04zGaKRUfXDs2dBgw9a6Sps8-W_aUoMu",
   "attribute_mapping": {
     "many_persons.person.name": "",
     "many_persons.person.number": ""

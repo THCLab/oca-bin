@@ -1,11 +1,12 @@
 [package]
 name = "oca"
-version = "0.6.0"
+version = "0.7.2"
 edition = "2021"
 authors = ["Marcin Olichwiruk <marcin.olichwiruk@opensoftware.pl>", "Robert Mitwicki <robert.mitwicki@opensoftware.pl>", "Michał Pietrus <michal.pietrus@opensoftware.pl>"]
 license = "EUPL-1.2"
 readme = "README.md"
 description = "Tool to deal with OCA ecosystem"
+include = ["src/**", "config/semantic.overlayfile", "Cargo.toml", "README.md"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -17,14 +18,14 @@ path = "src/main.rs"
 dirs = "5.0.1"
 clap = { version = "4.0.29", features = ["derive"] }
 log = "0.4.20"
-oca-rs = { version = "0.7.1", features = ["local-references"] }
-oca-sdk-rs = "0.2.0"
+oca-store = { version = "2.0.0-rc.4", features = ["local-references"] }
+oca-sdk-rs = { version = "2.0.0-rc.4" }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
 reqwest = { version = "0.11", features = ["json", "blocking"] }
 toml = "0.5"
-said = { version = "0.4.1", features = ["macros"] }
-oca-presentation = { version = "0.7.2" }
+# TODO fix
+# oca-presentation = { version = "0.7.2" }
 isolang = { version = "2.3.0", features = ["serde"] }
 walkdir = "2.3"
 indexmap = "2.1.0"
@@ -46,15 +47,15 @@ lazy_static = "1.4.0"
 color-eyre = "0.6.3"
 url = "2.5.2"
 common-path = "1.0.0"
-sha2 = "0.10" 
-base64 = "0.21" 
+sha2 = "0.10"
+base64 = "0.21"
 kv = {version = "0.24.0", features = ["json-value"]}
 
 [dev-dependencies]
 tempdir = "0.3.7"
 
 [dependencies.rusqlite]
-version = "0.29.0"
+version = "0.37.0"
 features = ["bundled"]
 
 [profile.release]

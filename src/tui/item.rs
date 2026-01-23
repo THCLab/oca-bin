@@ -6,7 +6,8 @@ use std::{
 };
 
 use itertools::Itertools;
-use oca_sdk_rs::{Facade, NestedAttrType, RefValue};
+use oca_sdk_rs::{NestedAttrType, RefValue};
+use oca_store::Facade as Store;
 use ratatui::{
     style::{Color, Modifier, Style},
     text::{Line, Span},
@@ -129,7 +130,7 @@ impl ListElement {
         refn: &str,
         path: PathBuf,
         graph: &DependencyGraph,
-        facade: Arc<Mutex<Facade>>,
+        facade: Arc<Mutex<Store>>,
     ) -> Result<Self, GraphError> {
         let oca_bundle = get_oca_bundle(refn, facade);
         match oca_bundle {
@@ -217,7 +218,7 @@ impl Items {
 
     pub fn new_items<I: IntoIterator<Item = Result<Node, NodeParsingError>>>(
         to_show: I,
-        facade: Arc<Mutex<Facade>>,
+        facade: Arc<Mutex<Store>>,
         graph: &DependencyGraph,
     ) -> Self {
         let mut items = Items::new();
@@ -229,7 +230,7 @@ impl Items {
     fn rebuild<I: IntoIterator<Item = Result<Node, NodeParsingError>>>(
         &mut self,
         to_show: I,
-        facade: Arc<Mutex<Facade>>,
+        facade: Arc<Mutex<Store>>,
         graph: &DependencyGraph,
     ) {
         self.nodes.clear();
@@ -243,7 +244,7 @@ impl Items {
     fn build<I: IntoIterator<Item = Result<Node, NodeParsingError>>>(
         &mut self,
         to_show: I,
-        facade: Arc<Mutex<Facade>>,
+        facade: Arc<Mutex<Store>>,
         graph: &DependencyGraph,
     ) {
         to_show.into_iter().for_each(|node| match node {
@@ -274,7 +275,7 @@ impl Items {
         });
     }
 
-    fn to_tree_items(&mut self, facade: Arc<Mutex<Facade>>, graph: &DependencyGraph) {
+    fn to_tree_items(&mut self, facade: Arc<Mutex<Store>>, graph: &DependencyGraph) {
         self.nodes
             .iter_mut()
             .for_each(|item| match &mut item.bundle {
@@ -371,7 +372,7 @@ impl Items {
 pub fn rebuild_items(
     items: Arc<Mutex<Items>>,
     to_show_dir: &Path,
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     graph: MutableGraph,
 ) {
     let graph = graph.graph.lock().unwrap();
@@ -387,7 +388,7 @@ fn to_tree_item<'a>(
     key: String,
     attr: &NestedAttrType,
     i: &Indexer,
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     graph: &DependencyGraph,
 ) -> TreeItem<'a, String> {
     match attr {
@@ -405,7 +406,7 @@ fn to_tree_item<'a>(
 fn handle_reference_type<'a>(
     line: String,
     reference: &RefValue,
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     graph: &DependencyGraph,
     i: &Indexer,
 ) -> TreeItem<'a, String> {
@@ -457,7 +458,7 @@ fn handle_reference_type<'a>(
 fn handle_arr_type<'a>(
     key: String,
     arr_type: &NestedAttrType,
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     graph: &DependencyGraph,
     i: &Indexer,
 ) -> TreeItem<'a, String> {

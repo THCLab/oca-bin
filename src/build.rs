@@ -5,8 +5,9 @@ use std::{
 };
 
 use itertools::Itertools;
-use oca_sdk_rs::Facade;
-use said::SelfAddressingIdentifier;
+use oca_sdk_rs::overlay_registry::OverlayLocalRegistry;
+use oca_sdk_rs::SelfAddressingIdentifier;
+use oca_store::Facade as Store;
 use serde::Serialize;
 use serde_json::json;
 use url::Url;
@@ -111,23 +112,23 @@ pub fn changed_files<'a>(
 
 /// Build node. If caches provided, save change there. Returns SAID of built ocafile, and its contents.
 pub fn build(
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     node: &Node,
     said_cache: Option<&BuiltOCACache>,
     summary: &SummaryOptions,
+    registry: OverlayLocalRegistry,
 ) -> Result<Option<(SelfAddressingIdentifier, String)>, CliError> {
     info!("Building: {:?}", node);
     let path = &node.path;
     let unparsed_file =
         fs::read_to_string(path).map_err(|e| CliError::ReadFileFailed(path.clone(), e))?;
-    // let hash = compute_hash(unparsed_file.trim());
     let oca_bundle_element = {
         let mut facade_locked = facade.lock().unwrap();
         facade_locked
-            .build_from_ocafile(unparsed_file.clone())
+            .build_from_ocafile(unparsed_file.clone(), registry)
             .map_err(|e| CliError::BuildingError(path.clone(), e.into()))?
     };
-    let said = oca_bundle_element.said.as_ref().unwrap();
+    let said = oca_bundle_element.digest.as_ref().unwrap();
     if let Some(said_cache) = said_cache {
         said_cache
             .insert(&unparsed_file, said.clone())
@@ -192,12 +193,14 @@ pub fn detect_changes(all_nodes: &[Node], cache: &BuiltOCACache) -> Result<Vec<N
 // Returns list of nodes that was rebuilt and caches.
 pub fn rebuild(
     directory: &Path,
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     nodes: &[Node],
     summary: &SummaryOptions,
+    registry: OverlayLocalRegistry,
 ) -> Result<(Vec<Node>, BuiltOCACache), CliError> {
     let (cache, nodes_to_build) = {
         let mut cache_path = directory.to_path_buf();
+        // TODO fix this path and put it in config currently it creates cache in directory which is build which would collide with potential other local repositories using same path
         cache_path.push(".oca-bin");
         let cache = BuiltOCACache::new(&cache_path).map_err(CacheError::from)?;
 
@@ -230,7 +233,13 @@ pub fn rebuild(
 
     // Handle build
     for node in nodes_to_build.iter() {
-        build(facade.clone(), node, Some(&cache), summary)?;
+        build(
+            facade.clone(),
+            node,
+            Some(&cache),
+            summary,
+            registry.clone(),
+        )?;
     }
     // cache_saids.save()?;
     // cached_digests.save()?;
@@ -267,7 +276,7 @@ impl NodeStatus {
 }
 
 pub fn handle_publish(
-    facade: Arc<Mutex<Facade>>,
+    facade: Arc<Mutex<Store>>,
     remote_repo_url: Url,
     nodes: impl IntoIterator<Item = NodeStatus>,
     cache: &BuiltOCACache,

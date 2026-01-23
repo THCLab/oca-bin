@@ -2,24 +2,28 @@ use std::io::{self, Error, Write};
 use std::{env, path::PathBuf};
 use std::{fs, process};
 
-use oca_rs::data_storage::{DataStorage, SledDataStorage, SledDataStorageConfig};
+use oca_store::data_storage::{DataStorage, SledDataStorage, SledDataStorageConfig};
 use serde::{Deserialize, Serialize};
 
 pub const OCA_CACHE_DB_DIR: &str = "oca_cache";
 pub const OCA_REPOSITORY_DIR: &str = "oca_repository";
 pub const OCA_INDEX_DIR: &str = "read_db";
 pub const OCA_DIR_NAME: &str = ".oca";
+pub const OVERLAY_DEF_DIR_NAME: &str = "overlay_definitions/";
+const DEFAULT_OVERLAY_DEFINITIONS: &str = include_str!("../config/core.overlayfile");
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct Config {
     pub local_repository_path: PathBuf,
     pub repository_url: Option<String>,
+    pub overlay_definitions_path: PathBuf,
 }
 
 impl Config {
-    pub fn new(local_repository_path: PathBuf) -> Self {
+    pub fn new(local_repository_path: PathBuf, overlay_definitions_path: PathBuf) -> Self {
         Config {
             local_repository_path,
+            overlay_definitions_path,
             ..Default::default()
         }
     }
@@ -36,6 +40,9 @@ pub fn write_config(config: &Config, path: &PathBuf) -> Result<(), Error> {
     if let Some(parent) = path.parent() {
         info!("Create local repository: {:?}", parent);
         fs::create_dir_all(parent)?;
+        fs::create_dir_all(&config.overlay_definitions_path)?;
+        let mut file = fs::File::create(config.overlay_definitions_path.join("core.overlayfile"))?;
+        file.write_all(DEFAULT_OVERLAY_DEFINITIONS.as_bytes())?;
     }
     fs::write(path, content)?;
     Ok(())
@@ -43,7 +50,8 @@ pub fn write_config(config: &Config, path: &PathBuf) -> Result<(), Error> {
 
 pub fn write_default_config(path: &PathBuf) -> Result<Config, Error> {
     let local_repository_path = path.parent().unwrap().to_path_buf();
-    let config = Config::new(local_repository_path);
+    let overlay_definitions_path = local_repository_path.join(OVERLAY_DEF_DIR_NAME);
+    let config = Config::new(local_repository_path, overlay_definitions_path);
     write_config(&config, path)?;
     Ok(config)
 }
@@ -83,11 +91,11 @@ pub fn init_or_read_config() -> Config {
             Ok(config) => config,
             Err(_) => {
                 if ask_for_confirmation("OCA config not found do you want to initialize it in your home directory? (y/N)") {
-                write_default_config(&p).unwrap()
-             } else {
-                println!("Consider running oca init in this directory to initialize local repository");
-                process::exit(1)
-             }
+                    write_default_config(&p).unwrap()
+                } else {
+                    println!("Consider running oca init in this directory to initialize local repository");
+                    process::exit(1)
+                }
             }
         }
     }
