@@ -145,10 +145,14 @@ enum Commands {
         #[arg(short, long)]
         dereference: bool,
     },
-    /// Get oca bundle for specify said
+    /// Get oca bundle for specified SAID or name (refn)
     Get {
-        #[arg(short, long)]
-        said: String,
+        /// SAID of the OCA bundle
+        #[arg(short = 's', long, group = "get")]
+        said: Option<String>,
+        /// Name (refn) of the OCA bundle
+        #[arg(short = 'n', long, group = "get")]
+        name: Option<String>,
         #[arg(short, long)]
         with_dependencies: bool,
     },
@@ -774,13 +778,27 @@ fn main() -> Result<(), CliError> {
             }
             Some(Commands::Get {
                 said,
+                name,
                 with_dependencies,
             }) => {
                 let config = init_or_read_config();
                 let local_repository_path = config.local_repository_path.clone();
 
                 let facade = get_oca_facade(local_repository_path);
-                let said = SelfAddressingIdentifier::from_str(said)?;
+                let said = if let Some(said) = said {
+                    SelfAddressingIdentifier::from_str(said)?
+                } else if let Some(name) = name {
+                    let refs = facade.fetch_all_refs().unwrap();
+                    let said = refs
+                        .get(name.as_str())
+                        .ok_or(CliError::OCABundleRefnNotFound(name.clone()))?;
+                    SelfAddressingIdentifier::from_str(said)?
+                } else {
+                    return Err(CliError::FormatError(
+                        "Specify --said or --name".to_string(),
+                    ));
+                };
+
                 if *with_dependencies {
                     match facade.get_oca_bundle_set(said.clone()) {
                         Ok(bundle) => {
