@@ -35,6 +35,7 @@ pub struct BundleList {
     path: PathBuf,
     pub state: TreeState<String>,
     pub items: Arc<Mutex<Items>>,
+    active: bool,
 }
 
 pub struct Indexer(Mutex<u32>);
@@ -68,8 +69,13 @@ impl BundleList {
             state,
             items,
             path: directory,
+            active: false,
         };
         Ok(out)
+    }
+
+    pub fn set_active(&mut self, active: bool) {
+        self.active = active;
     }
 
     pub fn items(&self) -> Vec<TreeItem<'static, String>> {
@@ -103,6 +109,14 @@ impl BundleList {
     }
 
     pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
+        let title_style = if self.active {
+            ratatui::style::Style::default()
+                .add_modifier(ratatui::style::Modifier::BOLD)
+                .add_modifier(ratatui::style::Modifier::UNDERLINED)
+        } else {
+            ratatui::style::Style::default()
+        };
+        let title = ratatui::text::Span::styled("OCA Bundles", title_style);
         let items = self.items();
         if items.is_empty() {
             Paragraph::new(Text::from(format!(
@@ -110,12 +124,12 @@ impl BundleList {
                 std::fs::canonicalize(&self.path).unwrap().to_str().unwrap()
             )))
             .centered()
-            .block(Block::bordered().title("OCA Bundles"))
+            .block(Block::bordered().title(title))
             .render(area, buf);
         } else {
-            let widget = Tree::new(self.items())
+            let widget = Tree::new(&items)
                 .expect("all item identifiers are unique")
-                .block(Block::bordered().title("OCA Bundles"))
+                .block(Block::bordered().title(title))
                 .experimental_scrollbar(Some(
                     Scrollbar::new(ScrollbarOrientation::VerticalRight)
                         .begin_symbol(None)

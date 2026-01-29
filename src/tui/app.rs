@@ -12,6 +12,7 @@ pub use super::bundle_list::BundleListError;
 use anyhow::Result;
 use crossterm::event::{self, poll, Event, KeyCode, KeyModifiers, MouseEventKind};
 use oca_sdk_rs::overlay_registry::OverlayLocalRegistry;
+use oca_sdk_rs::{NestedAttrType, OCABundle};
 use oca_store::Facade as Store;
 use ratatui::{
     backend::Backend,
@@ -22,6 +23,7 @@ use ratatui::{
     widgets::{Paragraph, Widget},
     Terminal,
 };
+use serde_json::Value;
 use thiserror::Error;
 use url::Url;
 
@@ -30,7 +32,11 @@ use crate::{
     dependency_graph::{parse_name, DependencyGraph, MutableGraph, Node, NodeParsingError},
     error::CliError,
     publish_oca_file_for, saids_to_publish,
-    tui::{details::Details, get_oca_bundle_by_said, output_window::message_list::Message},
+    tui::{
+        details::Details,
+        get_oca_bundle_by_said,
+        output_window::message_list::{Message, MessageList},
+    },
     utils::{handle_panic, parse_url},
     validate::build,
 };
@@ -75,6 +81,53 @@ enum Window {
     Bundles,
     Help,
     Changes,
+    Details,
+}
+
+fn format_attr_type(attr_type: &NestedAttrType) -> String {
+    match attr_type {
+        NestedAttrType::Reference(reference) => format!("reference({})", reference),
+        NestedAttrType::Value(value) => value.to_string(),
+        NestedAttrType::Array(inner) => format!("array<{}>", format_attr_type(inner)),
+        NestedAttrType::Null => "null".to_string(),
+    }
+}
+
+fn format_overlay_name(name: &str) -> String {
+    name.strip_prefix("overlay/").unwrap_or(name).to_string()
+}
+
+fn format_json_value(value: &Value) -> String {
+    match value {
+        Value::Null => "null".to_string(),
+        Value::Bool(v) => v.to_string(),
+        Value::Number(v) => v.to_string(),
+        Value::String(v) => v.clone(),
+        Value::Array(items) => {
+            let rendered = items
+                .iter()
+                .map(format_json_value)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("[{}]", rendered)
+        }
+        Value::Object(map) => {
+            let rendered = map
+                .iter()
+                .map(|(k, v)| format!("{}={}", k, format_json_value(v)))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{{{}}}", rendered)
+        }
+    }
+}
+
+fn append_info_lines(errs: Arc<Mutex<MessageList>>, header: &str, content: &str) {
+    let mut output = errs.lock().unwrap();
+    output.append(Message::Info(header.to_string()));
+    for line in content.lines() {
+        output.append(Message::Info(line.to_string()));
+    }
 }
 
 impl App {
@@ -115,7 +168,10 @@ impl App {
 }
 
 impl App {
-    pub fn run(&mut self, mut terminal: Terminal<impl Backend>) -> Result<(), AppError> {
+    pub fn run(
+        &mut self,
+        mut terminal: Terminal<impl Backend<Error = io::Error>>,
+    ) -> Result<(), AppError> {
         loop {
             if poll(Duration::from_millis(100))? && !self.handle_input() {
                 return Ok(());
@@ -128,9 +184,10 @@ impl App {
     fn change_window(&mut self) -> bool {
         match self.active_window {
             Window::Errors => self.active_window = Window::Bundles,
-            Window::Bundles => self.active_window = Window::Changes,
+            Window::Bundles => self.active_window = Window::Details,
             Window::Help => self.active_window = Window::Bundles,
-            Window::Changes => self.active_window = Window::Errors,
+            Window::Changes => self.active_window = Window::Bundles,
+            Window::Details => self.active_window = Window::Errors,
         }
 
         true
@@ -148,17 +205,14 @@ impl App {
         } else {
             let output = match event::read() {
                 Ok(event::Event::Key(key)) => {
-                    let items = self.bundles.items();
-                    let state = match self.active_window {
-                        Window::Errors => &mut self.bundles.state,
-                        Window::Bundles => &mut self.bundles.state,
-                        Window::Changes => &mut self.changes.state,
-                        Window::Help => todo!(),
-                    };
                     match key.code {
                         KeyCode::Char('q') => return false,
                         KeyCode::Esc => Ok(self.bundles.unselect_all()),
-                        KeyCode::Enter => Ok(state.toggle_selected()),
+                        KeyCode::Enter => match self.active_window {
+                            Window::Bundles => Ok(self.bundles.state.toggle_selected()),
+                            Window::Changes => Ok(self.changes.state.toggle_selected()),
+                            _ => Ok(true),
+                        },
                         KeyCode::Char(' ') => {
                             self.bundles.select();
                             Ok(true)
@@ -167,30 +221,86 @@ impl App {
                             self.bundles.select_all();
                             Ok(true)
                         }
-                        KeyCode::Left => {
-                            state.key_left();
-                            Ok(true)
-                        }
-                        KeyCode::Right => {
-                            state.key_right();
-                            Ok(true)
-                        }
+                        KeyCode::Left => match self.active_window {
+                            Window::Bundles => {
+                                self.bundles.state.key_left();
+                                Ok(true)
+                            }
+                            Window::Changes => {
+                                self.changes.state.key_left();
+                                Ok(true)
+                            }
+                            _ => Ok(true),
+                        },
+                        KeyCode::Right => match self.active_window {
+                            Window::Bundles => {
+                                self.bundles.state.key_right();
+                                Ok(true)
+                            }
+                            Window::Changes => {
+                                self.changes.state.key_right();
+                                Ok(true)
+                            }
+                            _ => Ok(true),
+                        },
                         KeyCode::Down => Ok(self.handle_key_down()),
                         KeyCode::Up => Ok(self.handle_key_up()),
-                        KeyCode::Home => {
-                            state.select_first(&items);
-                            Ok(true)
-                        }
-                        KeyCode::End => {
-                            state.select_last(&items);
-                            Ok(true)
-                        }
-                        KeyCode::PageDown => Ok(state.select_visible_relative(&items, |current| {
-                            current.map_or(0, |current| current.saturating_add(10))
-                        })),
-                        KeyCode::PageUp => Ok(state.select_visible_relative(&items, |current| {
-                            current.map_or(0, |current| current.saturating_sub(10))
-                        })),
+                        KeyCode::Home => match self.active_window {
+                            Window::Bundles => {
+                                self.bundles.state.select_first();
+                                Ok(true)
+                            }
+                            Window::Changes => {
+                                self.changes.state.select_first();
+                                Ok(true)
+                            }
+                            _ => Ok(true),
+                        },
+                        KeyCode::End => match self.active_window {
+                            Window::Bundles => {
+                                self.bundles.state.select_last();
+                                Ok(true)
+                            }
+                            Window::Changes => {
+                                self.changes.state.select_last();
+                                Ok(true)
+                            }
+                            _ => Ok(true),
+                        },
+                        KeyCode::PageDown => match self.active_window {
+                            Window::Bundles => Ok(self.bundles.state.select_relative(|current| {
+                                current.map_or(0, |current| current.saturating_add(10))
+                            })),
+                            Window::Changes => Ok(self.changes.state.select_relative(|current| {
+                                current.map_or(0, |current| current.saturating_add(10))
+                            })),
+                            Window::Errors => {
+                                self.output.scroll_down(10);
+                                Ok(true)
+                            }
+                            Window::Details => {
+                                self.details.scroll_down(10);
+                                Ok(true)
+                            }
+                            Window::Help => Ok(true),
+                        },
+                        KeyCode::PageUp => match self.active_window {
+                            Window::Bundles => Ok(self.bundles.state.select_relative(|current| {
+                                current.map_or(0, |current| current.saturating_sub(10))
+                            })),
+                            Window::Changes => Ok(self.changes.state.select_relative(|current| {
+                                current.map_or(0, |current| current.saturating_sub(10))
+                            })),
+                            Window::Errors => {
+                                self.output.scroll_up(10);
+                                Ok(true)
+                            }
+                            Window::Details => {
+                                self.details.scroll_up(10);
+                                Ok(true)
+                            }
+                            Window::Help => Ok(true),
+                        },
                         KeyCode::Char('v') => {
                             let selected = self.bundles.selected_oca_bundle();
                             let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
@@ -214,6 +324,51 @@ impl App {
                             self.output.set_currently_validated(paths);
                             self.handle_build(selected, self.facade.clone(), self.graph.clone())
                         }
+                        KeyCode::Char('o') => {
+                            let errs = self.output.error_list_mut();
+                            match self.bundles.currently_pointed() {
+                                Some(pointed) => {
+                                    let said = pointed.oca_bundle.digest.clone().unwrap();
+                                    match self
+                                        .facade
+                                        .lock()
+                                        .unwrap()
+                                        .get_oca_bundle_ocafile(said, false)
+                                    {
+                                        Ok(ocafile) => {
+                                            append_info_lines(errs, "OCAFILE:", &ocafile);
+                                            Ok(true)
+                                        }
+                                        Err(errs) => Err(CliError::OcaBundleAstError(errs)),
+                                    }
+                                }
+                                None => {
+                                    let mut output = errs.lock().unwrap();
+                                    output.append(Message::Info("No bundle selected".to_string()));
+                                    Ok(true)
+                                }
+                            }
+                        }
+                        KeyCode::Char('s') => {
+                            let errs = self.output.error_list_mut();
+                            match self.bundles.currently_pointed() {
+                                Some(pointed) => {
+                                    let oca_bundle = OCABundle::from(pointed.oca_bundle.clone());
+                                    match serde_json::to_string_pretty(&oca_bundle) {
+                                        Ok(json) => {
+                                            append_info_lines(errs, "OCA BUNDLE JSON:", &json);
+                                            Ok(true)
+                                        }
+                                        Err(err) => Err(CliError::WriteOcaError(err)),
+                                    }
+                                }
+                                None => {
+                                    let mut output = errs.lock().unwrap();
+                                    output.append(Message::Info("No bundle selected".to_string()));
+                                    Ok(true)
+                                }
+                            }
+                        }
                         KeyCode::Char('p') => {
                             let selected = self.bundles.selected_oca_bundle();
                             let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
@@ -229,8 +384,8 @@ impl App {
                     }
                 }
                 Ok(Event::Mouse(mouse)) => Ok(match mouse.kind {
-                    MouseEventKind::ScrollDown => self.bundles.state.scroll_down(1),
-                    MouseEventKind::ScrollUp => self.bundles.state.scroll_up(1),
+                    MouseEventKind::ScrollDown => self.handle_key_down(),
+                    MouseEventKind::ScrollUp => self.handle_key_up(),
                     _ => true,
                 }),
                 Ok(_) => Ok(true),
@@ -241,10 +396,59 @@ impl App {
                     let dependent = self.graph.get_ancestors([pointed.refn.as_str()], false);
                     match dependent {
                         Ok(dependent) => {
+                            let attributes = pointed
+                                .oca_bundle
+                                .capture_base
+                                .attributes
+                                .iter()
+                                .map(|(name, attr_type)| {
+                                    (name.clone(), format_attr_type(attr_type))
+                                })
+                                .collect();
+                            let overlays = pointed
+                                .oca_bundle
+                                .overlays
+                                .iter()
+                                .map(|overlay| {
+                                    let base_name = overlay
+                                        .overlay_def
+                                        .as_ref()
+                                        .map(|def| def.get_full_name())
+                                        .unwrap_or_else(|| format_overlay_name(&overlay.name));
+
+                                    let (Some(def), Some(props)) =
+                                        (overlay.overlay_def.as_ref(), overlay.properties.as_ref())
+                                    else {
+                                        return base_name;
+                                    };
+
+                                    if def.unique_keys.is_empty() {
+                                        return base_name;
+                                    }
+
+                                    let mut key_values = Vec::new();
+                                    for key in &def.unique_keys {
+                                        if let Some(value) = props.get(key) {
+                                            let rendered = serde_json::to_value(value)
+                                                .map(|val| format_json_value(&val))
+                                                .unwrap_or_else(|_| "<unserializable>".to_string());
+                                            key_values.push(format!("{}={}", key, rendered));
+                                        }
+                                    }
+
+                                    if key_values.is_empty() {
+                                        base_name
+                                    } else {
+                                        format!("{} ({})", base_name, key_values.join(", "))
+                                    }
+                                })
+                                .collect();
                             self.details.set(Details {
                                 id: pointed.oca_bundle.digest.unwrap(),
                                 name: pointed.refn,
                                 dependent,
+                                attributes,
+                                overlays,
                             });
                             output
                         }
@@ -462,23 +666,23 @@ impl App {
     }
 
     fn handle_key_down(&mut self) -> bool {
-        let items = self.bundles.items();
         match self.active_window {
             Window::Bundles => {
                 let state = &mut self.bundles.state;
-                state.key_down(&items);
+                state.key_down();
             }
             Window::Errors => {
-                let state = &mut self.output.state;
-                state.next()
+                self.output.scroll_down(1);
             }
             Window::Help => {
                 self.active_window = Window::Bundles;
             }
             Window::Changes => {
-                let items = self.changes.items();
                 let state: &mut tui_tree_widget::TreeState<String> = &mut self.changes.state;
-                state.key_down(&items);
+                state.key_down();
+            }
+            Window::Details => {
+                self.details.scroll_down(1);
             }
         };
         true
@@ -487,28 +691,31 @@ impl App {
     fn handle_key_up(&mut self) -> bool {
         match self.active_window {
             Window::Bundles => {
-                let items = self.bundles.items();
                 let state = &mut self.bundles.state;
-                state.key_up(&items);
+                state.key_up();
             }
             Window::Errors => {
-                let state = &mut self.output.state;
-                state.previous()
+                self.output.scroll_up(1);
             }
             Window::Help => {
                 self.active_window = Window::Bundles;
             }
             Window::Changes => {
-                let items = self.changes.items();
                 let state: &mut tui_tree_widget::TreeState<String> = &mut self.changes.state;
-                state.key_up(&items);
+                state.key_up();
+            }
+            Window::Details => {
+                self.details.scroll_up(1);
             }
         };
         true
     }
 
-    fn draw(&mut self, terminal: &mut Terminal<impl Backend>) -> Result<(), AppError> {
-        terminal.draw(|f| f.render_widget(self, f.size()))?;
+    fn draw<B: Backend<Error = io::Error>>(
+        &mut self,
+        terminal: &mut Terminal<B>,
+    ) -> Result<(), AppError> {
+        terminal.draw(|f| f.render_widget(self, f.area()))?;
         Ok(())
     }
 }
@@ -537,6 +744,12 @@ impl Widget for &mut App {
             let [list_area, details_area] = horizontal.areas(list_area);
 
             self.render_title(header_area, buf, "OCA tool");
+            self.bundles
+                .set_active(matches!(self.active_window, Window::Bundles));
+            self.details
+                .set_active(matches!(self.active_window, Window::Details));
+            self.output
+                .set_active(matches!(self.active_window, Window::Errors));
             self.bundles.render(list_area, buf);
             self.output.render(output_area, buf);
             // self.changes.render(changes_area, buf);
@@ -574,7 +787,10 @@ impl App {
             ("Ctrl + A", "select all"),
             ("v", "validate selected OCA files"),
             ("b", "build selected OCA files"),
+            ("o", "show ocafile for the pointed bundle"),
+            ("s", "show JSON for the pointed bundle"),
             ("p", "publish selected OCA files"),
+            ("Tab", "switch focus (bundles/details/output)"),
             ("F1", "Open help"),
         ];
 

@@ -14,11 +14,14 @@ use oca_store::Facade as Store;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
-    style::{Color, Style},
-    text::Span,
-    widgets::{Block, Paragraph, StatefulWidget, Widget},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{
+        Block, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget, Widget,
+        Wrap,
+    },
 };
-use tui_widget_list::{List, ListState};
+use tui_widget_list::ListState;
 
 use crate::{
     dependency_graph::{parse_name, MutableGraph},
@@ -35,6 +38,8 @@ pub struct OutputWindow {
     pub state: ListState,
     errors: Arc<Mutex<MessageList>>,
     currently_validated: Vec<PathBuf>,
+    active: bool,
+    scroll: u16,
 }
 
 impl OutputWindow {
@@ -43,7 +48,21 @@ impl OutputWindow {
             errors: Arc::new(Mutex::new(MessageList::new(size))),
             state: ListState::default(),
             currently_validated: vec![],
+            active: false,
+            scroll: 0,
         }
+    }
+
+    pub fn set_active(&mut self, active: bool) {
+        self.active = active;
+    }
+
+    pub fn scroll_down(&mut self, amount: u16) {
+        self.scroll = self.scroll.saturating_add(amount);
+    }
+
+    pub fn scroll_up(&mut self, amount: u16) {
+        self.scroll = self.scroll.saturating_sub(amount);
     }
 
     pub fn set_currently_validated(&mut self, path: Vec<PathBuf>) {
@@ -116,31 +135,55 @@ impl OutputWindow {
     }
 
     fn render_action_result(&mut self, success_comment: &str, area: Rect, buf: &mut Buffer) {
-        let block = Block::bordered().title("Output");
-        let errors = self.errors.lock().unwrap();
-        let items = errors.items();
-        if !errors.any_error() {
+        let block = OutputWindow::output_block(self.active);
+        let (lines, has_error) = {
+            let errors = self.errors.lock().unwrap();
+            let lines = errors
+                .items
+                .iter()
+                .map(|msg| match msg {
+                    Message::Info(info) => Line::from(Span::styled(
+                        info.clone(),
+                        Style::default().fg(Color::Green),
+                    )),
+                    Message::Error(err) => Line::from(Span::styled(
+                        err.to_string(),
+                        Style::default().fg(Color::Red),
+                    )),
+                })
+                .collect::<Vec<_>>();
+            (lines, errors.any_error())
+        };
+        if !has_error {
             let widget = {
                 let span = Span::styled(success_comment, Style::default().fg(Color::Green));
                 Paragraph::new(span).block(block)
             };
             widget.render(area, buf)
         } else {
-            let index = items.len() - 1;
-            let widget = List::new(items).block(Block::bordered().title("Output"));
-            self.state.select(Some(index));
-            widget.render(area, buf, &mut self.state)
+            self.render_lines(area, buf, lines)
         }
     }
 
     fn render_building_process(&mut self, area: Rect, buf: &mut Buffer) {
-        let errors = self.errors.lock().unwrap();
-        let errors = errors.items();
-
-        let index = errors.len().saturating_sub(1);
-        let widget = List::new(errors).block(Block::bordered().title("Output"));
-        self.state.select(Some(index));
-        widget.render(area, buf, &mut self.state)
+        let lines = {
+            let errors = self.errors.lock().unwrap();
+            errors
+                .items
+                .iter()
+                .map(|msg| match msg {
+                    Message::Info(info) => Line::from(Span::styled(
+                        info.clone(),
+                        Style::default().fg(Color::Green),
+                    )),
+                    Message::Error(err) => Line::from(Span::styled(
+                        err.to_string(),
+                        Style::default().fg(Color::Red),
+                    )),
+                })
+                .collect::<Vec<_>>()
+        };
+        self.render_lines(area, buf, lines)
     }
 
     pub fn handle_validate(
@@ -210,6 +253,47 @@ impl OutputWindow {
 
     pub fn error_list_mut(&self) -> Arc<Mutex<MessageList>> {
         self.errors.clone()
+    }
+
+    fn render_lines(&mut self, area: Rect, buf: &mut Buffer, lines: Vec<ratatui::text::Line<'_>>) {
+        let block = OutputWindow::output_block(self.active);
+        let content_len = lines.len();
+        let viewport = area.height.saturating_sub(2) as usize;
+        let max_scroll = content_len.saturating_sub(viewport) as u16;
+        if self.scroll > max_scroll {
+            self.scroll = max_scroll;
+        }
+
+        let paragraph = Paragraph::new(lines)
+            .block(block)
+            .wrap(Wrap { trim: false })
+            .scroll((self.scroll, 0));
+        paragraph.render(area, buf);
+
+        self.render_scrollbar(area, buf, content_len, max_scroll);
+    }
+
+    fn render_scrollbar(&self, area: Rect, buf: &mut Buffer, content_len: usize, max_scroll: u16) {
+        if max_scroll == 0 {
+            return;
+        }
+        let mut scrollbar_state = ScrollbarState::new(content_len).position(self.scroll as usize);
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(None)
+            .track_symbol(None)
+            .end_symbol(None);
+        scrollbar.render(area, buf, &mut scrollbar_state);
+    }
+
+    fn output_block(active: bool) -> Block<'static> {
+        let title_style = if active {
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .add_modifier(Modifier::UNDERLINED)
+        } else {
+            Style::default()
+        };
+        Block::bordered().title(Span::styled("Output", title_style))
     }
 }
 

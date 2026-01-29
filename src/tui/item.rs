@@ -155,6 +155,7 @@ impl ListElement {
 
 pub struct Items {
     tree_elements: HashMap<String, TreeItem<'static, String>>,
+    tree_lines: HashMap<String, Line<'static>>,
     nodes: Vec<ListElement>,
     indexer: Indexer,
     currently_selected: Vec<String>,
@@ -166,6 +167,7 @@ impl Items {
             nodes: Vec::new(),
             indexer: Indexer::new(),
             tree_elements: HashMap::new(),
+            tree_lines: HashMap::new(),
             currently_selected: Vec::new(),
         }
     }
@@ -180,9 +182,7 @@ impl Items {
         });
         let all_indexes: Vec<_> = self.all_indexes().unwrap();
         for i in &all_indexes {
-            let tree_item = self.tree_elements.get(i).unwrap().clone();
-            let tree_item = tree_item.style(Style::default().bg(Color::Green).fg(Color::White));
-            self.tree_elements.insert(i.to_string(), tree_item);
+            self.restyle_tree_item(i, Style::default().bg(Color::Green).fg(Color::White));
         }
         self.currently_selected = all_indexes.clone();
         all_indexes
@@ -193,9 +193,7 @@ impl Items {
             bi.status = Status::Unselected;
         });
         for i in self.all_indexes().unwrap() {
-            let tree_item = self.tree_elements.get(&i).unwrap().clone();
-            let tree_item = tree_item.style(Style::default());
-            self.tree_elements.insert(i.to_string(), tree_item);
+            self.restyle_tree_item(&i, Style::default());
         }
         self.currently_selected = vec![];
     }
@@ -288,58 +286,72 @@ impl Items {
                             to_tree_item(key.to_owned(), attr, &self.indexer, facade.clone(), graph)
                         })
                         .collect::<Vec<_>>();
-                    let line = Span::styled(bundle.refn.clone(), Style::default());
+                    let line = Line::from(Span::styled(bundle.refn.clone(), Style::default()));
                     let index = self.indexer.current();
+                    self.tree_lines.insert(index.clone(), line.clone());
                     let tree_item = TreeItem::new(index.clone(), line, tree_items).unwrap();
                     self.tree_elements.insert(index.clone(), tree_item);
                     bundle_el.update_idx(index.clone());
                 }
                 Element::Error(ref mut err) => {
                     let error_comment = err.get().to_string();
-                    let line = Span::styled(
+                    let line = Line::from(Span::styled(
                         format!("! {:?}", error_comment),
                         Style::default()
                             .fg(Color::Red)
                             .add_modifier(Modifier::ITALIC),
-                    );
+                    ));
                     let index = self.indexer.current();
                     err.update_idx(index.clone());
+                    self.tree_lines.insert(index.clone(), line.clone());
                     let tree_item = TreeItem::new_leaf(index.clone(), line);
                     self.tree_elements.insert(index.clone(), tree_item);
                 }
             });
     }
 
+    fn restyle_tree_item(&mut self, index: &str, style: Style) {
+        let tree_item = match self.tree_elements.get(index).cloned() {
+            Some(item) => item,
+            None => return,
+        };
+        let mut line = match self.tree_lines.get(index).cloned() {
+            Some(line) => line,
+            None => return,
+        };
+        line.style = style;
+        let children = tree_item.children().to_vec();
+        let identifier = tree_item.identifier().clone();
+        let styled_item = TreeItem::new(identifier.clone(), line.clone(), children)
+            .unwrap_or_else(|_| TreeItem::new_leaf(identifier, line));
+        self.tree_elements.insert(index.to_string(), styled_item);
+    }
+
     pub fn update_state(&mut self, i: &str) {
         info!("Updating index: {}", i);
-        let _ = self
-            .nodes
-            .iter_mut()
-            .filter_map(|item| {
-                item.index().and_then(|ind| {
-                    if ind.eq(i) {
-                        item.change_state();
-                        match item.status {
-                            Status::Selected => self.currently_selected.push(i.to_string()),
-                            Status::Unselected => {
-                                self.currently_selected.retain(|el| el.ne(&i));
-                            }
-                        };
+        let mut updated_status = None;
+        for item in &mut self.nodes {
+            let Some(ind) = item.index() else { continue }; 
+            if ind != i {
+                continue;
+            }
+            item.change_state();
+            match item.status {
+                Status::Selected => self.currently_selected.push(i.to_string()),
+                Status::Unselected => {
+                    self.currently_selected.retain(|el| el.ne(i));
+                }
+            };
+            updated_status = Some(item.status.clone());
+        }
 
-                        let style = match item.status {
-                            Status::Selected => Style::default().bg(Color::Green).fg(Color::White),
-                            Status::Unselected => Style::default(),
-                        };
-                        let tree_item = self.tree_elements.get(i).unwrap().clone();
-                        let tree_item = tree_item.style(style);
-                        self.tree_elements.insert(i.to_string(), tree_item);
-                        Some(())
-                    } else {
-                        None
-                    }
-                })
-            })
-            .collect::<Vec<_>>();
+        if let Some(status) = updated_status {
+            let style = match status {
+                Status::Selected => Style::default().bg(Color::Green).fg(Color::White),
+                Status::Unselected => Style::default(),
+            };
+            self.restyle_tree_item(i, style);
+        }
     }
 
     /// Returns the `BundleInfo` corresponding to the given index in the list.

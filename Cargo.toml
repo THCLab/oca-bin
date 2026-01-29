@@ -15,40 +15,38 @@ name = "oca"
 path = "src/main.rs"
 
 [dependencies]
-dirs = "5.0.1"
-clap = { version = "4.0.29", features = ["derive"] }
-log = "0.4.20"
-oca-store = { version = "2.0.0-rc.4", features = ["local-references"] }
-oca-sdk-rs = { version = "2.0.0-rc.4" }
+dirs = "6.0.0"
+clap = { version = "4.5.55", features = ["derive"] }
+log = "0.4.29"
+oca-store = { version = "2.0.0-rc.6", features = ["local-references"] }
+oca-sdk-rs = { version = "2.0.0-rc.5" }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
-reqwest = { version = "0.11", features = ["json", "blocking"] }
-toml = "0.5"
-# TODO fix
-# oca-presentation = { version = "0.7.2" }
-isolang = { version = "2.3.0", features = ["serde"] }
-walkdir = "2.3"
-indexmap = "2.1.0"
-thiserror = "1.0.56"
-recursion = "0.5.2"
-itertools = "0.12.0"
-serde_yaml = "0.9.30"
-regex = "1.10.3"
-ratatui = "0.26.1"
-crossterm = "0.27.0"
-anyhow = "1.0.80"
-petgraph = "0.6.4"
-tui-tree-widget = "0.19.0"
-throbber-widgets-tui = "0.4.1"
-tui-widget-list = "=0.8.2"
-tracing-error = "0.2.0"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-lazy_static = "1.4.0"
-color-eyre = "0.6.3"
-url = "2.5.2"
+reqwest = { version = "0.13", features = ["json", "blocking"] }
+toml = "0.9"
+isolang = { version = "2.4.0", features = ["serde"] }
+walkdir = "2.5"
+indexmap = "2.13.0"
+thiserror = "2.0.18"
+recursion = "0.5.4"
+itertools = "0.14.0"
+serde_yaml = "0.9.34"
+regex = "1.12.2"
+ratatui = "0.30.0"
+crossterm = "0.29.0"
+anyhow = "1.0.100"
+petgraph = "0.8.3"
+tui-tree-widget = "0.24.0"
+throbber-widgets-tui = "0.10.0"
+tui-widget-list = "0.15.0"
+tracing-error = "0.2.1"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+lazy_static = "1.5.0"
+color-eyre = "0.6.5"
+url = "2.5.8"
 common-path = "1.0.0"
 sha2 = "0.10"
-base64 = "0.21"
+base64 = "0.22"
 kv = {version = "0.24.0", features = ["json-value"]}
 
 [dev-dependencies]

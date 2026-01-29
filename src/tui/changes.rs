@@ -139,7 +139,8 @@ impl ChangesWindow {
     }
 
     pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
-        let widget = Tree::new(self.items())
+        let items = self.items();
+        let widget = Tree::new(&items)
             .expect("all item identifiers are unique")
             .block(Block::bordered().title("Changes"))
             .experimental_scrollbar(Some(

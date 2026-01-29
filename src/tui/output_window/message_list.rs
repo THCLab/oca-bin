@@ -4,11 +4,10 @@ use itertools::Itertools;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
-    style::{Color, Modifier, Style, Stylize},
+    style::{Color, Modifier, Style},
     text::{Line, Span, Text},
     widgets::{Paragraph, Widget, Wrap},
 };
-use tui_widget_list::ListableWidget;
 
 use crate::error::CliError;
 
@@ -117,6 +116,7 @@ impl MessageList {
     }
 }
 
+#[derive(Clone)]
 pub struct MessageLine<'a>(Line<'a>, usize, Style);
 
 impl<'a> MessageLine<'a> {
@@ -200,17 +200,21 @@ impl Widget for MessageLine<'_> {
         Self: Sized,
     {
         let l = Text::from(self.0.clone());
-        let par = Paragraph::new(l).wrap(Wrap { trim: true }).style(self.2);
+        let par = Paragraph::new(l).wrap(Wrap { trim: false }).style(self.2);
         par.render(area, buf)
     }
 }
 
-impl ListableWidget for MessageLine<'_> {
-    fn size(&self, _scroll_direction: &tui_widget_list::ScrollAxis) -> usize {
-        self.1
+impl MessageLine<'_> {
+    pub fn height(&self) -> u16 {
+        self.1 as u16
     }
 
-    fn highlight(mut self) -> Self {
+    pub fn line(&self) -> Line<'_> {
+        self.0.clone()
+    }
+
+    pub fn highlight(mut self) -> Self {
         let style = Style::default().bold();
         self.2 = style;
         self
