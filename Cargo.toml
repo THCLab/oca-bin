@@ -2,7 +2,7 @@
 name = "oca"
 version = "0.7.3"
 edition = "2021"
-authors = ["Marcin Olichwiruk <marcin.olichwiruk@opensoftware.pl>", "Robert Mitwicki <robert.mitwicki@opensoftware.pl>", "Michał Pietrus <michal.pietrus@opensoftware.pl>"]
+authors = ["Human Colossus Community <contact@humancolossus.org>"]
 license = "EUPL-1.2"
 readme = "README.md"
 description = "Tool to deal with OCA ecosystem"
