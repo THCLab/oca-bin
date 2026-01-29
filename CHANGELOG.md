@@ -1,3 +1,18 @@
+## [0.7.4] - 2026-01-29
+
+### 🚀 Features
+
+- Add support for refn for get command
+- *(tui)* Add pane focus indicators and smooth scroll for details/output
+
+### ⚙️ Miscellaneous Tasks
+
+- Fix buiding warrnings and remove dead code
+## [0.7.3] - 2026-01-23
+
+### ⚙️ Miscellaneous Tasks
+
+- Release 0.7.3 version
 ## [0.7.2] - 2025-12-18
 
 ### 🐛 Bug Fixes
