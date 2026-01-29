@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::{
     collections::HashMap,
     fs,
@@ -8,6 +10,7 @@ use std::{
 use oca_sdk_rs::SelfAddressingIdentifier;
 use oca_sdk_rs::{HashFunction, HashFunctionCode};
 use petgraph::{graph::NodeIndex, graphmap::GraphMap, visit::EdgeRef, Directed};
+
 use ratatui::{
     buffer::Buffer,
     layout::Rect,

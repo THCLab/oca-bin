@@ -76,6 +76,7 @@ pub struct App {
     config: Config,
 }
 
+#[allow(dead_code)]
 enum Window {
     Errors,
     Bundles,
@@ -136,7 +137,6 @@ impl App {
         to_show: I,
         facade: Arc<Mutex<Store>>,
         paths: Vec<PathBuf>,
-        size: usize,
         publish_timeout: Option<u64>,
         config: Config,
     ) -> Result<App, AppError> {
@@ -154,7 +154,7 @@ impl App {
 
         Ok(App {
             bundles: list,
-            output: OutputWindow::new(size),
+            output: OutputWindow::new(),
             active_window: Window::Bundles,
             graph: mut_graph,
             facade,

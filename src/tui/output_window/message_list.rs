@@ -1,13 +1,6 @@
 use std::path::PathBuf;
 
 use itertools::Itertools;
-use ratatui::{
-    buffer::Buffer,
-    layout::Rect,
-    style::{Color, Modifier, Style},
-    text::{Line, Span, Text},
-    widgets::{Paragraph, Widget, Wrap},
-};
 
 use crate::error::CliError;
 
@@ -37,16 +30,14 @@ pub enum LastAction {
 pub struct MessageList {
     pub items: Vec<Message>,
     pub busy: Busy,
-    size: usize,
     pub last_action: LastAction,
 }
 
 impl MessageList {
-    pub fn new(size: usize) -> Self {
+    pub fn new() -> Self {
         Self {
             items: vec![],
             busy: Busy::NoTask,
-            size,
             last_action: LastAction::NoAction,
         }
     }
@@ -65,13 +56,6 @@ impl MessageList {
 
     pub fn append(&mut self, new_list: Message) {
         self.items.push(new_list);
-    }
-
-    pub fn items(&self) -> Vec<MessageLine<'_>> {
-        self.items
-            .iter()
-            .map(|c| MessageLine::new(c, self.size))
-            .collect_vec()
     }
 
     pub fn validation_completed(&mut self) {
@@ -113,110 +97,5 @@ impl MessageList {
             self.items.push(Message::Info(comment));
         }
         self.last_action = LastAction::Building
-    }
-}
-
-#[derive(Clone)]
-pub struct MessageLine<'a>(Line<'a>, usize, Style);
-
-impl<'a> MessageLine<'a> {
-    pub fn new(er: &'a Message, size: usize) -> Self {
-        let line = match er {
-            Message::Error(CliError::GrammarError(file, errors)) => errors
-                .iter()
-                .flat_map(|err| {
-                    vec![
-                        Span::styled(
-                            "! Validation error in file ".to_string(),
-                            Style::default()
-                                .fg(Color::Red)
-                                .add_modifier(Modifier::ITALIC),
-                        ),
-                        Span::styled(
-                            format!("{}:", file.to_str().unwrap()),
-                            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-                        ),
-                        Span::styled(
-                            format!(" {}", err),
-                            Style::default()
-                                .fg(Color::Red)
-                                .add_modifier(Modifier::ITALIC),
-                        ),
-                    ]
-                })
-                .collect::<Vec<_>>(),
-            Message::Error(CliError::BuildingError(file, errors)) => errors
-                .0
-                .iter()
-                .flat_map(|err| match err {
-                    oca_store::facade::build::Error::ValidationError(ve) => ve
-                        .iter()
-                        .flat_map(move |atomic_error| {
-                            vec![
-                                Span::styled(
-                                    "! Building error in file ".to_string(),
-                                    Style::default()
-                                        .fg(Color::Red)
-                                        .add_modifier(Modifier::ITALIC),
-                                ),
-                                Span::styled(
-                                    format!("{}:", file.to_str().unwrap()),
-                                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-                                ),
-                                Span::styled(
-                                    format!(" {}\n", atomic_error),
-                                    Style::default()
-                                        .fg(Color::Red)
-                                        .add_modifier(Modifier::ITALIC),
-                                ),
-                            ]
-                        })
-                        .collect::<Vec<_>>(),
-                    oca_store::facade::build::Error::Deprecated => {
-                        vec![Span::styled(
-                            "! Building error in file ".to_string(),
-                            Style::default()
-                                .fg(Color::Red)
-                                .add_modifier(Modifier::ITALIC),
-                        )]
-                    }
-                })
-                .collect(),
-            Message::Error(e) => vec![Span::styled(e.to_string(), Style::default())],
-            Message::Info(info) => vec![Span::styled(info, Style::default().fg(Color::Green))],
-        };
-        let height = line.iter().map(|l| l.content.len()).sum::<usize>() as f32 / size as f32;
-        Self(
-            Line::from(line).style(Style::default()),
-            height.ceil() as usize,
-            Style::default(),
-        )
-    }
-}
-
-impl Widget for MessageLine<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer)
-    where
-        Self: Sized,
-    {
-        let l = Text::from(self.0.clone());
-        let par = Paragraph::new(l).wrap(Wrap { trim: false }).style(self.2);
-        par.render(area, buf)
-    }
-}
-
-impl MessageLine<'_> {
-    pub fn height(&self) -> u16 {
-        self.1 as u16
-    }
-
-    pub fn line(&self) -> Line<'_> {
-        self.0.clone()
-    }
-
-    pub fn highlight(mut self) -> Self {
-        let style = Style::default().bold();
-        self.2 = style;
-        self
     }
 }

@@ -21,7 +21,6 @@ use ratatui::{
         Wrap,
     },
 };
-use tui_widget_list::ListState;
 
 use crate::{
     dependency_graph::{parse_name, MutableGraph},
@@ -35,7 +34,6 @@ use message_list::{Busy, LastAction, Message, MessageList};
 use super::item::Element;
 
 pub struct OutputWindow {
-    pub state: ListState,
     errors: Arc<Mutex<MessageList>>,
     currently_validated: Vec<PathBuf>,
     active: bool,
@@ -43,10 +41,9 @@ pub struct OutputWindow {
 }
 
 impl OutputWindow {
-    pub fn new(size: usize) -> Self {
+    pub fn new() -> Self {
         Self {
-            errors: Arc::new(Mutex::new(MessageList::new(size))),
-            state: ListState::default(),
+            errors: Arc::new(Mutex::new(MessageList::new())),
             currently_validated: vec![],
             active: false,
             scroll: 0,
