@@ -13,7 +13,10 @@ use dependency_graph::GraphError;
 use error::CliError;
 // use oca_presentation::presentation::Presentation;
 use oca_sdk_rs::overlay_registry::OverlayLocalRegistry;
+use oca_data_entry::{entry_schema_from_bundle_with_deps, CsvOptions, XlsxOptions, ExtractOptions, DependencyIndex};
+use oca_data_entry::{write_csv, write_xlsx};
 use oca_sdk_rs::OCABundle;
+use oca_sdk_rs::{NestedAttrType, RefValue};
 use oca_store::Facade as Store;
 // use presentation_command::PresentationCommand;
 use serde_json::json;
@@ -26,7 +29,7 @@ use std::{env, path::PathBuf, process, str::FromStr};
 use summary::SummaryGroup;
 use summary::SummaryOptions;
 use tui::app::App;
-use tui::get_oca_bundle_by_said;
+use tui::{get_oca_bundle, get_oca_bundle_by_said};
 use utils::handle_panic;
 use utils::load_nodes;
 use utils::load_remote_repo_url;
@@ -177,6 +180,34 @@ enum Commands {
     //     #[arg(short, long)]
     //     said: String,
     // },
+    /// Generate data entry template from OCA bundle (CSV or XLSX)
+    #[clap(group = clap::ArgGroup::new("data_entry_source").required(true).args(&["bundle", "said", "refn"]))]
+    DataEntry {
+        /// Bundle JSON file path
+        #[arg(long, group = "data_entry_source")]
+        bundle: Option<PathBuf>,
+        /// Bundle SAID (refs)
+        #[arg(long, group = "data_entry_source")]
+        said: Option<String>,
+        /// Bundle refn (name)
+        #[arg(long, group = "data_entry_source")]
+        refn: Option<String>,
+        /// Output format: csv | xlsx
+        #[arg(long, value_parser = ["csv", "xlsx"])]
+        format: String,
+        /// Output file path
+        #[arg(long)]
+        out: PathBuf,
+        /// Overlay definitions directory (optional)
+        #[arg(long)]
+        overlay_dir: Option<PathBuf>,
+        /// Use label overlay for headers (language code, e.g. en)
+        #[arg(long)]
+        labels: Option<String>,
+        /// Add metadata row (language code, e.g. en)
+        #[arg(long)]
+        metadata: Option<String>,
+    },
     /// Returns list of oca objects that uses provided ocafile as dependency
     Deps {
         /// Specify ocafile
@@ -211,6 +242,45 @@ fn saids_to_publish(
         };
     }
     to_publish
+}
+
+fn collect_references(attr_type: &NestedAttrType, saids: &mut Vec<String>, refns: &mut Vec<String>) {
+    match attr_type {
+        NestedAttrType::Reference(RefValue::Said(said)) => saids.push(said.to_string()),
+        NestedAttrType::Reference(RefValue::Name(name)) => refns.push(name.clone()),
+        NestedAttrType::Array(inner) => collect_references(inner, saids, refns),
+        _ => {}
+    }
+}
+
+fn build_dependency_index_from_refs(
+    facade: Arc<Mutex<Store>>,
+    saids: Vec<String>,
+    refns: Vec<String>,
+) -> DependencyIndex {
+    let mut deps_index = DependencyIndex::default();
+
+    for said in saids {
+        if let Ok(said) = SelfAddressingIdentifier::from_str(&said) {
+            if let Ok((name, bundle)) = get_oca_bundle_by_said(&said, facade.clone()) {
+                let bundle = oca_sdk_rs::OCABundle::from(bundle);
+                deps_index.by_said.insert(said.to_string(), bundle.clone());
+                deps_index.by_refn.insert(name, bundle);
+            }
+        }
+    }
+
+    for refn in refns {
+        if let Ok(bundle) = get_oca_bundle(&refn, facade.clone()) {
+            let bundle = oca_sdk_rs::OCABundle::from(bundle);
+            if let Some(said) = &bundle.digest {
+                deps_index.by_said.insert(said.to_string(), bundle.clone());
+            }
+            deps_index.by_refn.insert(refn, bundle);
+        }
+    }
+
+    deps_index
 }
 
 fn dependant_saids(
@@ -1043,6 +1113,117 @@ fn main() -> Result<(), CliError> {
             //     println!("{}", actual_json);
             //     Ok(())
             // }
+            Some(Commands::DataEntry {
+                bundle,
+                said,
+                refn,
+                format,
+                out,
+                overlay_dir,
+                labels,
+                metadata,
+            }) => {
+                let registry = match overlay_dir {
+                    Some(dir) => OverlayLocalRegistry::from_dir(dir)
+                        .map_err(|e| CliError::ReadFileFailed(PathBuf::from("overlay-dir"), e))?,
+                    None => OverlayLocalRegistry::new(),
+                };
+
+                let bundle_model = if let Some(bundle) = bundle {
+                    let bundle_str = std::fs::read_to_string(bundle)
+                        .map_err(|e| CliError::ReadFileFailed(bundle.clone(), e))?;
+                    oca_sdk_rs::load(&mut bundle_str.as_bytes(), &registry)
+                        .map_err(|e| CliError::FormatError(e.to_string()))?
+                } else {
+                    let config = init_or_read_config();
+                    let facade = Arc::new(Mutex::new(get_oca_facade(config.local_repository_path)));
+                    if let Some(said) = said {
+                        let said = SelfAddressingIdentifier::from_str(said)
+                            .map_err(CliError::InvalidSaid)?;
+                        get_oca_bundle_by_said(&said, facade.clone())
+                            .map(|(_, bundle)| bundle)
+                            .map_err(|e| e)?
+                    } else if let Some(refn) = refn {
+                        get_oca_bundle(&refn, facade.clone())
+                            .map_err(|e| e)?
+                    } else {
+                        return Err(CliError::FormatError(
+                            "Specify --bundle, --said, or --refn".to_string(),
+                        ));
+                    }
+                };
+
+                let extract_options = ExtractOptions {
+                    label_lang: labels.clone(),
+                    metadata_lang: metadata.clone(),
+                };
+
+                let facade = Arc::new(Mutex::new(get_oca_facade(init_or_read_config().local_repository_path)));
+
+                let mut refn_list = Vec::new();
+                let mut said_list = Vec::new();
+                for (_, attr_type) in &bundle_model.capture_base.attributes {
+                    collect_references(attr_type, &mut said_list, &mut refn_list);
+                }
+
+                let mut deps_index = build_dependency_index_from_refs(facade.clone(), said_list, refn_list);
+
+                if let Some(said) = &said {
+                    let said = SelfAddressingIdentifier::from_str(said)
+                        .map_err(CliError::InvalidSaid)?;
+                    if let Ok(bundle_set) = facade.lock().unwrap().get_oca_bundle_set(said.clone()) {
+                        for dep in bundle_set.dependencies.iter() {
+                            if let Some(dep_said) = &dep.digest {
+                                let dep_bundle = dep.clone();
+                                deps_index.by_said.insert(dep_said.to_string(), dep_bundle.clone());
+                                if let Ok((name, _)) = get_oca_bundle_by_said(dep_said, facade.clone()) {
+                                    deps_index.by_refn.insert(name, dep_bundle.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let schema = entry_schema_from_bundle_with_deps(&bundle_model, &deps_index, &registry, &extract_options)
+                    .map_err(|_| CliError::FormatError("Missing bundle SAID".to_string()))?;
+
+                match format.as_str() {
+                    "csv" => {
+                        let mut out_buf = Vec::new();
+                        write_csv(
+                            &schema,
+                            &mut out_buf,
+                            &CsvOptions {
+                                include_metadata_row: metadata.is_some(),
+                                label_lang: labels.clone(),
+                                metadata_lang: metadata.clone(),
+                            },
+                        )
+                        .map_err(CliError::WriteFileFailed)?;
+                        std::fs::write(out, out_buf)
+                            .map_err(CliError::WriteFileFailed)?;
+                    }
+                    "xlsx" => {
+                        write_xlsx(
+                            &schema,
+                            out,
+                            &XlsxOptions {
+                                include_metadata_row: metadata.is_some(),
+                                label_lang: labels.clone(),
+                                metadata_lang: metadata.clone(),
+                            },
+                        )
+                        .map_err(|e| CliError::FormatError(format!("XLSX write failed: {}", e)))?;
+                    }
+                    _ => {
+                        return Err(CliError::FormatError(
+                            "Unsupported format. Use csv or xlsx".to_string(),
+                        ));
+                    }
+                }
+
+                Ok(())
+            }
             Some(Commands::Deps { ocafile, directory }) => {
                 let paths = visit_dirs_recursive(directory)?;
                 let graph = MutableGraph::new(paths)?;
