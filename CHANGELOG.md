@@ -1,3 +1,13 @@
+## [0.8.0] - 2026-01-30
+
+### 🚀 Features
+
+- Add data-entry command (csv/xlsx) with labels, metadata, and refs
+
+### ⚙️ Miscellaneous Tasks
+
+- Remove ubuntu 20.04 from workflow
+- Link to oca-data-entry from crate.io
 ## [0.7.4] - 2026-01-29
 
 ### 🚀 Features
@@ -8,6 +18,7 @@
 ### ⚙️ Miscellaneous Tasks
 
 - Fix buiding warrnings and remove dead code
+- Release 0.7.4 version
 ## [0.7.3] - 2026-01-23
 
 ### ⚙️ Miscellaneous Tasks
