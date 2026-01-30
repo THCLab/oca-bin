@@ -20,7 +20,7 @@ clap = { version = "4.5.55", features = ["derive"] }
 log = "0.4.29"
 oca-store = { version = "2.0.0-rc.6", features = ["local-references"] }
 oca-sdk-rs = { version = "2.0.0-rc.5" }
-oca-data-entry = { path = "../oca-data-entry", features = ["writers-csv", "writers-xlsx"] }
+oca-data-entry = { version = "0.2.4", features = ["writers-csv", "writers-xlsx"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
 reqwest = { version = "0.13", features = ["json", "blocking"] }

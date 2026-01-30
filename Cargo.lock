@@ -2198,7 +2198,9 @@ dependencies = [
 
 [[package]]
 name = "oca-data-entry"
-version = "0.1.0"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9593a3700f581e81df9571f957dd4c6b581e09a08351d7b48021fd0b58a4d8bd"
 dependencies = [
  "csv",
  "indexmap",
