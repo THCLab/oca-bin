@@ -1,3 +1,8 @@
+## [0.8.1] - 2026-03-03
+
+### ⚙️ Miscellaneous Tasks
+
+- Update oca sdk rs and adjust imports
 ## [0.8.0] - 2026-01-30
 
 ### 🚀 Features
@@ -8,6 +13,7 @@
 
 - Remove ubuntu 20.04 from workflow
 - Link to oca-data-entry from crate.io
+- Release 0.8.0 version
 ## [0.7.4] - 2026-01-29
 
 ### 🚀 Features
