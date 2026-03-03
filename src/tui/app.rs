@@ -11,8 +11,10 @@ use std::{
 pub use super::bundle_list::BundleListError;
 use anyhow::Result;
 use crossterm::event::{self, poll, Event, KeyCode, KeyModifiers, MouseEventKind};
-use oca_sdk_rs::overlay_registry::OverlayLocalRegistry;
-use oca_sdk_rs::{NestedAttrType, OCABundle};
+use oca_sdk_rs::oca::{
+    bundle::OCABundle,
+    overlay_file::{NestedAttrType, OverlayLocalRegistry},
+};
 use oca_store::Facade as Store;
 use ratatui::{
     backend::Backend,

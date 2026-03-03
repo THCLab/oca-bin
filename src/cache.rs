@@ -2,7 +2,7 @@ use std::path::Path;
 
 use base64::{prelude::BASE64_STANDARD, Engine};
 use kv::{Bucket, Config, Json, Store};
-use oca_sdk_rs::SelfAddressingIdentifier;
+use oca_sdk_rs::oca::utils::said::SelfAddressingIdentifier;
 use sha2::{Digest, Sha256};
 
 // TODO Move to oca-store

@@ -1,7 +1,8 @@
 use std::fmt::Display;
 
+use oca_sdk_rs::oca::bundle::OCABundleModel;
+
 use crate::dependency_graph::Node;
-use oca_sdk_rs::OCABundleModel;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Status {

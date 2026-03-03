@@ -7,8 +7,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use oca_sdk_rs::SelfAddressingIdentifier;
-use oca_sdk_rs::{HashFunction, HashFunctionCode};
+use oca_sdk_rs::oca::utils::said::{HashFunction, SelfAddressingIdentifier};
+use oca_store::facade::HashFunctionCode;
 use petgraph::{graph::NodeIndex, graphmap::GraphMap, visit::EdgeRef, Directed};
 
 use ratatui::{

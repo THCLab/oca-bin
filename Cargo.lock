@@ -2198,9 +2198,9 @@ dependencies = [
 
 [[package]]
 name = "oca-data-entry"
-version = "0.2.4"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9593a3700f581e81df9571f957dd4c6b581e09a08351d7b48021fd0b58a4d8bd"
+checksum = "f83e35b4d08c31f8ea5e7a4836601a0a015a46befa3d4e22dcb63ca7055b831a"
 dependencies = [
  "csv",
  "indexmap",
@@ -2237,9 +2237,9 @@ dependencies = [
 
 [[package]]
 name = "oca-sdk-rs"
-version = "2.0.0-rc.5"
+version = "2.0.0-rc.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbc4585ce29b3655140b4a1085f14f4511f28467f9c6bccdeca719cde717e50d"
+checksum = "4ceee0f214ddcfa0e966fb8b20838c9eda2ade7f3138ccba70ddb5e191b61527"
 dependencies = [
  "lazy_static",
  "oca-ast",
@@ -2318,9 +2318,9 @@ dependencies = [
 
 [[package]]
 name = "overlay-file"
-version = "1.0.0-rc.6"
+version = "1.0.0-rc.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e22e9aaf970301939302c14b08e67ff40d01ed139142ee77ded953199c0b509d"
+checksum = "5e62c3e344e24f5de4d0024c8020064984d474bdfe6fa292ea313158d5ea0d5b"
 dependencies = [
  "env_logger",
  "indexmap",

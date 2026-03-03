@@ -31,8 +31,8 @@ impl Config {
 
 pub fn read_config(path: &PathBuf) -> Result<Config, Error> {
     let content = fs::read_to_string(path)?;
-    let config: Config = toml::from_str(&content)
-        .map_err(|e| Error::new(io::ErrorKind::InvalidData, e))?;
+    let config: Config =
+        toml::from_str(&content).map_err(|e| Error::new(io::ErrorKind::InvalidData, e))?;
     Ok(config)
 }
 

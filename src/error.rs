@@ -1,7 +1,7 @@
 use std::{io, path::PathBuf};
 
-use oca_sdk_rs::said_error;
-use oca_sdk_rs::SelfAddressingIdentifier;
+use oca_sdk_rs::oca::utils::said::error as said_error;
+use oca_sdk_rs::oca::utils::said::SelfAddressingIdentifier;
 use oca_store::facade::build::ValidationError;
 use thiserror::Error;
 

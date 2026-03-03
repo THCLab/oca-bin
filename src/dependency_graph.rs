@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use oca_sdk_rs::SelfAddressingIdentifier;
+use oca_sdk_rs::oca::utils::said::SelfAddressingIdentifier;
 use oca_store::facade::build::References;
 use petgraph::{
     algo::toposort,
@@ -370,7 +370,8 @@ impl MutableGraph {
         include_starting_node: bool,
     ) -> Result<Vec<Node>, GraphError> {
         let g = self.graph.lock().unwrap();
-        let mut out_graph: DiGraphMap<NodeIndex, (), std::collections::hash_map::RandomState> = DiGraphMap::new();
+        let mut out_graph: DiGraphMap<NodeIndex, (), std::collections::hash_map::RandomState> =
+            DiGraphMap::new();
         let mut start_nodes = vec![];
         for refn in refns {
             let start_node = g.get_index(refn)?;

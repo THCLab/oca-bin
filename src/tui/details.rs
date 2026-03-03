@@ -1,4 +1,4 @@
-use oca_sdk_rs::SelfAddressingIdentifier;
+use oca_sdk_rs::oca::utils::said::SelfAddressingIdentifier;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,

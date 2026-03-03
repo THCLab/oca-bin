@@ -6,7 +6,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use oca_sdk_rs::{NestedAttrType, RefValue};
+use oca_sdk_rs::oca::overlay_file::{NestedAttrType, RefValue};
 use oca_store::Facade as Store;
 use ratatui::{
     style::{Color, Modifier, Style},
@@ -331,7 +331,7 @@ impl Items {
         info!("Updating index: {}", i);
         let mut updated_status = None;
         for item in &mut self.nodes {
-            let Some(ind) = item.index() else { continue }; 
+            let Some(ind) = item.index() else { continue };
             if ind != i {
                 continue;
             }

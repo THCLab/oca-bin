@@ -12,11 +12,15 @@ use dependency_graph::parse_name;
 use dependency_graph::GraphError;
 use error::CliError;
 // use oca_presentation::presentation::Presentation;
-use oca_sdk_rs::overlay_registry::OverlayLocalRegistry;
-use oca_data_entry::{entry_schema_from_bundle_with_deps, CsvOptions, XlsxOptions, ExtractOptions, DependencyIndex};
+use oca_data_entry::{
+    entry_schema_from_bundle_with_deps, CsvOptions, DependencyIndex, ExtractOptions, XlsxOptions,
+};
 use oca_data_entry::{write_csv, write_xlsx};
-use oca_sdk_rs::OCABundle;
-use oca_sdk_rs::{NestedAttrType, RefValue};
+use oca_sdk_rs::oca::bundle::OCABundle;
+use oca_sdk_rs::oca::overlay_file::NestedAttrType;
+use oca_sdk_rs::oca::overlay_file::OverlayLocalRegistry;
+use oca_sdk_rs::oca::overlay_file::RefValue;
+use oca_sdk_rs::oca::utils::said::SelfAddressingIdentifier;
 use oca_store::Facade as Store;
 // use presentation_command::PresentationCommand;
 use serde_json::json;
@@ -25,7 +29,7 @@ use std::fs::read_to_string;
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::{env, path::PathBuf, process, str::FromStr};
+use std::{env, path::PathBuf, process};
 use summary::SummaryGroup;
 use summary::SummaryOptions;
 use tui::app::App;
@@ -48,8 +52,7 @@ use crate::dependency_graph::MutableGraph;
 // use crate::presentation_command::{handle_generate, handle_validate, Format};
 use crate::tui::logging::initialize_logging;
 use crate::utils::{load_ocafiles_all, visit_current_dir};
-use oca_sdk_rs::SelfAddressingIdentifier;
-
+use std::str::FromStr;
 extern crate dirs;
 
 #[macro_use]
@@ -244,7 +247,11 @@ fn saids_to_publish(
     to_publish
 }
 
-fn collect_references(attr_type: &NestedAttrType, saids: &mut Vec<String>, refns: &mut Vec<String>) {
+fn collect_references(
+    attr_type: &NestedAttrType,
+    saids: &mut Vec<String>,
+    refns: &mut Vec<String>,
+) {
     match attr_type {
         NestedAttrType::Reference(RefValue::Said(said)) => saids.push(said.to_string()),
         NestedAttrType::Reference(RefValue::Name(name)) => refns.push(name.clone()),
@@ -263,7 +270,7 @@ fn build_dependency_index_from_refs(
     for said in saids {
         if let Ok(said) = SelfAddressingIdentifier::from_str(&said) {
             if let Ok((name, bundle)) = get_oca_bundle_by_said(&said, facade.clone()) {
-                let bundle = oca_sdk_rs::OCABundle::from(bundle);
+                let bundle = oca_sdk_rs::oca::bundle::OCABundle::from(bundle);
                 deps_index.by_said.insert(said.to_string(), bundle.clone());
                 deps_index.by_refn.insert(name, bundle);
             }
@@ -272,7 +279,7 @@ fn build_dependency_index_from_refs(
 
     for refn in refns {
         if let Ok(bundle) = get_oca_bundle(&refn, facade.clone()) {
-            let bundle = oca_sdk_rs::OCABundle::from(bundle);
+            let bundle = oca_sdk_rs::oca::bundle::OCABundle::from(bundle);
             if let Some(said) = &bundle.digest {
                 deps_index.by_said.insert(said.to_string(), bundle.clone());
             }
@@ -1132,7 +1139,7 @@ fn main() -> Result<(), CliError> {
                 let bundle_model = if let Some(bundle) = bundle {
                     let bundle_str = std::fs::read_to_string(bundle)
                         .map_err(|e| CliError::ReadFileFailed(bundle.clone(), e))?;
-                    oca_sdk_rs::load(&mut bundle_str.as_bytes(), &registry)
+                    oca_sdk_rs::oca::bundle::load(&mut bundle_str.as_bytes(), &registry)
                         .map_err(|e| CliError::FormatError(e.to_string()))?
                 } else {
                     let config = init_or_read_config();
@@ -1144,8 +1151,7 @@ fn main() -> Result<(), CliError> {
                             .map(|(_, bundle)| bundle)
                             .map_err(|e| e)?
                     } else if let Some(refn) = refn {
-                        get_oca_bundle(&refn, facade.clone())
-                            .map_err(|e| e)?
+                        get_oca_bundle(&refn, facade.clone()).map_err(|e| e)?
                     } else {
                         return Err(CliError::FormatError(
                             "Specify --bundle, --said, or --refn".to_string(),
@@ -1158,7 +1164,9 @@ fn main() -> Result<(), CliError> {
                     metadata_lang: metadata.clone(),
                 };
 
-                let facade = Arc::new(Mutex::new(get_oca_facade(init_or_read_config().local_repository_path)));
+                let facade = Arc::new(Mutex::new(get_oca_facade(
+                    init_or_read_config().local_repository_path,
+                )));
 
                 let mut refn_list = Vec::new();
                 let mut said_list = Vec::new();
@@ -1166,17 +1174,23 @@ fn main() -> Result<(), CliError> {
                     collect_references(attr_type, &mut said_list, &mut refn_list);
                 }
 
-                let mut deps_index = build_dependency_index_from_refs(facade.clone(), said_list, refn_list);
+                let mut deps_index =
+                    build_dependency_index_from_refs(facade.clone(), said_list, refn_list);
 
                 if let Some(said) = &said {
-                    let said = SelfAddressingIdentifier::from_str(said)
-                        .map_err(CliError::InvalidSaid)?;
-                    if let Ok(bundle_set) = facade.lock().unwrap().get_oca_bundle_set(said.clone()) {
+                    let said =
+                        SelfAddressingIdentifier::from_str(said).map_err(CliError::InvalidSaid)?;
+                    if let Ok(bundle_set) = facade.lock().unwrap().get_oca_bundle_set(said.clone())
+                    {
                         for dep in bundle_set.dependencies.iter() {
                             if let Some(dep_said) = &dep.digest {
                                 let dep_bundle = dep.clone();
-                                deps_index.by_said.insert(dep_said.to_string(), dep_bundle.clone());
-                                if let Ok((name, _)) = get_oca_bundle_by_said(dep_said, facade.clone()) {
+                                deps_index
+                                    .by_said
+                                    .insert(dep_said.to_string(), dep_bundle.clone());
+                                if let Ok((name, _)) =
+                                    get_oca_bundle_by_said(dep_said, facade.clone())
+                                {
                                     deps_index.by_refn.insert(name, dep_bundle.clone());
                                 }
                             }
@@ -1184,8 +1198,13 @@ fn main() -> Result<(), CliError> {
                     }
                 }
 
-                let schema = entry_schema_from_bundle_with_deps(&bundle_model, &deps_index, &registry, &extract_options)
-                    .map_err(|_| CliError::FormatError("Missing bundle SAID".to_string()))?;
+                let schema = entry_schema_from_bundle_with_deps(
+                    &bundle_model,
+                    &deps_index,
+                    &registry,
+                    &extract_options,
+                )
+                .map_err(|_| CliError::FormatError("Missing bundle SAID".to_string()))?;
 
                 match format.as_str() {
                     "csv" => {
@@ -1200,8 +1219,7 @@ fn main() -> Result<(), CliError> {
                             },
                         )
                         .map_err(CliError::WriteFileFailed)?;
-                        std::fs::write(out, out_buf)
-                            .map_err(CliError::WriteFileFailed)?;
+                        std::fs::write(out, out_buf).map_err(CliError::WriteFileFailed)?;
                     }
                     "xlsx" => {
                         write_xlsx(
