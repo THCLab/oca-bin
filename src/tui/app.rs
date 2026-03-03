@@ -494,8 +494,12 @@ impl App {
         let list = self.bundles.items.clone();
         let to_show_dir = Arc::new(self.base.clone());
         let changes = self.changes.changes();
-        let registry =
-            OverlayLocalRegistry::from_dir(self.config.overlay_definitions_path.clone()).unwrap();
+        let registry = OverlayLocalRegistry::from_dir(
+            self.config.overlay_definitions_path.clone(),
+        )
+        .map_err(|e| {
+            CliError::OverlayRegistryError(self.config.overlay_definitions_path.clone(), e)
+        })?;
 
         thread::spawn(move || {
             let start = Instant::now();

@@ -409,8 +409,10 @@ fn main() -> Result<(), CliError> {
                 let config = init_or_read_config();
                 let local_repository_path = config.local_repository_path.clone();
                 let remote_repo_url_from_config = config.repository_url.clone();
-                let registry =
-                    OverlayLocalRegistry::from_dir(config.overlay_definitions_path).unwrap();
+                let registry = OverlayLocalRegistry::from_dir(config.overlay_definitions_path.clone())
+                    .map_err(|e| {
+                        CliError::OverlayRegistryError(config.overlay_definitions_path.clone(), e)
+                    })?;
 
                 let summary = match (publish, summary) {
                     (true, None) => SummaryOptions::Human,
@@ -627,8 +629,10 @@ fn main() -> Result<(), CliError> {
                 let config = init_or_read_config();
                 let local_repository_path = config.local_repository_path.clone();
                 let remote_repo_url_from_config = config.repository_url.clone();
-                let registry =
-                    OverlayLocalRegistry::from_dir(config.overlay_definitions_path).unwrap();
+                let registry = OverlayLocalRegistry::from_dir(config.overlay_definitions_path.clone())
+                    .map_err(|e| {
+                        CliError::OverlayRegistryError(config.overlay_definitions_path.clone(), e)
+                    })?;
 
                 let summary = summary.summary();
                 match (said, directory, diff, all) {
@@ -1022,8 +1026,8 @@ fn main() -> Result<(), CliError> {
                     let facade = get_oca_facade(local_repository_path);
                     let facade = Arc::new(Mutex::new(facade));
                     let mut graph = MutableGraph::new(paths)?;
-                    let registry =
-                        OverlayLocalRegistry::from_dir(overlay_definitions_path).unwrap();
+                    let registry = OverlayLocalRegistry::from_dir(overlay_definitions_path.clone())
+                        .map_err(|e| CliError::OverlayRegistryError(overlay_definitions_path, e))?;
                     match ocafile {
                         Some(oca_file) => {
                             let mut cache = HashSet::new();

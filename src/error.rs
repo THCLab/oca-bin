@@ -65,6 +65,8 @@ pub enum CliError {
     CacheError(#[from] CacheError),
     #[error("File updated before publish")]
     FileUpdated(PathBuf),
+    #[error("Error loading overlay definitions from {0}: {1}")]
+    OverlayRegistryError(PathBuf, std::io::Error),
 }
 
 impl From<oca_store::facade::build::Error> for BuildingFailures {
