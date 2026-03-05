@@ -121,14 +121,17 @@ enum Commands {
         overlayfile: Option<PathBuf>,
     },
     /// Publish oca objects into online repository
-    #[clap(group = clap::ArgGroup::new("publish").required(true).args(&["said", "directory"]))]
+    #[clap(group = clap::ArgGroup::new("publish").required(true).args(&["said", "name", "directory"]))]
     Publish {
         /// Specify online repository url
         #[arg(short, long)]
         repository_url: Option<String>,
         /// Specify the SAID of the OCA object to publish
-        #[arg(short, long, group = "publish")]
+        #[arg(short = 's', long, group = "publish")]
         said: Option<String>,
+        /// Specify the name (refn) of the OCA object to publish
+        #[arg(short = 'n', long, group = "publish")]
+        name: Option<String>,
         /// Publish only the ocafiles that were changed since the last build
         #[arg(long, action, requires = "directory")]
         diff: bool,
@@ -620,6 +623,7 @@ fn main() -> Result<(), CliError> {
             Some(Commands::Publish {
                 repository_url,
                 said,
+                name,
                 timeout,
                 diff,
                 directory,
@@ -635,8 +639,8 @@ fn main() -> Result<(), CliError> {
                     })?;
 
                 let summary = summary.summary();
-                match (said, directory, diff, all) {
-                    (Some(said), None, false, _) => {
+                match (said, name, directory, diff, all) {
+                    (Some(said), None, None, false, _) => {
                         let mut published = vec![];
                         info!("Publish OCA bundle and its dependencies to repository");
                         let facade = get_oca_facade(local_repository_path);
@@ -716,7 +720,90 @@ fn main() -> Result<(), CliError> {
                             }
                         }
                     }
-                    (None, Some(directory), false, _) => {
+                    (None, Some(name), None, false, _) => {
+                        let mut published = vec![];
+                        info!("Publish OCA bundle and its dependencies to repository");
+                        let facade = get_oca_facade(local_repository_path);
+                        let facade = Arc::new(Mutex::new(facade));
+                        let refs = facade.lock().unwrap().fetch_all_refs().unwrap();
+                        let said_str = refs.get(name.as_str())
+                            .ok_or(CliError::OCABundleRefnNotFound(name.clone()))?;
+                        match SelfAddressingIdentifier::from_str(said_str) {
+                            Ok(said) => {
+                                // Find dependant saids for said.
+                                let saids_to_publish =
+                                    saids_to_publish(facade.clone(), &[said.clone()]);
+                                let remote_repo_url = load_remote_repo_url(
+                                    repository_url,
+                                    remote_repo_url_from_config,
+                                )?;
+                                // Make post request for all saids
+                                let res: Vec<_> = saids_to_publish
+                                    .iter()
+                                    .flat_map(|said| {
+                                        match publish_oca_file_for(
+                                            facade.clone(),
+                                            said.clone(),
+                                            timeout,
+                                            remote_repo_url.clone(),
+                                        )
+                                        .map(|_| get_oca_bundle_by_said(said, facade.clone()))
+                                        {
+                                            Ok(Ok((bundle_name, _bundle))) => {
+                                                {
+                                                    match summary {
+                                                        summary::SummaryOptions::Human => {
+                                                            println!(
+                                                                "Publishing {} (name: {}) to {}",
+                                                                &said, bundle_name, &remote_repo_url
+                                                            );
+                                                        }
+                                                        summary::SummaryOptions::Json => {
+                                                            published.push(PublishedInfo {
+                                                                name: bundle_name,
+                                                                said: said.clone(),
+                                                                built: false,
+                                                                published: true,
+                                                            });
+                                                        }
+                                                        summary::SummaryOptions::None => {}
+                                                    }
+                                                }
+                                                vec![]
+                                            }
+                                            Ok(Err(e)) => {
+                                                // shouldn't happened
+                                                info!("Shouldn't happened: {}", e);
+                                                vec![e.to_string()]
+                                            }
+                                            Err(err) => vec![err.to_string()],
+                                        }
+                                    })
+                                    .collect();
+
+                                if let SummaryOptions::Json = summary {
+                                    println!(
+                                        "{}",
+                                        serde_json::to_string_pretty(
+                                            &json!({"published": published})
+                                        )
+                                        .unwrap()
+                                    )
+                                }
+
+                                if res.is_empty() {
+                                    Ok(())
+                                } else {
+                                    Err(CliError::PublishError(said, res))
+                                }
+                            }
+                            Err(err) => {
+                                println!("Invalid SAID: {}", err);
+                                Err(err.into())
+                            }
+                        }
+                    }
+                    (None, None, Some(directory), false, _) => {
                         let nodes = load_nodes(None, Some(directory))?;
                         let facade =
                             Arc::new(Mutex::new(get_oca_facade(local_repository_path.clone())));
@@ -742,7 +829,7 @@ fn main() -> Result<(), CliError> {
                         handle_publish(facade, remote_repo_url, statuses, &said_cache, &summary)?;
                         Ok(())
                     }
-                    (None, Some(directory), true, false) => {
+                    (None, None, Some(directory), true, false) => {
                         let nodes = load_nodes(None, Some(directory))?;
                         let facade =
                             Arc::new(Mutex::new(get_oca_facade(local_repository_path.clone())));
@@ -767,15 +854,15 @@ fn main() -> Result<(), CliError> {
                         )?;
                         Ok(())
                     }
-                    (_, None, true, false) => {
+                    (_, _, None, true, false) => {
                         println!("Error: --diff is only available with -d or --directory option");
                         Ok(())
                     }
-                    (_, None, false, true) => {
+                    (_, _, None, false, true) => {
                         println!("Error: --all is only available with -d or --directory option");
                         Ok(())
                     }
-                    (_, _, true, true) => {
+                    (_, _, _, true, true) => {
                         println!("Error: --all and --diff can't be used at the same time");
                         Ok(())
                     }
