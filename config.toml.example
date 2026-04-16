@@ -1,3 +1,16 @@
 local_repository_path = "/home/user/repo/example/.oca"
 repository_url = "https://repository.oca.argo.colossi.network/"
 overlay_definitions_path = "/home/user/repo/example/overlay_definitions/"
+
+# Overlay sources define where overlay definitions are fetched from.
+# Run `oca overlay-sync` to fetch and update overlay definitions.
+# The default source below is added automatically on `oca init`.
+
+[[overlay_sources]]
+type = "git"
+url = "https://github.com/the-human-colossus-foundation/overlays-repository"
+
+# You can add local directories as additional sources:
+# [[overlay_sources]]
+# type = "local"
+# path = "/path/to/my/custom/overlays"

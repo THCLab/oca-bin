@@ -306,11 +306,8 @@ impl App {
                         KeyCode::Char('v') => {
                             let selected = self.bundles.selected_oca_bundle();
                             let paths = selected.iter().map(|el| el.path().to_path_buf()).collect();
-                            // TODO take from config
-                            let registry = OverlayLocalRegistry::from_dir(
-                                "../oca-rs/overlay-file/core_overlays/",
-                            )
-                            .unwrap();
+                            let registry = crate::overlay_sources::load_overlay_registry(&self.config)
+                                .unwrap_or_else(|_| OverlayLocalRegistry::new());
                             self.output.set_currently_validated(paths);
 
                             self.output.handle_validate(
@@ -494,12 +491,7 @@ impl App {
         let list = self.bundles.items.clone();
         let to_show_dir = Arc::new(self.base.clone());
         let changes = self.changes.changes();
-        let registry = OverlayLocalRegistry::from_dir(
-            self.config.overlay_definitions_path.clone(),
-        )
-        .map_err(|e| {
-            CliError::OverlayRegistryError(self.config.overlay_definitions_path.clone(), e)
-        })?;
+        let registry = crate::overlay_sources::load_overlay_registry(&self.config)?;
 
         thread::spawn(move || {
             let start = Instant::now();

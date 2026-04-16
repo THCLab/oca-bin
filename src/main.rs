@@ -47,6 +47,7 @@ use oca_store::repositories::SQLiteConfig;
 use url::Url;
 
 use crate::config::{init_or_read_config, write_config, Config, OCA_DIR_NAME};
+use crate::overlay_sources::load_overlay_registry;
 use crate::dependency_graph::parse_node;
 use crate::dependency_graph::MutableGraph;
 // use crate::presentation_command::{handle_generate, handle_validate, Format};
@@ -65,6 +66,7 @@ mod dependency_graph;
 pub mod error;
 // mod mapping;
 // pub mod presentation_command;
+mod overlay_sources;
 mod summary;
 mod tui;
 mod utils;
@@ -214,6 +216,8 @@ enum Commands {
         #[arg(long)]
         metadata: Option<String>,
     },
+    /// Sync overlay definitions from configured sources
+    OverlaySync {},
     /// Returns list of oca objects that uses provided ocafile as dependency
     Deps {
         /// Specify ocafile
@@ -412,10 +416,7 @@ fn main() -> Result<(), CliError> {
                 let config = init_or_read_config();
                 let local_repository_path = config.local_repository_path.clone();
                 let remote_repo_url_from_config = config.repository_url.clone();
-                let registry = OverlayLocalRegistry::from_dir(config.overlay_definitions_path.clone())
-                    .map_err(|e| {
-                        CliError::OverlayRegistryError(config.overlay_definitions_path.clone(), e)
-                    })?;
+                let registry = load_overlay_registry(&config)?;
 
                 let summary = match (publish, summary) {
                     (true, None) => SummaryOptions::Human,
@@ -633,10 +634,7 @@ fn main() -> Result<(), CliError> {
                 let config = init_or_read_config();
                 let local_repository_path = config.local_repository_path.clone();
                 let remote_repo_url_from_config = config.repository_url.clone();
-                let registry = OverlayLocalRegistry::from_dir(config.overlay_definitions_path.clone())
-                    .map_err(|e| {
-                        CliError::OverlayRegistryError(config.overlay_definitions_path.clone(), e)
-                    })?;
+                let registry = load_overlay_registry(&config)?;
 
                 let summary = summary.summary();
                 match (said, name, directory, diff, all) {
@@ -1108,13 +1106,11 @@ fn main() -> Result<(), CliError> {
                 } else {
                     let config = init_or_read_config();
                     let local_repository_path = config.local_repository_path.clone();
-                    let overlay_definitions_path = config.overlay_definitions_path.clone();
 
                     let facade = get_oca_facade(local_repository_path);
                     let facade = Arc::new(Mutex::new(facade));
                     let mut graph = MutableGraph::new(paths)?;
-                    let registry = OverlayLocalRegistry::from_dir(overlay_definitions_path.clone())
-                        .map_err(|e| CliError::OverlayRegistryError(overlay_definitions_path, e))?;
+                    let registry = load_overlay_registry(&config)?;
                     match ocafile {
                         Some(oca_file) => {
                             let mut cache = HashSet::new();
@@ -1331,6 +1327,31 @@ fn main() -> Result<(), CliError> {
                     }
                 }
 
+                Ok(())
+            }
+            Some(Commands::OverlaySync {}) => {
+                let config = init_or_read_config();
+                if config.overlay_sources.is_empty() {
+                    println!("No overlay sources configured. Add [[overlay_sources]] to your config.toml");
+                    println!("Default source will be added on next `oca init`.");
+                    return Ok(());
+                }
+                let cache_dir = overlay_sources::sync_overlay_sources(&config)?;
+                println!("Overlay definitions synced to {}", cache_dir.display());
+                let mut count = 0;
+                for entry in std::fs::read_dir(&cache_dir)? {
+                    let entry = entry?;
+                    if entry
+                        .path()
+                        .extension()
+                        .and_then(|s| s.to_str())
+                        .map_or(false, |ext| ext == "overlayfile")
+                    {
+                        println!("  {}", entry.file_name().to_string_lossy());
+                        count += 1;
+                    }
+                }
+                println!("{} overlay file(s) available", count);
                 Ok(())
             }
             Some(Commands::Deps { ocafile, directory }) => {

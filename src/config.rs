@@ -5,11 +5,14 @@ use std::{fs, process};
 use oca_store::data_storage::{DataStorage, SledDataStorage, SledDataStorageConfig};
 use serde::{Deserialize, Serialize};
 
+use crate::overlay_sources::OverlaySource;
+
 pub const OCA_CACHE_DB_DIR: &str = "oca_cache";
 pub const OCA_REPOSITORY_DIR: &str = "oca_repository";
 pub const OCA_INDEX_DIR: &str = "read_db";
 pub const OCA_DIR_NAME: &str = ".oca";
 pub const OVERLAY_DEF_DIR_NAME: &str = "overlay_definitions/";
+pub const OVERLAY_CACHE_DIR_NAME: &str = "overlay_cache";
 const DEFAULT_OVERLAY_DEFINITIONS: &str = include_str!("../config/core.overlayfile");
 
 #[derive(Default, Debug, Serialize, Deserialize)]
@@ -17,6 +20,8 @@ pub struct Config {
     pub local_repository_path: PathBuf,
     pub repository_url: Option<String>,
     pub overlay_definitions_path: PathBuf,
+    #[serde(default)]
+    pub overlay_sources: Vec<OverlaySource>,
 }
 
 impl Config {
@@ -24,8 +29,13 @@ impl Config {
         Config {
             local_repository_path,
             overlay_definitions_path,
+            overlay_sources: vec![OverlaySource::default()],
             ..Default::default()
         }
+    }
+
+    pub fn overlay_cache_path(&self) -> PathBuf {
+        self.local_repository_path.join(OVERLAY_CACHE_DIR_NAME)
     }
 }
 

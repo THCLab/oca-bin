@@ -67,6 +67,8 @@ pub enum CliError {
     FileUpdated(PathBuf),
     #[error("Error loading overlay definitions from {0}: {1}")]
     OverlayRegistryError(PathBuf, std::io::Error),
+    #[error("Failed to sync overlay source '{0}': {1}")]
+    OverlaySyncError(String, String),
 }
 
 impl From<oca_store::facade::build::Error> for BuildingFailures {
