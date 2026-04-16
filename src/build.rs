@@ -231,18 +231,35 @@ pub fn rebuild(
     };
 
     // Handle build
+    let mut built_nodes = Vec::new();
+    let mut failed = false;
     for node in nodes_to_build.iter() {
-        build(
+        match build(
             facade.clone(),
             node,
             Some(&cache),
             summary,
             registry.clone(),
-        )?;
+        ) {
+            Ok(_) => {
+                built_nodes.push(node.clone());
+            }
+            Err(e) => {
+                failed = true;
+                eprintln!("Warning: failed to build {:?}: {}", node.path, e);
+            }
+        }
     }
-    // cache_saids.save()?;
-    // cached_digests.save()?;
-    Ok((nodes_to_build, cache))
+    if failed {
+        if let SummaryOptions::Human = summary {
+            eprintln!(
+                "Built {}/{} files successfully",
+                built_nodes.len(),
+                nodes_to_build.len()
+            );
+        }
+    }
+    Ok((built_nodes, cache))
 }
 
 #[derive(Serialize)]
